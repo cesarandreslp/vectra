@@ -3,44 +3,54 @@ import { config } from 'dotenv'
 config({ path: '../../.env' })
 
 /**
- * Importa el directorio real de puestos de votación de Guadalajara de Buga
- * (Presidencia 2026, segunda vuelta), obtenido de la API pública de
- * resultados de la Registraduría:
- *   https://resultadosprecpresidente2026-2v.registraduria.gov.co/json/ACT/PR/{codigoZona}.json
- * (zonas 3102201..3102206 = comunas urbanas 1-6, 3102298 = puesto especial
- * "CARCEL", 3102299 = puestos rurales de los corregimientos).
+ * Importa el directorio real de puestos de votación y mesas de Guadalajara de
+ * Buga, en la BD de CADA tenant activo que tenga el municipio.
  *
- * Crea VotingStation (sin lat/lng excepto la Cárcel, ya georreferenciada) +
- * sus VotingTable (una por mesa), asignadas a la comuna/corregimiento real
- * — por número de zona en las urbanas, por punto-en-polígono para la
- * cárcel, y por coincidencia de nombre para las rurales.
+ * Fuente: nomenclátor público de la Registraduría (Presidencia 2026, segunda
+ * vuelta), que trae la jerarquía completa DEPARTAMENTO → MUNICIPIO → ZONA →
+ * PUESTO → MESA:
+ *   https://resultadosprecpresidente2026-2v.registraduria.gov.co/json/nomenclator.json
  *
- * SOLO DESARROLLO. Uso: pnpm db:import-puestos-buga <ruta-al-json>
+ * El script LO DESCARGA. Antes esperaba un JSON armado a mano que nunca estuvo
+ * en el repo, así que no se podía correr; y escribía en la DATABASE_URL suelta,
+ * que en multi-tenant no es la BD de ninguna campaña.
+ *
+ * Zonas de Buga: 01-06 = comunas urbanas, 98 = puesto especial "CARCEL",
+ * 99 = puestos rurales de los corregimientos. La zona sirve para redactar la
+ * dirección del puesto: VotingStation cuelga del municipio, no de la comuna.
+ *
+ * Idempotente: identifica por (municipio, nombre) y solo agrega las mesas que
+ * falten, así que volver a correrlo no duplica ni pisa capacidades editadas.
+ *
+ * Uso desde packages/db:  tsx src/import-puestos-buga.ts
  */
 
-import { readFileSync } from 'fs'
 import { neonConfig } from '@neondatabase/serverless'
 import { PrismaClient } from '@prisma/client'
 import { PrismaNeon } from '@prisma/adapter-neon'
 import ws from 'ws'
+import { decrypt } from './crypto'
 
 neonConfig.webSocketConstructor = ws
 
-type Punto = [number, number]
+const NOMENCLATOR = 'https://resultadosprecpresidente2026-2v.registraduria.gov.co/json/nomenclator.json'
+const COD_BUGA    = '31022' // código de municipio de la Registraduría (≠ DIVIPOLA)
+const DIVIPOLA    = '76111' // Guadalajara de Buga, para encontrarlo en nuestra DB
 
-interface PuestoRaw { codigo: string; nombre: string; mesas: number; zona: string }
+/** Cárcel de Buga: la Registraduría no da coordenadas y el puesto cae en un hueco del KML. */
+const CARCEL = { lat: 3.92211, lng: -76.29657, direccion: 'Calle 15 # 8-40, Buga' }
 
-function puntoEnPoligono(punto: Punto, poligono: Punto[]): boolean {
-  const [px, py] = punto
-  let dentro = false
-  for (let i = 0, j = poligono.length - 1; i < poligono.length; j = i++) {
-    const [xi, yi] = poligono[i]
-    const [xj, yj] = poligono[j]
-    const cruza = (yi > py) !== (yj > py) && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi
-    if (cruza) dentro = !dentro
-  }
-  return dentro
+/** Nodo del nomenclátor. `l` = nivel (4 zona, 6 puesto), `m` = mesas, `h` = hijos. */
+interface Ambito {
+  i: number
+  n: string
+  c: string
+  l: number
+  m: number
+  h?: { l: number; p: number[] }[]
 }
+
+interface Puesto { nombre: string; mesas: number; zona: string }
 
 function normalizar(s: string): string {
   return s.toLowerCase()
@@ -50,90 +60,111 @@ function normalizar(s: string): string {
     .trim()
 }
 
-const CARCEL_LAT = 3.92211
-const CARCEL_LNG = -76.29657
+function tituloCase(s: string): string {
+  return s.trim().replace(/\s+/g, ' ').replace(/\S+/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase())
+}
+
+function hijos(nodo: Ambito, nivel: number): number[] {
+  return nodo.h?.find((h) => h.l === nivel)?.p ?? []
+}
+
+/** Puestos de Buga con su número de mesas y su zona, desde el nomenclátor. */
+async function descargarPuestos(): Promise<Puesto[]> {
+  const res = await fetch(NOMENCLATOR)
+  if (!res.ok) throw new Error(`No se pudo descargar el nomenclátor: HTTP ${res.status}`)
+  const data = (await res.json()) as { amb: { ambitos: Ambito[] }[] }
+  const ambitos = data.amb[0].ambitos
+
+  const municipio = ambitos.find((a) => a.l === 3 && a.c === COD_BUGA)
+  if (!municipio) throw new Error(`No se encontró el municipio ${COD_BUGA} en el nomenclátor.`)
+
+  const puestos: Puesto[] = []
+  for (const zi of hijos(municipio, 4)) {
+    const zona = ambitos[zi]
+    for (const pi of hijos(zona, 6)) {
+      const p = ambitos[pi]
+      puestos.push({ nombre: p.n, mesas: p.m, zona: zona.c.slice(-2) })
+    }
+  }
+  return puestos
+}
 
 async function main() {
-  const rutaJson = process.argv[2]
-  if (!rutaJson) {
-    console.error('Uso: pnpm db:import-puestos-buga <ruta-al-json>')
-    process.exit(1)
-  }
-  const puestos: PuestoRaw[] = JSON.parse(readFileSync(rutaJson, 'utf-8'))
+  const puestos = await descargarPuestos()
+  const totalMesas = puestos.reduce((n, p) => n + p.mesas, 0)
+  console.log(`Registraduría: ${puestos.length} puestos, ${totalMesas} mesas en Buga\n`)
 
-  const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL! })
-  const db = new PrismaClient({ adapter })
+  const superadmin = new PrismaClient({
+    adapter: new PrismaNeon({ connectionString: process.env.DATABASE_URL_SUPERADMIN! }),
+  })
+  const tenants = await superadmin.tenant.findMany({
+    where:  { isActive: true },
+    select: { slug: true, connectionString: true },
+  })
+  await superadmin.$disconnect()
 
-  const buga = await db.municipality.findFirstOrThrow({ where: { divipola: '76111' } })
-  const territorio = await db.commune.findMany({ where: { municipalityId: buga.id } })
-  const comunasUrbanas = territorio.filter((c) => c.type === 'COMUNA')
-  const corregimientos = territorio.filter((c) => c.type === 'CORREGIMIENTO')
-
-  let creados = 0
-  let mesasCreadas = 0
-  const sinAsignar: string[] = []
-
-  for (const p of puestos) {
-    let comuna: (typeof territorio)[number] | undefined
-
-    if (p.zona === '98') {
-      // Cárcel — ya georreferenciada por INPEC. Cae fuera de todos los polígonos
-      // mapeados (hueco real del KML entre zona urbana y corregimientos), así
-      // que no depende de comuna: se crea directo más abajo.
-    } else if (p.zona === '99') {
-      // Rural — coincidencia de nombre contra los corregimientos ya importados
-      const nombreNorm = normalizar(p.nombre)
-      comuna = corregimientos.find((c) => nombreNorm.includes(normalizar(c.name)))
-    } else {
-      // Zonas 01-06 = Comuna 1-6 directamente
-      const num = parseInt(p.zona, 10)
-      comuna = comunasUrbanas.find((c) => c.name === `Comuna ${num}`)
-    }
-
-    const esCarcel = p.zona === '98'
-    if (!comuna && !esCarcel) {
-      sinAsignar.push(`${p.nombre} (zona ${p.zona})`)
+  for (const t of tenants) {
+    const db = new PrismaClient({ adapter: new PrismaNeon({ connectionString: decrypt(t.connectionString) }) })
+    const municipio = await db.municipality.findUnique({ where: { divipola: DIVIPOLA } })
+    if (!municipio) {
+      console.log(`  --  ${t.slug}: sin el municipio ${DIVIPOLA}, se omite`)
+      await db.$disconnect()
       continue
     }
 
-    const nombreLimpio = p.nombre.trim().replace(/\s+/g, ' ')
-    const direccion = esCarcel
-      ? 'Calle 15 # 8-40, Buga'
-      : `${comuna!.name}, Guadalajara de Buga, Valle del Cauca`
+    const zonas = await db.commune.findMany({ where: { municipalityId: municipio.id } })
+    const comunas        = zonas.filter((z) => z.type === 'COMUNA')
+    const corregimientos = zonas.filter((z) => z.type === 'CORREGIMIENTO')
 
-    const existente = await db.votingStation.findFirst({
-      where: { municipalityId: buga.id, name: { equals: esCarcel ? 'Cárcel de Buga' : nombreLimpio, mode: 'insensitive' } },
-    })
-    const estacion = existente
-      ? await db.votingStation.update({
-          where: { id: existente.id },
-          data: esCarcel ? { specialLabel: 'Cárcel', lat: CARCEL_LAT, lng: CARCEL_LNG } : {},
-        })
-      : await db.votingStation.create({
-          data: {
-            name: esCarcel ? 'Cárcel de Buga' : nombreLimpio,
-            address: direccion,
-            municipalityId: buga.id,
-            ...(esCarcel ? { lat: CARCEL_LAT, lng: CARCEL_LNG, specialLabel: 'Cárcel' } : {}),
-          },
-        })
+    let creados = 0, actualizados = 0, mesasCreadas = 0
+    const sinZona: string[] = []
 
-    const mesasExistentes = await db.votingTable.count({ where: { stationId: estacion.id } })
-    for (let n = mesasExistentes + 1; n <= p.mesas; n++) {
-      await db.votingTable.create({ data: { number: n, stationId: estacion.id, voterCapacity: 350 } })
-      mesasCreadas++
+    for (const p of puestos) {
+      const esCarcel = p.zona === '98'
+      // Solo para la dirección: VotingStation no tiene relación con Commune.
+      const zona = esCarcel ? undefined
+        : p.zona === '99'
+          ? corregimientos.find((c) => normalizar(p.nombre).includes(normalizar(c.name)))
+          : comunas.find((c) => c.name === `Comuna ${parseInt(p.zona, 10)}`)
+
+      if (!zona && !esCarcel) {
+        sinZona.push(`${p.nombre} (zona ${p.zona})`)
+        continue
+      }
+
+      const nombre    = esCarcel ? 'Cárcel de Buga' : tituloCase(p.nombre)
+      const direccion = esCarcel ? CARCEL.direccion : `${zona!.name}, Guadalajara de Buga, Valle del Cauca`
+
+      const existente = await db.votingStation.findFirst({
+        where: { municipalityId: municipio.id, name: { equals: nombre, mode: 'insensitive' } },
+      })
+      const estacion = existente
+        ? (actualizados++, await db.votingStation.update({
+            where: { id: existente.id },
+            data:  { address: direccion, ...(esCarcel ? { lat: CARCEL.lat, lng: CARCEL.lng, specialLabel: 'Cárcel' } : {}) },
+          }))
+        : (creados++, await db.votingStation.create({
+            data: {
+              name: nombre, address: direccion, municipalityId: municipio.id,
+              ...(esCarcel ? { lat: CARCEL.lat, lng: CARCEL.lng, specialLabel: 'Cárcel' } : {}),
+            },
+          }))
+
+      // Solo se agregan las que falten: no se tocan las mesas ya existentes,
+      // que pueden tener voterCapacity ajustada a mano.
+      const yaHay = await db.votingTable.count({ where: { stationId: estacion.id } })
+      for (let n = yaHay + 1; n <= p.mesas; n++) {
+        await db.votingTable.create({ data: { number: n, stationId: estacion.id, voterCapacity: 350 } })
+        mesasCreadas++
+      }
     }
 
-    creados++
-    console.log(`✓ ${nombreLimpio} → ${comuna?.name ?? '(cárcel, fuera de polígonos mapeados)'} (${p.mesas} mesas)`)
+    console.log(`  OK  ${t.slug}: puestos ${creados} creados / ${actualizados} actualizados · ${mesasCreadas} mesas creadas`)
+    if (sinZona.length > 0) {
+      console.log(`      ⚠ sin comuna/corregimiento que los ubique, NO creados (${sinZona.length}): ${sinZona.join(', ')}`)
+    }
+    await db.$disconnect()
   }
-
-  console.log(`\n✓ ${creados}/${puestos.length} puestos procesados, ${mesasCreadas} mesas creadas.`)
-  if (sinAsignar.length > 0) {
-    console.log(`⚠ Sin comuna/corregimiento asignado: ${sinAsignar.join(', ')}`)
-  }
-
-  process.exit(0)
 }
 
 main().catch((err) => {
