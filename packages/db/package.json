@@ -21,6 +21,7 @@
     "db:import-corregimientos-y-barrios": "tsx src/import-corregimientos-y-barrios.ts",
     "db:import-puestos-buga": "tsx src/import-puestos-buga.ts",
     "db:geocodificar-puestos-buga": "tsx src/geocodificar-puestos-buga.ts",
+    "db:sembrar-red-prueba-buga": "tsx src/sembrar-red-prueba-buga.ts",
     "db:backfill-qr-electores": "tsx src/backfill-qr-electores.ts",
     "generate": "prisma generate --schema=./prisma/schema.prisma",
     "postinstall": "prisma generate --schema=./prisma/schema.prisma"
