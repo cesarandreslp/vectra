@@ -18,3 +18,30 @@
   --color-plata:        #c9c9c9;
   --color-plata-light:  #e7e7e7;
 }
+
+/* Scroll dentro de una superficie pintada con el color del tenant (el menú del
+   sidebar). La barra nativa sobre un fondo de marca canta muchísimo: se afina y
+   se tiñe con las mismas variables de contraste, así funciona igual sobre una
+   marca oscura que sobre una clara. Ver lib/brand-contrast.ts.
+
+   scrollbar-color es el estándar (Firefox y Chrome 121+); el bloque ::-webkit
+   cubre los WebKit viejos, sobre todo Safari. */
+@utility scroll-marca {
+  scrollbar-width: thin;
+  scrollbar-color: var(--brand-border) transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--brand-border);
+    border-radius: 9999px;
+  }
+  /* Se marca al pasar el mouse, para que se note que se puede arrastrar. */
+  &:hover::-webkit-scrollbar-thumb {
+    background-color: var(--brand-hover);
+  }
+}

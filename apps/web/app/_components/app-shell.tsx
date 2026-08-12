@@ -114,7 +114,8 @@ export async function AppShell({
           flex flex-col gap-2 overflow-hidden
           -translate-x-full peer-checked/drawer:translate-x-0
           transition-all duration-200
-          md:static md:translate-x-0 md:w-56 md:flex-shrink-0
+          md:sticky md:top-0 md:bottom-auto md:self-start md:h-[100dvh]
+          md:translate-x-0 md:w-56 md:flex-shrink-0
           peer-checked/collapse:md:w-0 peer-checked/collapse:md:px-0
         "
       >
@@ -129,6 +130,11 @@ export async function AppShell({
           </svg>
         </label>
 
+        {/* Zona con scroll propio: el menú puede ser más alto que la pantalla
+            (11 rutas + los otros módulos). min-h-0 es lo que permite encoger a
+            un hijo flex; sin él, el bloque crece y empuja el pie fuera de vista,
+            que es justo lo que obligaba a hacer scroll para cerrar sesión. */}
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scroll-marca">
         <div className="mb-6">
           {logoUrl && (
             // Ocupa todo el ancho útil del sidebar. max-h evita que un logo muy
@@ -178,8 +184,10 @@ export async function AppShell({
             </nav>
           </div>
         )}
+        </div>
 
-        <div className="mt-auto pt-4 border-t border-[var(--brand-border)] text-xs leading-tight whitespace-nowrap">
+        {/* Pie anclado: queda siempre a la vista, sin depender del scroll. */}
+        <div className="shrink-0 pt-4 border-t border-[var(--brand-border)] text-xs leading-tight whitespace-nowrap">
           <div className="truncate text-[var(--brand-fg-dim)]">{userEmail}</div>
           <div className="text-[var(--brand-fg-dim)] font-semibold mt-0.5 mb-3 uppercase tracking-wider text-[10px]">
             {userRole}
