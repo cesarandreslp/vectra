@@ -62,6 +62,14 @@ enum ConversationState {
   RECHAZADO
 }
 
+/// Ámbito de agenda que administra un gestor. Son dos agendas separadas con
+/// gestores distintos: la del candidato (su asistente, y la única reservable
+/// por electores) y la de los jefes de debate (otra persona, sin electores).
+enum AgendaAmbito {
+  CANDIDATO
+  JEFES
+}
+
 /// Estado operativo de un líder en la campaña
 enum LeaderStatus {
   ACTIVO // Operando normalmente
@@ -208,9 +216,18 @@ model Voter {
   // campaña — se excluye del panel de líderes y del ranking (sigue contando para
   // el sub-árbol de quien sí aparece). A lo sumo uno por tenant.
   isCandidate      Boolean          @default(false)
-  // "Jefe de debate" — además del candidato (que siempre tiene agenda),
-  // el admin puede marcar a otros con agenda propia reservable por electores.
+  // "Jefe de debate" — además del candidato, el admin puede marcar a otros con
+  // agenda propia. OJO: solo la del candidato es reservable por electores.
   tieneAgenda      Boolean          @default(false)
+  // Quien ADMINISTRA una agenda, que no es quien la protagoniza: el asistente
+  // del candidato lleva el 100% de la suya, y otra persona lleva la de los
+  // jefes de debate. El anfitrión ve su agenda pero no la escribe. Si nadie
+  // tiene el ámbito, el admin del tenant queda como respaldo (ver lib/agenda).
+  gestionaAgenda   AgendaAmbito?
+  // Solo significa algo en el candidato: si su agenda está abierta para que
+  // los electores reserven. La abre y la cierra su gestor, según haya espacios
+  // por cubrir o por orden del candidato.
+  agendaAbierta    Boolean          @default(false)
   votingTableId    String? // Mesa donde está inscrito
   commitmentStatus CommitmentStatus @default(SIN_CONTACTAR)
   lastContact      DateTime? // Último contacto registrado
@@ -234,6 +251,8 @@ model Voter {
   // Agenda reservable (candidato / jefes de debate) y convocatorias top-down
   agendaPropia            AgendaEntrada[]             @relation("AgendaAnfitrion")
   agendaReservas          AgendaEntrada[]              @relation("AgendaReservante")
+  aperturasAgendaPropia   AgendaApertura[]            @relation("AgendaAperturaAnfitrion")
+  aperturasAgendaGestion  AgendaApertura[]            @relation("AgendaAperturaGestor")
   convocatoriasCreadas    Convocatoria[]
   convocatoriasRecibidas  ConvocatoriaDestinatario[]
 
@@ -1128,6 +1147,28 @@ model AgendaEntrada {
   reservante Voter? @relation("AgendaReservante", fields: [reservadoPor], references: [id], onDelete: SetNull)
 
   @@index([tenantId, anfitrionId, startsAt])
+}
+
+/// Bitácora de aperturas y cierres de la agenda, append-only.
+///
+/// Existe porque el admin del tenant puede abrir la agenda cuando el ámbito no
+/// tiene gestor, y eso puede dejar sin efecto un cierre pedido por el propio
+/// candidato. Voter.agendaAbierta solo guarda el estado actual; esto guarda
+/// quién lo cambió, cuándo y por qué.
+model AgendaApertura {
+  id          String   @id @default(cuid())
+  tenantId    String
+  anfitrionId String // de quién es la agenda que se abrió o cerró
+  abierta     Boolean // true = se abrió, false = se cerró
+  gestorId    String? // Voter del gestor del ámbito, cuando lo hizo él
+  adminUserId String? // User del admin, cuando actuó como respaldo por no haber gestor
+  motivo      String?
+  createdAt   DateTime @default(now())
+
+  anfitrion Voter  @relation("AgendaAperturaAnfitrion", fields: [anfitrionId], references: [id], onDelete: Cascade)
+  gestor    Voter? @relation("AgendaAperturaGestor", fields: [gestorId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, anfitrionId, createdAt])
 }
 
 /// Convocatoria del candidato o un jefe de debate hacia electores (algunos o
