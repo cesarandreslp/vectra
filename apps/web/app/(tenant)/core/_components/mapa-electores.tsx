@@ -19,12 +19,6 @@ const COLOR_JURISDICCION: Record<StationGeo['estado'], string> = {
   NO_CUENTA: '#ef4444',
 }
 
-// Paleta para distinguir comunas/corregimientos entre sí (no por conteo)
-const PALETA_COMUNAS = [
-  '#3b82f6', '#ef4444', '#22c55e', '#eab308', '#a855f7', '#ec4899',
-  '#14b8a6', '#f97316', '#6366f1', '#84cc16', '#06b6d4', '#d946ef',
-]
-
 type Vista = 'residencia' | 'puesto' | 'comuna' | 'calor'
 
 const ETIQUETA_VISTA: Record<Vista, string> = {
@@ -50,10 +44,11 @@ function dibujarCapaResidencia(L: typeof import('leaflet'), capa: import('leafle
 }
 
 function dibujarCapaComunas(L: typeof import('leaflet'), capa: import('leaflet').FeatureGroup, comunas: ComunaGeo[], puntos: VoterGeo[]) {
-  comunas.forEach((c, i) => {
-    const color = PALETA_COMUNAS[i % PALETA_COMUNAS.length]
+  comunas.forEach((c) => {
+    // El color viene del servidor, no del índice en este array: así una comuna
+    // se ve del mismo color aquí y en Territorio, aunque las listas difieran.
     L.polygon(c.boundary, {
-      color, weight: 2, fillColor: color, fillOpacity: 0.35,
+      color: c.color, weight: 2, fillColor: c.color, fillOpacity: 0.35,
     })
       .bindPopup(`<b>${c.name}</b><br>${c.totalElectores} elector(es)`)
       .addTo(capa)
@@ -296,10 +291,13 @@ function ControlesComuna({ comunas }: { comunas: ComunaGeo[] }) {
           <span
             key={c.id}
             style={{
-              background: '#eff6ff', color: '#1e40af', padding: '0.2rem 0.6rem',
+              display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+              background: '#f8fafc', color: '#334155', padding: '0.2rem 0.6rem',
               borderRadius: 999, fontSize: '0.78rem', fontWeight: 600,
             }}
           >
+            {/* El punto es la leyenda: ata el nombre a su polígono en el mapa. */}
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: c.color }} />
             {c.name}: {c.totalElectores}
           </span>
         ))}

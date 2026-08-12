@@ -14,6 +14,7 @@ import { calcularCedulaHash }         from '@/lib/cedula-hash'
 import { getTenantDb, encrypt, decrypt, Prisma } from '@campaignos/db'
 import { geocodeAddress }             from '@/lib/geocode'
 import { puntoEnPoligono }            from '@/lib/geometry'
+import { coloresPorZona }             from '@/lib/colores-comuna'
 import { crearQrPropio }              from '@/lib/qr'
 import { calcularIndiceCompromiso }   from '@/lib/compromiso'
 import { UMBRAL_LIDER_DIRECTOS }      from '@/lib/lideres'
@@ -1400,6 +1401,8 @@ export interface ComunaGeo {
   name:           string
   boundary:       [number, number][]
   totalElectores: number
+  /** Mismo color que muestra esta zona en Territorio. */
+  color:          string
 }
 
 /** Comunas con polígono real y cuántos electores propios (geocodificados) caen dentro, para la vista de mapa "por comuna". */
@@ -1409,18 +1412,33 @@ export async function getElectoresPorComuna(): Promise<ComunaGeo[]> {
   const tenantId = session.user.tenantId
 
   const [comunas, electores] = await Promise.all([
-    db.commune.findMany({ where: { boundary: { not: Prisma.JsonNull } } }),
+    // Se traen TODAS, no solo las que tienen polígono: el color depende de la
+    // posición dentro de la lista completa del municipio ordenada por nombre,
+    // que es la misma que usa Territorio. Filtrar antes correría los índices y
+    // una comuna tendría un color aquí y otro allá.
+    db.commune.findMany({ orderBy: [{ municipalityId: 'asc' }, { name: 'asc' }] }),
     db.voter.findMany({
       where:  { tenantId, lat: { not: null }, lng: { not: null } },
       select: { lat: true, lng: true },
     }),
   ])
 
-  return comunas.map((c) => {
-    const boundary = c.boundary as unknown as [number, number][]
-    const totalElectores = electores.filter((e) => puntoEnPoligono([e.lat!, e.lng!], boundary)).length
-    return { id: c.id, name: c.name, boundary, totalElectores }
-  })
+  const porMunicipio = new Map<string, string[]>()
+  for (const c of comunas) {
+    porMunicipio.set(c.municipalityId, [...(porMunicipio.get(c.municipalityId) ?? []), c.id])
+  }
+  const colores = new Map<string, string>()
+  for (const ids of porMunicipio.values()) {
+    for (const [id, color] of coloresPorZona(ids)) colores.set(id, color)
+  }
+
+  return comunas
+    .filter((c) => c.boundary !== null)
+    .map((c) => {
+      const boundary = c.boundary as unknown as [number, number][]
+      const totalElectores = electores.filter((e) => puntoEnPoligono([e.lat!, e.lng!], boundary)).length
+      return { id: c.id, name: c.name, boundary, totalElectores, color: colores.get(c.id)! }
+    })
 }
 
 export interface StationOption {

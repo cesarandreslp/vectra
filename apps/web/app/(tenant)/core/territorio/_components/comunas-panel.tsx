@@ -70,9 +70,19 @@ export function ComunasPanel({ municipalityId, comunasIniciales }: {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', cursor: 'pointer' }}
                  onClick={() => toggleExpandir(c.id)}>
               <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{expandidoId === c.id ? '▾' : '▸'}</span>
+              {/* Mismo color que el polígono de esta zona en el mapa del dashboard. */}
+              <span
+                title={c.tieneLimites ? 'Color de esta zona en el mapa' : 'Sin límites cargados: no se dibuja en el mapa'}
+                style={{
+                  width: 12, height: 12, borderRadius: 3, flexShrink: 0,
+                  background: c.tieneLimites ? c.color : 'transparent',
+                  border: c.tieneLimites ? 'none' : '1px dashed #cbd5e1',
+                }}
+              />
               <EditableTexto valor={c.name} onGuardar={(v) => renombrarComuna(c.id, v)} negrita />
               <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
                 {c.type === 'COMUNA' ? 'Comuna' : 'Corregimiento'} · {c.neighborhoodCount} barrio(s)
+                {!c.tieneLimites && ' · sin límites'}
               </span>
             </div>
 

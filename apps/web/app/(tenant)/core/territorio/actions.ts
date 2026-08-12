@@ -10,6 +10,7 @@
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
 import { getTenantDb }         from '@campaignos/db'
+import { coloresPorZona }      from '@/lib/colores-comuna'
 import { revalidatePath }      from 'next/cache'
 
 export type CommuneKind = 'COMUNA' | 'CORREGIMIENTO'
@@ -19,6 +20,10 @@ export interface CommuneSummary {
   name:             string
   type:             CommuneKind
   neighborhoodCount: number
+  /** Color con el que se distingue esta zona, igual aquí que en el mapa. */
+  color:            string
+  /** Si tiene polígono cargado; sin él no se puede dibujar en el mapa. */
+  tieneLimites:     boolean
 }
 
 export interface NeighborhoodSummary {
@@ -74,9 +79,15 @@ export async function listCommunes(municipalityId: string): Promise<CommuneSumma
     orderBy: { name: 'asc' },
   })
 
+  // Esta consulta ya trae TODAS las zonas del municipio ordenadas por nombre,
+  // que es exactamente el orden del que depende el color.
+  const colores = coloresPorZona(comunas.map((c) => c.id))
+
   return comunas.map((c) => ({
     id: c.id, name: c.name, type: c.type as CommuneKind,
     neighborhoodCount: c._count.neighborhoods,
+    color:        colores.get(c.id)!,
+    tieneLimites: c.boundary !== null,
   }))
 }
 
