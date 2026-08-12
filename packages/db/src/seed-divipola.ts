@@ -61,40 +61,40 @@ export interface SeedDivipolaResult {
  * @returns Conteo de departamentos y municipios procesados
  */
 export async function seedDivipola(db: PrismaClient): Promise<SeedDivipolaResult> {
+  // Un upsert por fila = un viaje de red por fila (1.103 municipios ≈ 3 min sobre
+  // Neon). Se inserta en LOTE con createMany, que colapsa todo en 2 statements.
+  // ponytail: createMany+skipDuplicates no ACTUALIZA nombres en una re-siembra
+  // (upsert sí lo hacía). Es idempotente para el caso real —provisión de una DB
+  // tenant nueva y vacía—; si algún día cambia el casing del dataset y hay que
+  // repropagar nombres a DBs ya sembradas, hacerlo con una migración puntual.
+
   // ── Departamentos ─────────────────────────────────────────────────────────
-  for (const d of dataset.departments) {
-    const nombre = NOMBRE_OVERRIDE[d.code] ?? aTitleCase(d.name)
-    await db.department.upsert({
-      where:  { code: d.code },
-      update: { name: nombre },
-      create: { code: d.code, name: nombre },
-    })
-  }
+  await db.department.createMany({
+    data: dataset.departments.map((d) => ({
+      code: d.code,
+      name: NOMBRE_OVERRIDE[d.code] ?? aTitleCase(d.name),
+    })),
+    skipDuplicates: true,
+  })
 
   // ── Municipios ────────────────────────────────────────────────────────────
-  // Construir índice code → id en una sola consulta para evitar N lookups
-  const todosDeptos = await db.department.findMany({
-    select: { id: true, code: true },
-  })
+  // Índice code → id en una sola consulta para resolver la FK sin N lookups.
+  const todosDeptos = await db.department.findMany({ select: { id: true, code: true } })
   const deptIdPorCodigo = new Map(todosDeptos.map((d) => [d.code, d.id]))
 
-  for (const m of dataset.municipalities) {
+  const municipios = dataset.municipalities.flatMap((m) => {
     const departmentId = deptIdPorCodigo.get(m.deptCode)
     if (!departmentId) {
       // Inconsistencia en el dataset — no debería ocurrir
       console.warn(`[seedDivipola] Departamento ${m.deptCode} no existe; se omite municipio ${m.divipola}`)
-      continue
+      return []
     }
-    const nombre = aTitleCase(m.name)
-    await db.municipality.upsert({
-      where:  { divipola: m.divipola },
-      update: { name: nombre, departmentId },
-      create: { divipola: m.divipola, name: nombre, departmentId },
-    })
-  }
+    return [{ divipola: m.divipola, name: aTitleCase(m.name), departmentId }]
+  })
+  await db.municipality.createMany({ data: municipios, skipDuplicates: true })
 
   return {
     departments:    dataset.departments.length,
-    municipalities: dataset.municipalities.length,
+    municipalities: municipios.length,
   }
 }
