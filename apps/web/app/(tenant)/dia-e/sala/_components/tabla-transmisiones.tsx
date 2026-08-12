@@ -6,12 +6,10 @@ import { getTransmissionStatus } from '../../actions'
 import { DetalleTransmision } from './detalle-transmision'
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  VERIFICADO:      { bg: '#dcfce7', text: '#166534' },
-  SOLO_MANUAL:     { bg: '#dbeafe', text: '#1e40af' },
-  SOLO_FOTO:       { bg: '#dbeafe', text: '#1e40af' },
-  ADVERTENCIA:     { bg: '#fee2e2', text: '#991b1b' },
-  BAJA_CONFIANZA:  { bg: '#fef3c7', text: '#92400e' },
-  PENDIENTE:       { bg: '#f1f5f9', text: '#64748b' },
+  VERIFICADO:   { bg: '#dcfce7', text: '#166534' },
+  INCOMPLETA:   { bg: '#fef3c7', text: '#92400e' },
+  DISCREPANCIA: { bg: '#fee2e2', text: '#991b1b' },
+  PENDIENTE:    { bg: '#f1f5f9', text: '#64748b' },
 }
 
 export function TablaTransmisiones({
@@ -46,11 +44,9 @@ export function TablaTransmisiones({
       {/* Filtros */}
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         <FilterBtn label="Todos" active={!filter} onClick={() => setFilter('')} />
-        <FilterBtn label="Verificados" active={filter === 'VERIFICADO'} onClick={() => setFilter('VERIFICADO')} />
-        <FilterBtn label="Advertencia" active={filter === 'ADVERTENCIA'} onClick={() => setFilter('ADVERTENCIA')} />
-        <FilterBtn label="Solo manual" active={filter === 'SOLO_MANUAL'} onClick={() => setFilter('SOLO_MANUAL')} />
-        <FilterBtn label="Solo foto" active={filter === 'SOLO_FOTO'} onClick={() => setFilter('SOLO_FOTO')} />
-        <FilterBtn label="Baja confianza" active={filter === 'BAJA_CONFIANZA'} onClick={() => setFilter('BAJA_CONFIANZA')} />
+        <FilterBtn label="Verificadas" active={filter === 'VERIFICADO'} onClick={() => setFilter('VERIFICADO')} />
+        <FilterBtn label="En disputa" active={filter === 'DISCREPANCIA'} onClick={() => setFilter('DISCREPANCIA')} />
+        <FilterBtn label="Incompletas" active={filter === 'INCOMPLETA'} onClick={() => setFilter('INCOMPLETA')} />
       </div>
 
       {/* Tabla */}
@@ -61,7 +57,7 @@ export function TablaTransmisiones({
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              {['Mesa', 'Puesto', 'Testigo', 'Estado', 'Votos propios', 'Hora'].map(h => (
+              {['Mesa', 'Puesto', 'Testigo', 'Estado', 'Fuentes', 'Votos propios', 'Hora'].map(h => (
                 <th key={h} style={thStyle}>{h}</th>
               ))}
             </tr>
@@ -87,6 +83,13 @@ export function TablaTransmisiones({
                       {tx.verificationStatus}
                     </span>
                   </td>
+                  <td style={tdStyle}>
+                    <div style={{ display: 'flex', gap: '0.25rem' }}>
+                      <Fuente letra="M" titulo="Manual del testigo"      ok={tx.hasManual} />
+                      <Fuente letra="F" titulo="Foto del acta (IA)"      ok={tx.hasPhoto} />
+                      <Fuente letra="R" titulo="Publicado Registraduría" ok={tx.hasRegistraduria} />
+                    </div>
+                  </td>
                   <td style={{ ...tdStyle, fontWeight: 600 }}>
                     {tx.ownCandidateVotes ?? '—'}
                   </td>
@@ -100,7 +103,7 @@ export function TablaTransmisiones({
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', color: '#94a3b8', padding: '2rem' }}>
+                <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', color: '#94a3b8', padding: '2rem' }}>
                   No hay transmisiones {filter ? 'con este estado' : ''}
                 </td>
               </tr>
@@ -116,6 +119,24 @@ export function TablaTransmisiones({
           : detail && <DetalleTransmision detail={detail} onClose={() => { setSelectedId(null); setDetail(null) }} />
       )}
     </div>
+  )
+}
+
+/** Chip de una de las tres fuentes obligatorias: gris = todavía no llegó. */
+function Fuente({ letra, titulo, ok }: { letra: string; titulo: string; ok: boolean }) {
+  return (
+    <span
+      title={`${titulo}${ok ? '' : ' — falta'}`}
+      style={{
+        width: '1.25rem', height: '1.25rem', borderRadius: '4px',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: '0.65rem', fontWeight: 700,
+        background: ok ? '#dcfce7' : '#f1f5f9',
+        color:      ok ? '#166534' : '#cbd5e1',
+      }}
+    >
+      {letra}
+    </span>
   )
 }
 

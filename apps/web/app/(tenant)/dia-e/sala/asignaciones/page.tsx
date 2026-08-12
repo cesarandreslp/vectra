@@ -1,7 +1,8 @@
-import { listWitnessAssignments, assignWitness, exportAssignmentsCSV } from '../../actions'
+import { listWitnessAssignments, assignWitness } from '../../actions'
 import { requireModule } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
 import { getTenantDb } from '@campaignos/db'
+import { TramiteRegistraduria } from './_components/tramite-registraduria'
 
 export default async function AsignacionesPage() {
   const session = await requireModule('DIA_E', ['ADMIN_CAMPANA', 'COORDINADOR'])
@@ -23,12 +24,11 @@ export default async function AsignacionesPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#0f172a' }}>
-          Asignaciones de testigos
-        </h1>
-        <ExportButton />
-      </div>
+      <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#0f172a' }}>
+        Asignaciones de testigos
+      </h1>
+
+      <TramiteRegistraduria />
 
       {/* Resumen */}
       <div style={{ display: 'flex', gap: '1rem' }}>
@@ -61,7 +61,7 @@ export default async function AsignacionesPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              {['Mesa', 'Puesto', 'Municipio', 'Testigo', 'Confirmado', 'Asignar'].map(h => (
+              {['Mesa', 'Puesto', 'Municipio', 'Testigo', 'Registraduría', 'Confirmado', 'Asignar'].map(h => (
                 <th key={h} style={thStyle}>{h}</th>
               ))}
             </tr>
@@ -86,6 +86,7 @@ function AssignmentRow({ assignment: a, testigos }: {
     votingTableId: string; tableNumber: number; stationName: string
     municipality: string; userId: string; userEmail: string
     confirmedAt: Date | null
+    estado: string | null; observacion: string | null
   }
   testigos: { id: string; email: string; name: string | null }[]
 }) {
@@ -108,6 +109,22 @@ function AssignmentRow({ assignment: a, testigos }: {
         ) : (
           <span style={{ color: '#ef4444', fontSize: '0.8rem', fontWeight: 600 }}>Sin asignar</span>
         )}
+      </td>
+      <td style={tdStyle}>
+        {a.estado ? (
+          <span
+            title={a.observacion ?? undefined}
+            style={{
+              padding: '0.15rem 0.5rem', borderRadius: '9999px',
+              fontSize: '0.7rem', fontWeight: 600,
+              ...(a.estado === 'APROBADO'  ? { background: '#dcfce7', color: '#166534' }
+                : a.estado === 'RECHAZADO' ? { background: '#fee2e2', color: '#991b1b' }
+                :                            { background: '#e0e7ff', color: '#3730a3' }),
+            }}
+          >
+            {a.estado}
+          </span>
+        ) : '—'}
       </td>
       <td style={tdStyle}>
         {a.confirmedAt ? (
@@ -151,26 +168,6 @@ function AssignmentRow({ assignment: a, testigos }: {
         </form>
       </td>
     </tr>
-  )
-}
-
-function ExportButton() {
-  async function handleExport() {
-    'use server'
-    // La descarga la hace el cliente — retorna CSV para que el componente padre lo procese
-    await exportAssignmentsCSV()
-  }
-
-  return (
-    <form action={handleExport}>
-      <button type="submit" style={{
-        padding: '0.4rem 0.9rem', fontSize: '0.8rem', borderRadius: '6px',
-        border: '1px solid #1e40af', background: '#fff', color: '#1e40af',
-        cursor: 'pointer', fontWeight: 600,
-      }}>
-        Exportar CSV
-      </button>
-    </form>
   )
 }
 

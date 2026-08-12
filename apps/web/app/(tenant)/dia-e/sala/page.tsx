@@ -1,18 +1,23 @@
-import { getDashboardDiaE, listTransmissions } from '../actions'
+import { getDashboardDiaE, listTransmissions, getResultadosEnVivo, getMesasEnDisputa } from '../actions'
 import { requireModule } from '@/lib/auth-helpers'
 import { AutoRefresh } from './_components/auto-refresh'
 import { TablaTransmisiones } from './_components/tabla-transmisiones'
+import { ChartVotacion } from './_components/chart-votacion'
+import { AlertaDisputas } from './_components/alerta-disputas'
 
 export default async function SalaDeSituacionPage() {
   await requireModule('DIA_E', ['ADMIN_CAMPANA', 'COORDINADOR'])
 
-  const [dashboard, transmissions] = await Promise.all([
+  const [dashboard, transmissions, resultados, disputas] = await Promise.all([
     getDashboardDiaE(),
     listTransmissions(),
+    getResultadosEnVivo(),
+    getMesasEnDisputa(),
   ])
 
   return (
-    <AutoRefresh interval={30000}>
+    // 15s: la transmisión llega en ráfagas al cierre de mesas.
+    <AutoRefresh interval={15000}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
         <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#0f172a' }}>
           Sala de situación
@@ -27,10 +32,17 @@ export default async function SalaDeSituacionPage() {
           <MetricCard label="Mesas totales" value={dashboard.mesasTotales} />
           <MetricCard label="Con testigo" value={dashboard.mesasConTestigo} color="#1e40af" />
           <MetricCard label="Transmitidas" value={dashboard.mesasTransmitidas} color="#0891b2" />
-          <MetricCard label="Verificadas" value={dashboard.mesasVerificadas} color="#16a34a" />
-          <MetricCard label="Advertencia" value={dashboard.mesasAdvertencia} color="#ef4444" />
+          <MetricCard label="Verificadas (3 fuentes)" value={dashboard.mesasVerificadas} color="#16a34a" />
+          <MetricCard label="Incompletas" value={dashboard.mesasIncompletas} color="#d97706" />
+          <MetricCard label="En disputa" value={dashboard.mesasDisputa} color="#ef4444" />
           <MetricCard label="Sin reportar" value={dashboard.mesasSinReportar} color="#94a3b8" />
         </div>
+
+        {/* Fuentes que no cuadran — lo primero que debe ver la sala */}
+        <AlertaDisputas mesas={disputas} />
+
+        {/* Votación en vivo */}
+        <ChartVotacion resultados={resultados} />
 
         {/* Incidentes */}
         {(dashboard.incidentesAlta > 0 || dashboard.incidentesMedia > 0 || dashboard.incidentesBaja > 0) && (

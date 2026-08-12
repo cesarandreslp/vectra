@@ -610,14 +610,33 @@ model Candidate {
 
 /// Asignación de un testigo a una mesa de votación.
 /// isPrimary=true es el testigo titular, false es suplente.
+/// Estado del testigo dentro del trámite ante la Registraduría.
+/// El listado se propone, la Registraduría lo devuelve con o sin cambios, y
+/// al aceptar las correcciones solo se tocan los testigos que efectivamente
+/// cambiaron (ver aplicarCorreccionesRegistraduria).
+enum EstadoTestigo {
+  PROPUESTO // en el listado enviado a la Registraduría, sin respuesta todavía
+  APROBADO // confirmado por la Registraduría (puede haber quedado en otra mesa)
+  RECHAZADO // no apareció en el listado aprobado
+}
+
 model WitnessAssignment {
   id            String    @id @default(cuid())
   tenantId      String
   userId        String // testigo asignado
-  votingTableId String // mesa asignada
+  votingTableId String // mesa VIGENTE (tras aplicar correcciones, la aprobada)
   isPrimary     Boolean   @default(true) // false = suplente
   confirmedAt   DateTime?
   createdAt     DateTime  @default(now())
+
+  estado                 EstadoTestigo @default(PROPUESTO)
+  /// Mesa con la que se propuso originalmente. Se llena solo si la
+  /// Registraduría la cambió, para poder mostrar "de la mesa X a la Y".
+  votingTableIdPropuesto String?
+  /// Nota de la corrección (ej. motivo del rechazo informado por la Registraduría).
+  observacion            String?
+  /// Cuándo se aplicó la respuesta de la Registraduría a este testigo.
+  resueltoAt             DateTime?
 
   @@unique([tenantId, votingTableId, isPrimary])
   @@index([tenantId, userId])
@@ -654,10 +673,19 @@ model E14Transmission {
   zhipuResult          Json? // resultado crudo de Zhipu — solo auditoría
   photoSubmittedAt     DateTime?
 
-  // Verificación cruzada
+  // Tercera fuente OBLIGATORIA: lo publicado por la Registraduría, sea por
+  // scraping de su página de resultados o cargado a mano si el scraping no
+  // está disponible para esa elección.
+  registraduriaData   Json? // { candidateId: string, votes: number }[]
+  registraduriaTotal  Int?
+  registraduriaAt     DateTime?
+  registraduriaFuente String? // SCRAPING | CARGA_MANUAL
+
+  // Verificación cruzada de las TRES fuentes (manual, foto, Registraduría).
+  // Ninguna es opcional: mientras falte una, la mesa queda INCOMPLETA.
   verificationStatus String @default("PENDIENTE")
-  // PENDIENTE | SOLO_MANUAL | SOLO_FOTO | VERIFICADO | ADVERTENCIA | BAJA_CONFIANZA
-  discrepancies      Json? // qué candidatos difieren entre manual y foto
+  // PENDIENTE | INCOMPLETA | VERIFICADO | DISCREPANCIA
+  discrepancies      Json? // candidatos que no cuadran, con el valor de cada fuente
 
   // Estado final
   finalData   Json? // datos definitivos a reportar

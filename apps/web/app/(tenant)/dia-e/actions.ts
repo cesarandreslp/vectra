@@ -8,7 +8,20 @@
 
 import { requireModule, requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
-import { getTenantDb, Prisma }  from '@campaignos/db'
+import { getTenantDb, Prisma, superadminDb, decrypt } from '@campaignos/db'
+import * as XLSX                from 'xlsx'
+import { calcularCedulaHash }   from '@/lib/cedula-hash'
+import {
+  compararListados,
+  type TestigoPropuesto,
+  type FilaAprobada,
+  type ResultadoComparacion,
+  type TipoCambio,
+}                               from './_lib/registraduria'
+import {
+  verificarTresFuentes,
+  type VotoPorCandidato,
+}                               from '@/lib/verificacion-e14'
 import {
   extractE14WithGroq,
   extractE14WithZhipu,
@@ -59,6 +72,9 @@ export interface WitnessAssignmentView {
   department:    string
   isPrimary:     boolean
   confirmedAt:   Date | null
+  /** Trámite ante la Registraduría: PROPUESTO | APROBADO | RECHAZADO. */
+  estado:        string | null
+  observacion:   string | null
 }
 
 export interface MyAssignment {
@@ -88,8 +104,10 @@ export interface TransmissionView {
   verificationStatus:  string
   ownCandidateVotes:   number | null
   transmittedAt:       Date | null
+  // Las tres fuentes obligatorias: mientras falte una, la mesa está INCOMPLETA.
   hasManual:           boolean
   hasPhoto:            boolean
+  hasRegistraduria:    boolean
   extractionConfidence: string | null
 }
 
@@ -105,12 +123,18 @@ export interface TransmissionDetail {
   extractedData:        { candidateId: string; votes: number }[] | null
   extractedTotal:       number | null
   extractionConfidence: string | null
-  discrepancies:        string[] | null
+  registraduriaData:    { candidateId: string; votes: number }[] | null
+  registraduriaTotal:   number | null
+  registraduriaAt:      Date | null
+  registraduriaFuente:  string | null
+  discrepancias:        { candidateId: string; valores: Record<string, number>; diferencia: number }[] | null
   finalData:            { candidateId: string; votes: number }[] | null
   photoUrl:             string | null
   notes:                string | null
   manualSubmittedAt:    Date | null
   photoSubmittedAt:     Date | null
+  /** Para poner nombre a los candidateId que vienen en cada fuente. */
+  candidatos:           { id: string; name: string }[]
 }
 
 export interface IncidentView {
@@ -142,7 +166,10 @@ export interface DashboardDiaE {
   mesasConTestigo:    number
   mesasTransmitidas:  number
   mesasVerificadas:   number
-  mesasAdvertencia:   number
+  /** Fuentes que no cuadran — candidatas a demanda. */
+  mesasDisputa:       number
+  /** Transmitidas pero les falta al menos una de las tres fuentes. */
+  mesasIncompletas:   number
   mesasSinReportar:   number
   incidentesAlta:     number
   incidentesMedia:    number
@@ -375,6 +402,8 @@ export async function listWitnessAssignments(filters?: {
       department:    table.station.municipality.department.name,
       isPrimary:     true,
       confirmedAt:   assignment?.confirmedAt ?? null,
+      estado:        assignment?.estado ?? null,
+      observacion:   assignment?.observacion ?? null,
     })
   }
 
@@ -430,13 +459,193 @@ export async function getMyAssignment(): Promise<MyAssignment | null> {
   }
 }
 
-export async function exportAssignmentsCSV(): Promise<string> {
-  const rows = await listWitnessAssignments()
-  const header = 'Mesa,Puesto,Municipio,Departamento,Testigo Email,Testigo Nombre,Confirmado'
-  const lines = rows.map(r =>
-    `${r.tableNumber},"${r.stationName}","${r.municipality}","${r.department}","${r.userEmail}","${r.userName ?? ''}",${r.confirmedAt ? 'Sí' : 'No'}`
+// ── TRÁMITE ANTE LA REGISTRADURÍA (propuesto → aprobado → corregido) ─────────
+
+/** Junta testigo (User, DB superadmin) con su elector (Voter, DB del tenant) para tener la cédula. */
+async function armarListadoPropuesto(
+  db: ReturnType<typeof getTenantDb>,
+  tenantId: string,
+): Promise<{ propuestos: TestigoPropuesto[]; cedulasPorAssignment: Map<string, string> }> {
+  const asignaciones = await db.witnessAssignment.findMany({ where: { tenantId } })
+  if (asignaciones.length === 0) return { propuestos: [], cedulasPorAssignment: new Map() }
+
+  const [usuarios, mesas] = await Promise.all([
+    superadminDb.user.findMany({
+      where:  { id: { in: [...new Set(asignaciones.map(a => a.userId))] } },
+      select: { id: true, email: true, name: true, voterId: true },
+    }),
+    db.votingTable.findMany({
+      where:   { id: { in: asignaciones.map(a => a.votingTableId) } },
+      include: { station: true },
+    }),
+  ])
+  const userMap = new Map(usuarios.map(u => [u.id, u]))
+  const mesaMap = new Map(mesas.map(m => [m.id, m]))
+
+  const voterIds = usuarios.map(u => u.voterId).filter((v): v is string => Boolean(v))
+  const voters = voterIds.length > 0
+    ? await db.voter.findMany({ where: { id: { in: voterIds } }, select: { id: true, cedula: true, cedulaHash: true } })
+    : []
+  const voterMap = new Map(voters.map(v => [v.id, v]))
+
+  const cedulasPorAssignment = new Map<string, string>()
+  const propuestos: TestigoPropuesto[] = asignaciones.map(a => {
+    const u     = userMap.get(a.userId)
+    const mesa  = mesaMap.get(a.votingTableId)
+    const voter = u?.voterId ? voterMap.get(u.voterId) : undefined
+
+    if (voter?.cedula) {
+      try { cedulasPorAssignment.set(a.id, decrypt(voter.cedula)) } catch { /* cédula ilegible: se omite */ }
+    }
+
+    return {
+      assignmentId:  a.id,
+      cedulaHash:    voter?.cedulaHash ?? null,
+      nombre:        u?.name ?? u?.email ?? '(sin nombre)',
+      email:         u?.email ?? '',
+      votingTableId: a.votingTableId,
+      mesaNumero:    mesa?.number ?? 0,
+      puestoNombre:  mesa?.station?.name ?? '',
+    }
+  })
+
+  return { propuestos, cedulasPorAssignment }
+}
+
+/**
+ * Listado PROPUESTO para enviar a la Registraduría — incluye la cédula, que es
+ * con lo que ellos identifican al testigo. Un testigo sin elector vinculado sale
+ * sin cédula y hay que corregirlo antes de radicar.
+ */
+export async function exportarListadoPropuesto(): Promise<string> {
+  const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'], 'DIA_E_ASIGNACIONES')
+  const { propuestos, cedulasPorAssignment } = await armarListadoPropuesto(db, tenantId)
+
+  const header = 'Cedula,Nombre,Puesto,Mesa,Email'
+  const lines = propuestos.map(p =>
+    `${cedulasPorAssignment.get(p.assignmentId) ?? ''},"${p.nombre}","${p.puestoNombre}",${p.mesaNumero},"${p.email}"`
   )
   return [header, ...lines].join('\n')
+}
+
+/**
+ * Lee el archivo APROBADO por la Registraduría (.xlsx o .csv) y lo compara con
+ * el propuesto. NO modifica nada: devuelve el diff para revisarlo antes de aplicar.
+ */
+export async function compararConAprobado(formData: FormData): Promise<
+  { success: true; resultado: ResultadoComparacion } | { success: false; error: string }
+> {
+  try {
+    const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'], 'DIA_E_ASIGNACIONES')
+
+    const file = formData.get('archivo') as File | null
+    if (!file || file.size === 0) return { success: false, error: 'Selecciona el archivo aprobado.' }
+
+    const libro = XLSX.read(Buffer.from(await file.arrayBuffer()), { type: 'buffer' })
+    const hoja  = libro.Sheets[libro.SheetNames[0]]
+    if (!hoja) return { success: false, error: 'El archivo no tiene ninguna hoja legible.' }
+
+    const filas = XLSX.utils.sheet_to_json<Record<string, unknown>>(hoja, { defval: '' })
+    if (filas.length === 0) return { success: false, error: 'El archivo está vacío.' }
+
+    // Los encabezados varían entre archivos oficiales; se buscan por aproximación.
+    const leer = (fila: Record<string, unknown>, claves: string[]): string => {
+      for (const k of Object.keys(fila)) {
+        const norm = k.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
+        if (claves.some(c => norm.includes(c))) return String(fila[k] ?? '').trim()
+      }
+      return ''
+    }
+
+    const aprobadas: FilaAprobada[] = filas.map(f => ({
+      cedula: leer(f, ['cedula', 'documento', 'identificacion']),
+      nombre: leer(f, ['nombre', 'testigo']) || undefined,
+      puesto: leer(f, ['puesto', 'lugar']) || undefined,
+      mesa:   parseInt(leer(f, ['mesa'])) || undefined,
+    })).filter(f => f.cedula)
+
+    if (aprobadas.length === 0) {
+      return { success: false, error: 'No se encontró una columna de cédula en el archivo.' }
+    }
+
+    const { propuestos } = await armarListadoPropuesto(db, tenantId)
+
+    // Índice de mesas del tenant para ubicar la mesa que indica la Registraduría.
+    const mesas = await db.votingTable.findMany({ include: { station: true } })
+    const resolverMesa = (puesto: string | undefined, mesa: number | undefined) => {
+      if (!mesa) return null
+      const candidatas = mesas.filter(m => m.number === mesa)
+      if (candidatas.length === 0) return null
+      const elegida = puesto
+        ? candidatas.find(m => m.station.name.toLowerCase().includes(puesto.toLowerCase().trim()))
+            ?? (candidatas.length === 1 ? candidatas[0] : null)
+        : (candidatas.length === 1 ? candidatas[0] : null)
+      return elegida ? { id: elegida.id, numero: elegida.number, puesto: elegida.station.name } : null
+    }
+
+    return {
+      success: true,
+      resultado: compararListados(propuestos, aprobadas, calcularCedulaHash, resolverMesa),
+    }
+  } catch (err) {
+    console.error('[compararConAprobado]', err instanceof Error ? err.message : err)
+    return { success: false, error: 'No se pudo leer el archivo. Verifica que sea .xlsx o .csv.' }
+  }
+}
+
+/**
+ * Aplica las correcciones aceptadas: SOLO toca los testigos que cambiaron.
+ * Los que quedaron igual se marcan aprobados sin moverlos de mesa.
+ */
+export async function aplicarCorreccionesRegistraduria(
+  cambios: { assignmentId: string; tipo: TipoCambio; votingTableIdAprobado: string | null }[],
+): Promise<{ success: boolean; aplicados: number; error?: string }> {
+  try {
+    const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'], 'DIA_E_ASIGNACIONES', 'edit')
+    const ahora = new Date()
+    let aplicados = 0
+
+    for (const c of cambios) {
+      if (!c.assignmentId) continue
+      const actual = await db.witnessAssignment.findFirst({ where: { id: c.assignmentId, tenantId } })
+      if (!actual) continue
+
+      if (c.tipo === 'SIN_CAMBIO') {
+        await db.witnessAssignment.update({
+          where: { id: c.assignmentId },
+          data:  { estado: 'APROBADO', resueltoAt: ahora },
+        })
+      } else if (c.tipo === 'MESA_CAMBIADA' && c.votingTableIdAprobado) {
+        await db.witnessAssignment.update({
+          where: { id: c.assignmentId },
+          data: {
+            estado:                 'APROBADO',
+            votingTableIdPropuesto: actual.votingTableIdPropuesto ?? actual.votingTableId,
+            votingTableId:          c.votingTableIdAprobado,
+            resueltoAt:             ahora,
+          },
+        })
+      } else if (c.tipo === 'RECHAZADO') {
+        await db.witnessAssignment.update({
+          where: { id: c.assignmentId },
+          data: {
+            estado:      'RECHAZADO',
+            observacion: 'No apareció en el listado aprobado por la Registraduría.',
+            resueltoAt:  ahora,
+          },
+        })
+      } else {
+        continue
+      }
+      aplicados++
+    }
+
+    revalidatePath('/dia-e/sala/asignaciones')
+    return { success: true, aplicados }
+  } catch (err) {
+    console.error('[aplicarCorreccionesRegistraduria]', err instanceof Error ? err.message : err)
+    return { success: false, aplicados: 0, error: 'No se pudieron aplicar las correcciones.' }
+  }
 }
 
 // ── TRANSMISIÓN E-14 ─────────────────────────────────────────────────────────
@@ -634,56 +843,121 @@ export async function submitPhotoE14(
 
 /** Función interna de verificación cruzada — NO exportar */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+/**
+ * Cruza las TRES fuentes obligatorias (manual, foto, Registraduría) candidato
+ * por candidato. Ver lib/verificacion-e14.ts para las reglas y su chequeo.
+ */
 async function runVerification(votingTableId: string, db: any): Promise<void> {
   const tx = await db.e14Transmission.findUnique({ where: { votingTableId } })
   if (!tx) return
 
-  const hasManual = !!tx.manualData && tx.manualSubmittedAt
-  const hasPhoto  = !!tx.extractedData && tx.photoSubmittedAt
-
-  let status: string
-  let finalData = null
-
-  if (hasManual && hasPhoto) {
-    // Comparar manual vs extraído
-    const manualArr    = tx.manualData as { candidateId: string; votes: number }[]
-    const extractedArr = tx.extractedData as { candidateId: string; votes: number }[]
-    const manualTotal  = manualArr.reduce((s: number, v: { votes: number }) => s + v.votes, 0)
-    const extractTotal = extractedArr.reduce((s: number, v: { votes: number }) => s + v.votes, 0)
-
-    const diff = Math.abs(manualTotal - extractTotal)
-    const pct  = manualTotal > 0 ? (diff / manualTotal) * 100 : (extractTotal > 0 ? 100 : 0)
-
-    if (pct < 2) {
-      status    = 'VERIFICADO'
-      finalData = extractedArr // foto = más confiable cuando coinciden
-    } else {
-      status    = 'ADVERTENCIA'
-      finalData = null // mostrar ambos, no definir finalData
-    }
-  } else if (hasManual && !hasPhoto) {
-    status    = 'SOLO_MANUAL'
-    finalData = tx.manualData
-  } else if (!hasManual && hasPhoto) {
-    const conf = tx.extractionConfidence
-    if (conf === 'BAJA') {
-      status    = 'BAJA_CONFIANZA'
-      finalData = tx.extractedData // con flag de revisión
-    } else {
-      status    = 'SOLO_FOTO'
-      finalData = tx.extractedData
-    }
-  } else {
-    status = 'PENDIENTE'
-  }
+  const resultado = verificarTresFuentes({
+    manual:        tx.manualSubmittedAt ? (tx.manualData as VotoPorCandidato[] | null) : null,
+    foto:          tx.photoSubmittedAt  ? (tx.extractedData as VotoPorCandidato[] | null) : null,
+    registraduria: tx.registraduriaAt   ? (tx.registraduriaData as VotoPorCandidato[] | null) : null,
+  })
 
   await db.e14Transmission.update({
     where: { votingTableId },
     data: {
-      verificationStatus: status,
-      finalData,
-      finalizedAt:        finalData ? new Date() : null,
+      verificationStatus: resultado.estado,
+      discrepancies:      resultado.discrepancias.length > 0 ? resultado.discrepancias : Prisma.DbNull,
+      finalData:          resultado.datosFinales ?? Prisma.DbNull,
+      finalizedAt:        resultado.datosFinales ? new Date() : null,
     },
+  })
+}
+
+/**
+ * Registra la tercera fuente: los votos publicados por la Registraduría para
+ * una mesa. `fuente` distingue si vino del scraping automático o se cargó a
+ * mano — se guarda para poder auditar de dónde salió cada cifra.
+ */
+export async function registrarDatosRegistraduria(
+  votingTableId: string,
+  votos: { candidateId: string; votes: number }[],
+  fuente: 'SCRAPING' | 'CARGA_MANUAL' = 'CARGA_MANUAL',
+): Promise<{ success: boolean; estado?: string; error?: string }> {
+  try {
+    const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'], 'DIA_E_SALA', 'edit')
+
+    const existente = await db.e14Transmission.findUnique({ where: { votingTableId } })
+    if (!existente || existente.tenantId !== tenantId) {
+      return { success: false, error: 'Esa mesa todavía no tiene transmisión del testigo.' }
+    }
+
+    await db.e14Transmission.update({
+      where: { votingTableId },
+      data: {
+        registraduriaData:   votos,
+        registraduriaTotal:  votos.reduce((s, v) => s + v.votes, 0),
+        registraduriaAt:     new Date(),
+        registraduriaFuente: fuente,
+      },
+    })
+
+    await runVerification(votingTableId, db)
+    const actualizado = await db.e14Transmission.findUnique({ where: { votingTableId } })
+
+    revalidatePath('/dia-e/sala')
+    return { success: true, estado: actualizado?.verificationStatus }
+  } catch (err) {
+    console.error('[registrarDatosRegistraduria]', err instanceof Error ? err.message : err)
+    return { success: false, error: 'No se pudieron registrar los datos de la Registraduría.' }
+  }
+}
+
+export interface MesaEnDisputa {
+  votingTableId: string
+  tableNumber:   number
+  stationName:   string
+  resumen:       string
+  discrepancias: {
+    candidateId: string
+    candidateName: string
+    valores: Record<string, number>
+    diferencia: number
+  }[]
+}
+
+/** Mesas cuyas fuentes no cuadran — candidatas a demanda. */
+export async function getMesasEnDisputa(): Promise<MesaEnDisputa[]> {
+  const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'], 'DIA_E_SALA')
+
+  const txs = await db.e14Transmission.findMany({
+    where: { tenantId, verificationStatus: 'DISCREPANCIA' },
+  })
+  if (txs.length === 0) return []
+
+  const [mesas, candidatos] = await Promise.all([
+    db.votingTable.findMany({
+      where:   { id: { in: txs.map(t => t.votingTableId) } },
+      include: { station: true },
+    }),
+    db.candidate.findMany({ where: { tenantId }, select: { id: true, name: true } }),
+  ])
+  const mesaMap = new Map(mesas.map(m => [m.id, m]))
+  const nombreCand = new Map(candidatos.map(c => [c.id.toLowerCase(), c.name]))
+
+  return txs.map(tx => {
+    const mesa = mesaMap.get(tx.votingTableId)
+    const difs = (tx.discrepancies ?? []) as {
+      candidateId: string; valores: Record<string, number>; diferencia: number
+    }[]
+    return {
+      votingTableId: tx.votingTableId,
+      tableNumber:   mesa?.number ?? 0,
+      stationName:   mesa?.station?.name ?? '',
+      resumen:       `${difs.length} candidato(s) no cuadran`,
+      discrepancias: difs.map(d => ({
+        candidateId:   d.candidateId,
+        candidateName: nombreCand.get(d.candidateId.toLowerCase())
+          ?? (d.candidateId === 'votos_blanco' ? 'Votos en blanco'
+            : d.candidateId === 'votos_nulos' ? 'Votos nulos' : d.candidateId),
+        valores:    d.valores,
+        diferencia: d.diferencia,
+      })),
+    }
   })
 }
 
@@ -699,12 +973,20 @@ export async function getTransmissionStatus(votingTableId: string): Promise<Tran
     select: { email: true },
   })
 
-  const table = await db.votingTable.findUnique({
-    where:   { id: votingTableId },
-    include: { station: true },
-  })
+  const [table, candidatos] = await Promise.all([
+    db.votingTable.findUnique({
+      where:   { id: votingTableId },
+      include: { station: true },
+    }),
+    db.candidate.findMany({
+      where:   { tenantId },
+      select:  { id: true, name: true },
+      orderBy: { order: 'asc' },
+    }),
+  ])
 
   return {
+    candidatos,
     id:                   tx.id,
     votingTableId:        tx.votingTableId,
     tableNumber:          table?.number ?? 0,
@@ -716,7 +998,11 @@ export async function getTransmissionStatus(votingTableId: string): Promise<Tran
     extractedData:        tx.extractedData as { candidateId: string; votes: number }[] | null,
     extractedTotal:       tx.extractedTotal,
     extractionConfidence: tx.extractionConfidence,
-    discrepancies:        tx.discrepancies as string[] | null,
+    registraduriaData:    tx.registraduriaData as { candidateId: string; votes: number }[] | null,
+    registraduriaTotal:   tx.registraduriaTotal,
+    registraduriaAt:      tx.registraduriaAt,
+    registraduriaFuente:  tx.registraduriaFuente,
+    discrepancias:        tx.discrepancies as TransmissionDetail['discrepancias'],
     finalData:            tx.finalData as { candidateId: string; votes: number }[] | null,
     photoUrl:             tx.photoUrl,
     notes:                tx.notes,
@@ -775,6 +1061,7 @@ export async function listTransmissions(filters?: {
     verificationStatus: string; finalData: unknown; manualData: unknown
     extractedData: unknown; extractionConfidence: string | null
     manualSubmittedAt: Date | null; photoSubmittedAt: Date | null; photoUrl: string | null
+    registraduriaAt: Date | null
   }) => {
     const table = tableMap.get(tx.votingTableId)
     const user  = userMap.get(tx.witnessUserId)
@@ -802,6 +1089,7 @@ export async function listTransmissions(filters?: {
       transmittedAt:        tx.manualSubmittedAt ?? tx.photoSubmittedAt,
       hasManual:            !!tx.manualData,
       hasPhoto:             !!tx.photoUrl,
+      hasRegistraduria:     !!tx.registraduriaAt,
       extractionConfidence: tx.extractionConfidence,
     }
   })
@@ -885,33 +1173,32 @@ export async function updateIncidentStatus(
 
 // ── RESULTADOS AGREGADOS ─────────────────────────────────────────────────────
 
-export async function getElectionResults(): Promise<ElectionResultView[]> {
-  const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'], 'DIA_E_RESULTADOS')
-
-  const candidates = await db.candidate.findMany({
-    where:   { tenantId },
-    orderBy: { order: 'asc' },
-  })
-
-  // Transmisiones con datos finales (estados que reportan)
-  const transmissions = await db.e14Transmission.findMany({
-    where: {
-      tenantId,
-      verificationStatus: { in: ['VERIFICADO', 'SOLO_MANUAL', 'SOLO_FOTO'] },
-      finalData: { not: Prisma.DbNull },
-    },
-  })
-
-  const totalTables = await db.votingTable.count()
+/**
+ * Agrega los votos de todas las mesas que ya reportaron algo, con la fuente más
+ * confiable disponible: finalData (las tres coinciden) > manual > foto.
+ *
+ * Se agrega EN VIVO a propósito: la Registraduría publica horas después y el
+ * conteo propio tiene que ir subiendo con cada mesa que transmite el testigo.
+ * La confianza de cada cifra se lee aparte, en el estado de verificación.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function agregarResultados(db: any, tenantId: string): Promise<ElectionResultView[]> {
+  const [candidates, transmissions, totalTables] = await Promise.all([
+    db.candidate.findMany({ where: { tenantId }, orderBy: { order: 'asc' } }),
+    db.e14Transmission.findMany({ where: { tenantId } }),
+    db.votingTable.count(),
+  ])
 
   // Agregar votos por candidato
   const votesByCand = new Map<string, number>()
   let totalAllVotes = 0
-  let tablesReported = transmissions.length
+  let tablesReported = 0
 
   for (const tx of transmissions) {
-    const data = tx.finalData as { candidateId: string; votes: number }[]
+    const data = (tx.finalData ?? tx.manualData ?? tx.extractedData) as
+      { candidateId: string; votes: number }[] | null
     if (!data) continue
+    tablesReported++
     for (const v of data) {
       const key = v.candidateId.toLowerCase()
       votesByCand.set(key, (votesByCand.get(key) ?? 0) + v.votes)
@@ -935,6 +1222,17 @@ export async function getElectionResults(): Promise<ElectionResultView[]> {
       percentage:    totalAllVotes > 0 ? Math.round((votes / totalAllVotes) * 1000) / 10 : 0,
     }
   })
+}
+
+export async function getElectionResults(): Promise<ElectionResultView[]> {
+  const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'], 'DIA_E_RESULTADOS')
+  return agregarResultados(db, tenantId)
+}
+
+/** Mismo agregado, pero para la sala de situación (otro permiso de pantalla). */
+export async function getResultadosEnVivo(): Promise<ElectionResultView[]> {
+  const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'], 'DIA_E_SALA')
+  return agregarResultados(db, tenantId)
 }
 
 export async function getDashboardDiaE(): Promise<DashboardDiaE> {
@@ -966,14 +1264,16 @@ export async function getDashboardDiaE(): Promise<DashboardDiaE> {
 
   const mesasTransmitidas = transmissions.length
   const mesasVerificadas  = statusCounts.get('VERIFICADO') ?? 0
-  const mesasAdvertencia  = (statusCounts.get('ADVERTENCIA') ?? 0) + (statusCounts.get('BAJA_CONFIANZA') ?? 0)
+  const mesasDisputa      = statusCounts.get('DISCREPANCIA') ?? 0
+  const mesasIncompletas  = statusCounts.get('INCOMPLETA') ?? 0
 
   return {
     mesasTotales,
     mesasConTestigo,
     mesasTransmitidas,
     mesasVerificadas,
-    mesasAdvertencia,
+    mesasDisputa,
+    mesasIncompletas,
     mesasSinReportar: mesasTotales - mesasTransmitidas,
     incidentesAlta,
     incidentesMedia,
