@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { getBranding } from '@/lib/branding'
+import { varsDeMarca } from '@/lib/brand-contrast'
 import { LogoutButton } from './logout-button'
 
 export interface NavItem {
@@ -58,8 +59,10 @@ export async function AppShell({
   children,
 }: AppShellProps) {
   const { logoUrl, primaryColor } = await getBranding()
-  // El color de campaña, si existe, sobreescribe el granate por defecto (inline > clase).
-  const brandStyle = primaryColor ? { backgroundColor: primaryColor } : undefined
+  // El color de campaña, si existe, sobreescribe el granate por defecto (inline > clase),
+  // y de paso resuelve texto/hover/borde legibles CONTRA ese color: fijarlos en blanco
+  // solo funciona mientras la marca sea oscura. Ver lib/brand-contrast.ts.
+  const brandStyle = varsDeMarca(primaryColor)
 
   // Otros módulos activos del tenant, para saltar entre ellos sin salir por la URL a mano.
   const claveActual = moduleKey ?? moduleName
@@ -79,10 +82,10 @@ export async function AppShell({
       <input id="appshell-collapse" type="checkbox" className="peer/collapse hidden" />
 
       {/* Top bar — solo móvil */}
-      <header style={brandStyle} className="md:hidden fixed top-0 inset-x-0 z-20 flex items-center justify-between bg-granate-dark text-white px-3 h-14 shadow">
+      <header style={brandStyle} className="md:hidden fixed top-0 inset-x-0 z-20 flex items-center justify-between bg-granate-dark text-[var(--brand-fg)] px-3 h-14 shadow">
         <label
           htmlFor="appshell-toggle"
-          className="cursor-pointer p-2 -ml-2 rounded-md hover:bg-white/10"
+          className="cursor-pointer p-2 -ml-2 rounded-md hover:bg-[var(--brand-hover)]"
           aria-label="Abrir menú"
         >
           <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -90,7 +93,7 @@ export async function AppShell({
           </svg>
         </label>
         <div className="text-sm font-semibold truncate flex-1 text-center">{tenantName}</div>
-        <div className="text-[10px] opacity-60 uppercase tracking-wider w-12 truncate text-right shrink-0">{moduleName}</div>
+        <div className="text-[10px] text-[var(--brand-fg-dim)] uppercase tracking-wider w-12 truncate text-right shrink-0">{moduleName}</div>
       </header>
 
       {/* Backdrop — solo móvil cuando el sidebar está abierto */}
@@ -107,7 +110,7 @@ export async function AppShell({
       <aside
         style={brandStyle}
         className="
-          fixed inset-y-0 left-0 z-40 w-64 bg-granate-dark text-white px-5 py-6
+          fixed inset-y-0 left-0 z-40 w-64 bg-granate-dark text-[var(--brand-fg)] px-5 py-6
           flex flex-col gap-2 overflow-hidden
           -translate-x-full peer-checked/drawer:translate-x-0
           transition-all duration-200
@@ -118,7 +121,7 @@ export async function AppShell({
         {/* Botón cerrar — solo móvil */}
         <label
           htmlFor="appshell-toggle"
-          className="md:hidden self-end cursor-pointer p-1 -mr-1 -mt-1 rounded hover:bg-white/10"
+          className="md:hidden self-end cursor-pointer p-1 -mr-1 -mt-1 rounded hover:bg-[var(--brand-hover)]"
           aria-label="Cerrar menú"
         >
           <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -126,13 +129,18 @@ export async function AppShell({
           </svg>
         </label>
 
-        <div className="mb-6 whitespace-nowrap">
+        <div className="mb-6">
           {logoUrl && (
+            // Ocupa todo el ancho útil del sidebar. max-h evita que un logo muy
+            // vertical se coma el menú; object-contain conserva la proporción.
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt={tenantName} className="h-9 w-auto max-w-[150px] object-contain mb-2" />
+            <img src={logoUrl} alt={tenantName} className="w-full h-auto max-h-24 object-contain mb-2" />
           )}
-          <div className="font-bold text-base leading-tight">{tenantName}</div>
-          <div className="text-[11px] font-semibold text-plata mt-0.5 uppercase tracking-wider">
+          {/* Sin nowrap: los nombres de campaña son largos y truncarlos deja al
+              tenant viendo su propio nombre cortado. break-words parte también
+              una palabra suelta más ancha que el sidebar. */}
+          <div className="font-bold text-base leading-tight break-words">{tenantName}</div>
+          <div className="text-[11px] font-semibold text-[var(--brand-fg-dim)] mt-0.5 uppercase tracking-wider whitespace-nowrap">
             Vectra · {moduleName}
           </div>
         </div>
@@ -142,9 +150,9 @@ export async function AppShell({
             <Link
               key={item.href}
               href={item.href}
-              className="group flex items-center gap-2 text-plata hover:bg-white/10 hover:text-white rounded-md px-3 py-2 text-sm whitespace-nowrap transition"
+              className="group flex items-center gap-2 text-[var(--brand-fg-dim)] hover:bg-[var(--brand-hover)] hover:text-[var(--brand-fg)] rounded-md px-3 py-2 text-sm whitespace-nowrap transition"
             >
-              <span className="w-0.5 h-4 rounded-full bg-transparent group-hover:bg-oliva-light transition" aria-hidden />
+              <span className="w-0.5 h-4 rounded-full bg-transparent group-hover:bg-[var(--brand-fg)] transition" aria-hidden />
               <span className="flex-1">{item.label}</span>
               {item.badge}
             </Link>
@@ -152,8 +160,8 @@ export async function AppShell({
         </nav>
 
         {otrosModulos.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-white/10">
-            <div className="text-[10px] font-semibold text-plata/70 uppercase tracking-wider px-3 mb-1">
+          <div className="mt-4 pt-4 border-t border-[var(--brand-border)]">
+            <div className="text-[10px] font-semibold text-[var(--brand-fg-dim)] uppercase tracking-wider px-3 mb-1">
               Otros módulos
             </div>
             <nav className="flex flex-col gap-0.5">
@@ -161,9 +169,9 @@ export async function AppShell({
                 <Link
                   key={m.key}
                   href={m.path}
-                  className="group flex items-center gap-2 text-plata/80 hover:bg-white/10 hover:text-white rounded-md px-3 py-2 text-sm whitespace-nowrap transition"
+                  className="group flex items-center gap-2 text-[var(--brand-fg-dim)] hover:bg-[var(--brand-hover)] hover:text-[var(--brand-fg)] rounded-md px-3 py-2 text-sm whitespace-nowrap transition"
                 >
-                  <span className="w-0.5 h-4 rounded-full bg-transparent group-hover:bg-oliva-light transition" aria-hidden />
+                  <span className="w-0.5 h-4 rounded-full bg-transparent group-hover:bg-[var(--brand-fg)] transition" aria-hidden />
                   <span className="flex-1">{m.label}</span>
                 </Link>
               ))}
@@ -171,9 +179,9 @@ export async function AppShell({
           </div>
         )}
 
-        <div className="mt-auto pt-4 border-t border-white/10 text-xs leading-tight whitespace-nowrap">
-          <div className="truncate text-plata">{userEmail}</div>
-          <div className="text-plata/70 font-semibold mt-0.5 mb-3 uppercase tracking-wider text-[10px]">
+        <div className="mt-auto pt-4 border-t border-[var(--brand-border)] text-xs leading-tight whitespace-nowrap">
+          <div className="truncate text-[var(--brand-fg-dim)]">{userEmail}</div>
+          <div className="text-[var(--brand-fg-dim)] font-semibold mt-0.5 mb-3 uppercase tracking-wider text-[10px]">
             {userRole}
           </div>
           <LogoutButton />

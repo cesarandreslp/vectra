@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import { textoSobre } from '@/lib/brand-contrast'
 
 interface LoginFormProps {
   /** URL a la que volver tras login exitoso (la setea el middleware en redirects) */
@@ -169,7 +170,8 @@ export function LoginForm({ callbackUrl, tenantName, logoUrl, primaryColor }: Lo
             disabled={isPending}
             style={{
               background:   isPending ? '#94a3b8' : (primaryColor || '#7d2839'),
-              color:        '#fff',
+              // Blanco fijo se pierde sobre una marca clara — se decide contra el fondo real.
+              color:        textoSobre(isPending ? '#94a3b8' : (primaryColor || '#7d2839')),
               padding:      '0.625rem 1rem',
               borderRadius: '6px',
               border:       'none',

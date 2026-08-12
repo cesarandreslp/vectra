@@ -8,8 +8,10 @@ import { signOut } from '@campaignos/auth'
  * en vez de a la landing para que no quede la impresión de seguir dentro.
  */
 const TONOS = {
-  // Pie del sidebar (fondo granate)
-  oscuro: 'w-full border-white/20 text-plata hover:border-white/40 hover:bg-white/10 hover:text-white',
+  // Pie del sidebar (fondo = color de marca del tenant). Los colores salen de las
+  // vars que pone varsDeMarca en el <aside>, no fijos: sobre una marca clara el
+  // blanco no se lee. Ver lib/brand-contrast.ts.
+  oscuro: 'w-full border-[var(--brand-border)] text-[var(--brand-fg-dim)] hover:border-[var(--brand-fg)] hover:bg-[var(--brand-hover)] hover:text-[var(--brand-fg)]',
   // Barra superior de escritorio (fondo blanco). Sigue accesible aunque el
   // sidebar esté colapsado, que si no dejaría al usuario sin salida visible.
   claro:  'border-slate-300 text-slate-600 hover:border-granate hover:bg-granate/5 hover:text-granate',
