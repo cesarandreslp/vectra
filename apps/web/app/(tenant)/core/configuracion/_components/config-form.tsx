@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useTransition } from 'react'
+import { coloresDeLogo } from '@/lib/color-de-logo'
 import { guardarConfiguracion, listarMunicipios, type ConfiguracionView, type Cargo, type Opcion } from '../actions'
 
 const CARGOS: { value: Cargo; label: string }[] = [
@@ -25,11 +26,20 @@ export function ConfigForm({ inicial, departamentos }: { inicial: ConfiguracionV
   const [municipios, setMunicipios] = useState<Opcion[]>([])
   const [msg,       setMsg]       = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [subiendo,  setSubiendo]  = useState(false)
+  const [sugeridos, setSugeridos] = useState<string[]>([])
 
   useEffect(() => {
     if (!deptoCode) { setMunicipios([]); return }
     listarMunicipios(deptoCode).then(setMunicipios)
   }, [deptoCode])
+
+  // Sugerencias a partir del logo ya subido. Puede no dar nada (CORS, SVG sin
+  // tamaño, logo todo blanco) y entonces la fila de sugerencias no se muestra:
+  // es una ayuda, no un requisito del formulario.
+  useEffect(() => {
+    if (!inicial.logoUrl) return
+    coloresDeLogo(inicial.logoUrl).then(setSugeridos)
+  }, [inicial.logoUrl])
   // Los campos sensibles arrancan readOnly para que el navegador NO los autocomplete
   // al cargar (metía el email en Dominio y una contraseña en las claves). Se
   // desbloquean al primer foco, cuando el autofill de carga ya pasó.
@@ -43,6 +53,9 @@ export function ConfigForm({ inicial, departamentos }: { inicial: ConfiguracionV
   async function subirLogo(file: File) {
     setSubiendo(true)
     setMsg(null)
+    // Del archivo local, no de la URL: no depende de que la subida funcione ni
+    // de CORS, y las sugerencias aparecen de inmediato.
+    coloresDeLogo(file).then(setSugeridos)
     try {
       const fd = new FormData()
       fd.append('file', file)
@@ -111,6 +124,32 @@ export function ConfigForm({ inicial, departamentos }: { inicial: ConfiguracionV
             <input type="color" value={color} onChange={(e) => setColor(e.target.value)} style={{ width: 44, height: 36, border: '1px solid #cbd5e1', borderRadius: 6, background: '#fff' }} />
             <input type="text" value={color} onChange={(e) => setColor(e.target.value)} placeholder="#7d2839" style={{ ...estiloInput, maxWidth: 140, fontFamily: 'monospace' }} />
           </div>
+
+          {/* Sugerencias del logo: se proponen, no se aplican solas. Un banner con
+              varios colores no tiene un color de marca objetivo, así que elegir
+              por el usuario sale mal más veces de las que acierta. */}
+          {sugeridos.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.6rem', flexWrap: 'wrap' }}>
+              <span style={{ ...estiloHint, marginTop: 0 }}>Del logo:</span>
+              {sugeridos.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setColor(c)}
+                  title={`Usar ${c}`}
+                  aria-label={`Usar el color ${c} del logo`}
+                  style={{
+                    width: 28, height: 28, borderRadius: 6, background: c, cursor: 'pointer',
+                    // El seleccionado se marca con un aro, no con un borde de color:
+                    // sobre un swatch claro un borde claro no se distingue.
+                    border: '1px solid rgba(0,0,0,0.15)',
+                    outline: color.toLowerCase() === c ? '2px solid #0f172a' : 'none',
+                    outlineOffset: 2,
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </Campo>
       </Seccion>
 
