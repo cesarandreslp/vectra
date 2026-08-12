@@ -51,7 +51,16 @@ function esRutaPublica(pathname: string): boolean {
  */
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
-  const hostname     = request.nextUrl.hostname
+  // El host REAL que pidió el cliente viene en los headers, no en nextUrl:
+  // request.nextUrl.hostname refleja el host al que el server está atado
+  // (localhost en dev, el dominio interno tras el proxy de Vercel), no el
+  // subdominio/dominio que tecleó el usuario. Para resolución multi-tenant
+  // por host hay que leer x-forwarded-host (Vercel) o host. Sin esto, los
+  // Modos 2 y 3 nunca disparan.
+  const hostHeader = request.headers.get('x-forwarded-host')
+                  ?? request.headers.get('host')
+                  ?? request.nextUrl.host
+  const hostname   = hostHeader.split(':')[0]
 
   // Rutas públicas y landing pasan SIEMPRE — sin importar el host.
   // El login es universal: NextAuth resuelve el tenant del usuario por su email,
