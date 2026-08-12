@@ -178,6 +178,125 @@ export async function toggleTenantStatus(
   }
 }
 
+// ── Edición de datos del tenant ───────────────────────────────────────────────
+
+export interface TenantEditData {
+  id:          string
+  name:        string
+  slug:        string
+  domain:      string | null
+  adminUserId: string | null
+  adminEmail:  string | null
+}
+
+/** Carga los datos editables de un tenant + su admin principal (el más antiguo). */
+export async function getTenantForEdit(tenantId: string): Promise<TenantEditData> {
+  await requireAuth(['SUPERADMIN'])
+
+  const tenant = await superadminDb.tenant.findUnique({
+    where:  { id: tenantId },
+    select: { id: true, name: true, slug: true, domain: true },
+  })
+  if (!tenant) throw new Error('Tenant no encontrado.')
+
+  const admin = await superadminDb.user.findFirst({
+    where:   { tenantId, role: 'ADMIN_CAMPANA' },
+    orderBy: { createdAt: 'asc' },
+    select:  { id: true, email: true },
+  })
+
+  return { ...tenant, adminUserId: admin?.id ?? null, adminEmail: admin?.email ?? null }
+}
+
+/**
+ * Actualiza nombre, slug y dominio del tenant. Slug y dominio son únicos.
+ * Cambiar el slug NO rompe la conexión a la DB (la connectionString se guarda
+ * aparte, cifrada), pero sí invalida los enlaces de elector con el slug viejo.
+ */
+export async function updateTenant(
+  tenantId: string,
+  data: { name: string; slug: string; domain: string | null },
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    await requireAuth(['SUPERADMIN'])
+
+    const name   = data.name.trim()
+    const slug   = data.slug.trim().toLowerCase()
+    const domain = data.domain?.trim().toLowerCase() || null
+
+    if (!name) return { success: false, error: 'El nombre es obligatorio.' }
+    if (!/^[a-z0-9-]{3,}$/.test(slug)) {
+      return { success: false, error: 'El slug solo permite minúsculas, números y guiones (mínimo 3).' }
+    }
+    if (domain && !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) {
+      return { success: false, error: 'El dominio no tiene formato válido (ej: campana.com.co).' }
+    }
+
+    const actual = await superadminDb.tenant.findUnique({
+      where:  { id: tenantId },
+      select: { slug: true, domain: true },
+    })
+    if (!actual) return { success: false, error: 'Tenant no encontrado.' }
+
+    const choqueSlug = await superadminDb.tenant.findFirst({ where: { slug, NOT: { id: tenantId } }, select: { id: true } })
+    if (choqueSlug) return { success: false, error: `El slug "${slug}" ya está en uso por otro cliente.` }
+    if (domain) {
+      const choqueDom = await superadminDb.tenant.findFirst({ where: { domain, NOT: { id: tenantId } }, select: { id: true } })
+      if (choqueDom) return { success: false, error: `El dominio "${domain}" ya está en uso por otro cliente.` }
+    }
+
+    await superadminDb.tenant.update({ where: { id: tenantId }, data: { name, slug, domain } })
+
+    // Invalidar caché de identificadores viejos y nuevos para que el middleware refleje el cambio.
+    invalidarCacheTenant(actual.slug)
+    if (actual.domain) invalidarCacheTenant(actual.domain)
+    invalidarCacheTenant(slug)
+    if (domain) invalidarCacheTenant(domain)
+
+    revalidatePath('/superadmin/clientes')
+    revalidatePath(`/superadmin/clientes/${tenantId}/editar`)
+    return { success: true }
+  } catch (err) {
+    console.error('[updateTenant]', err instanceof Error ? err.message : err)
+    return { success: false, error: 'Error interno al actualizar el tenant.' }
+  }
+}
+
+/** Actualiza el email del admin del tenant y, opcionalmente, su contraseña. */
+export async function updateTenantAdmin(
+  tenantId: string,
+  data: { adminUserId: string; email: string; newPassword?: string },
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    await requireAuth(['SUPERADMIN'])
+
+    const email = data.email.trim().toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { success: false, error: 'Email inválido.' }
+
+    const admin = await superadminDb.user.findFirst({
+      where:  { id: data.adminUserId, tenantId, role: 'ADMIN_CAMPANA' },
+      select: { id: true },
+    })
+    if (!admin) return { success: false, error: 'Admin del tenant no encontrado.' }
+
+    const choque = await superadminDb.user.findFirst({ where: { email, NOT: { id: admin.id } }, select: { id: true } })
+    if (choque) return { success: false, error: `El email "${email}" ya está en uso.` }
+
+    const cambios: { email: string; passwordHash?: string } = { email }
+    if (data.newPassword) {
+      if (data.newPassword.length < 8) return { success: false, error: 'La contraseña debe tener al menos 8 caracteres.' }
+      cambios.passwordHash = await bcrypt.hash(data.newPassword, 12)
+    }
+    await superadminDb.user.update({ where: { id: admin.id }, data: cambios })
+
+    revalidatePath(`/superadmin/clientes/${tenantId}/editar`)
+    return { success: true }
+  } catch (err) {
+    console.error('[updateTenantAdmin]', err instanceof Error ? err.message : err)
+    return { success: false, error: 'Error interno al actualizar el admin.' }
+  }
+}
+
 // ── Gestión de módulos por tenant ─────────────────────────────────────────────
 // El catálogo `ALL_MODULES` se exporta desde `./modules` para no violar la
 // restricción de Next.js de que `'use server'` solo exporte funciones async.

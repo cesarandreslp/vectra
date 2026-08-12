@@ -94,6 +94,12 @@ export default async function ClientesPage() {
                 return (
                   <div className="flex items-center gap-3">
                     <Link
+                      href={`/superadmin/clientes/${tenant.id}/editar`}
+                      className="text-granate text-xs font-semibold hover:underline"
+                    >
+                      Editar
+                    </Link>
+                    <Link
                       href={`/superadmin/clientes/${tenant.id}/modulos`}
                       className="text-granate text-xs font-semibold hover:underline"
                     >
