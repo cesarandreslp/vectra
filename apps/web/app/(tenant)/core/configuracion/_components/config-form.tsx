@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { coloresDeLogo } from '@/lib/color-de-logo'
 import { guardarConfiguracion, listarMunicipios, type ConfiguracionView, type Cargo, type Opcion } from '../actions'
 
@@ -27,6 +28,7 @@ export function ConfigForm({ inicial, departamentos }: { inicial: ConfiguracionV
   const [msg,       setMsg]       = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [subiendo,  setSubiendo]  = useState(false)
   const [sugeridos, setSugeridos] = useState<string[]>([])
+  const router = useRouter()
 
   useEffect(() => {
     if (!deptoCode) { setMunicipios([]); return }
@@ -53,20 +55,37 @@ export function ConfigForm({ inicial, departamentos }: { inicial: ConfiguracionV
   async function subirLogo(file: File) {
     setSubiendo(true)
     setMsg(null)
-    // Del archivo local, no de la URL: no depende de que la subida funcione ni
-    // de CORS, y las sugerencias aparecen de inmediato.
-    coloresDeLogo(file).then(setSugeridos)
     try {
       const fd = new FormData()
       fd.append('file', file)
       const res  = await fetch('/api/core/upload-logo', { method: 'POST', body: fd })
       const data = await res.json()
-      if (res.ok) {
-        setLogoUrl(data.url)
-        setMsg({ tipo: 'ok', texto: 'Logo actualizado.' })
-      } else {
+      if (!res.ok) {
         setMsg({ tipo: 'error', texto: data.error ?? 'No se pudo subir el logo.' })
+        return
       }
+      setLogoUrl(data.url)
+
+      // El tema toma el color del logo sin pedir un clic. Se lee del archivo
+      // local, no de la URL recién subida: así no depende de CORS ni de que el
+      // blob ya esté servible.
+      const colores = await coloresDeLogo(file)
+      setSugeridos(colores)
+      if (colores.length === 0) {
+        setMsg({ tipo: 'ok', texto: 'Logo actualizado. No se pudo deducir un color; elígelo a mano.' })
+        return
+      }
+
+      setColor(colores[0])
+      // Se persiste aquí y no al pulsar "Guardar cambios" porque el logo también
+      // se guardó solo al subirlo: dejar el color a medio aplicar sería peor.
+      const guardado = await guardarConfiguracion({ primaryColor: colores[0] })
+      if (!guardado.success) {
+        setMsg({ tipo: 'error', texto: guardado.error })
+        return
+      }
+      setMsg({ tipo: 'ok', texto: `Logo actualizado. El tema tomó el color ${colores[0]} del logo.` })
+      router.refresh() // repinta el shell con el color nuevo, sin recargar a mano
     } catch {
       setMsg({ tipo: 'error', texto: 'No se pudo subir el logo.' })
     } finally {
@@ -116,7 +135,10 @@ export function ConfigForm({ inicial, departamentos }: { inicial: ConfiguracionV
               />
             </label>
           </div>
-          <p style={estiloHint}>PNG, JPG, SVG o WEBP. Máximo 2MB.</p>
+          <p style={estiloHint}>
+            PNG, JPG, SVG o WEBP. Máximo 2MB. Al subirlo, el tema de la campaña
+            toma el color dominante del logo.
+          </p>
         </Campo>
 
         <Campo label="Color primario">
@@ -125,9 +147,10 @@ export function ConfigForm({ inicial, departamentos }: { inicial: ConfiguracionV
             <input type="text" value={color} onChange={(e) => setColor(e.target.value)} placeholder="#7d2839" style={{ ...estiloInput, maxWidth: 140, fontFamily: 'monospace' }} />
           </div>
 
-          {/* Sugerencias del logo: se proponen, no se aplican solas. Un banner con
-              varios colores no tiene un color de marca objetivo, así que elegir
-              por el usuario sale mal más veces de las que acierta. */}
+          {/* Al subir un logo, el tema toma solo su color dominante. Los demás
+              colores del logo quedan aquí a un clic, porque un banner con varias
+              tintas no tiene un color de marca objetivo y el dominante puede no
+              ser el que la campaña considera suyo. */}
           {sugeridos.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.6rem', flexWrap: 'wrap' }}>
               <span style={{ ...estiloHint, marginTop: 0 }}>Del logo:</span>
