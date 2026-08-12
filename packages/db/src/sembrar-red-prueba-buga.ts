@@ -7,7 +7,8 @@ config({ path: '../../.env' })
  * real de campaña, para poder ver funcionando las cuatro vistas del mapa
  * (residencia, puesto de votación, comuna, calor) y el tablero de líderes.
  *
- * Forma de la red (52 electores):
+ * Forma de la red (53 electores):
+ *   El candidato de la campaña, marcado isCandidate                →  1
  *   Líder 1 ─ 9 directos, y dos de esos nueve con 11 y 8 debajo   → 29
  *   Líder 2 ─ 10 directos, y cinco de esos diez con 1 debajo      → 16
  *   7 electores sueltos, sin nadie debajo ni líder encima         →  7
@@ -140,6 +141,10 @@ interface PlanLider {
   comunas:   [string, string]
   meta:      number
 }
+/** Candidato de la campaña — nombre real; cédula, teléfono y dirección ficticios. */
+const CANDIDATO        = 'Splinter Adolfo Petro Libreros'
+const COMUNA_CANDIDATO = 'Comuna 1' // centro histórico de Buga
+
 const PLAN: PlanLider[] = [
   { directos: 9,  subredes: [11, 8],        comunas: ['Comuna 3', 'Comuna 4'], meta: 45 },
   { directos: 10, subredes: [1, 1, 1, 1, 1], comunas: ['Comuna 5', 'Comuna 6'], meta: 25 },
@@ -207,11 +212,26 @@ async function main() {
       return fuente.flatMap((p) => p.tables.map((m) => m.id))
     }
 
-    /** Crea un elector ubicado en una de las comunas dadas. */
+    /**
+     * Crea un elector ubicado en una de las comunas dadas, o devuelve el que ya
+     * existe con esa cédula.
+     *
+     * Dos reglas que hacen que el script sea idempotente de verdad, y que ya me
+     * mordieron por saltármelas:
+     *  1) TODOS los números aleatorios se consumen ANTES de mirar si el elector
+     *     ya existe. Salir antes desviaría la secuencia y la siguiente persona
+     *     saldría con otra cédula.
+     *  2) Si ya existe se devuelve SU id, no null. Devolver null dejaba la lista
+     *     de directos vacía en la segunda corrida, el bucle de subredes no se
+     *     ejecutaba, y esos crear() que no ocurrían desviaban la secuencia igual.
+     */
     async function crear(opts: {
       nivel: number; mayor: boolean; comunas: string[]
       leaderId?: string | null; zona?: string; meta?: number
-    }): Promise<string | null> {
+      /** Nombre real en vez de uno generado — solo para el candidato. */
+      nombreFijo?: string
+      esCandidato?: boolean
+    }): Promise<{ id: string; nuevo: boolean } | null> {
       const comuna = deLos(opts.comunas)
       const zona   = porComuna.get(comuna)
       if (!zona || !zona.boundary) return null
@@ -222,12 +242,22 @@ async function main() {
       const poly   = (barrio?.boundary ?? zona.boundary) as unknown as Punto[]
       const [lat, lng] = puntoDentro(poly)
 
-      const { nombre, apodo } = nombrePersona()
-      const cedula = cedulaPlausible(opts.mayor)
-      const hash   = createHash('sha256').update(cedula).digest('hex')
-      if (await db.voter.findFirst({ where: { tenantId: t.id, cedulaHash: hash }, select: { id: true } })) return null
+      const generado = nombrePersona()
+      const nombre   = opts.nombreFijo ?? generado.nombre
+      const apodo    = opts.nombreFijo ? null : generado.apodo
+      const cedula   = cedulaPlausible(opts.mayor)
+      const telefono = celular()
+      const dir      = direccion(barrio?.name ?? zona.name)
+      const mesas    = mesasDeZona(comuna)
+      const mesa     = mesas.length > 0 ? deLos(mesas) : null
+      const estado   = compromisoPorNivel(opts.nivel)
 
-      const mesas = mesasDeZona(comuna)
+      const hash = createHash('sha256').update(cedula).digest('hex')
+      const yaEsta = await db.voter.findFirst({
+        where: { tenantId: t.id, cedulaHash: hash }, select: { id: true },
+      })
+      if (yaEsta) return { id: yaEsta.id, nuevo: false }
+
       const creado = await db.voter.create({
         data: {
           tenantId:         t.id,
@@ -235,43 +265,44 @@ async function main() {
           apodo,
           cedula:           encrypt(cedula),
           cedulaHash:       hash,
-          phone:            encrypt(celular()),
-          address:          direccion(barrio?.name ?? zona.name),
+          phone:            encrypt(telefono),
+          address:          dir,
           lat, lng,
           leaderId:         opts.leaderId ?? null,
           referredById:     opts.leaderId ?? null,
           captureDepth:     opts.nivel,
-          votingTableId:    mesas.length > 0 ? deLos(mesas) : null,
-          commitmentStatus: compromisoPorNivel(opts.nivel),
+          votingTableId:    mesa,
+          commitmentStatus: estado,
+          isCandidate:      opts.esCandidato ?? false,
           zone:             opts.zona,
           targetVotes:      opts.meta ?? 0,
           notes:            `${MARCA} sembrado por sembrar-red-prueba-buga.ts`,
         },
         select: { id: true },
       })
-      return creado.id
+      return { id: creado.id, nuevo: true }
     }
 
     let total = 0
     for (const plan of PLAN) {
-      const liderId = await crear({
+      const lider = await crear({
         nivel: 0, mayor: true, comunas: [plan.comunas[0]],
         zona: plan.comunas[0], meta: plan.meta,
       })
-      if (!liderId) continue
-      total++
+      if (!lider) continue
+      if (lider.nuevo) total++
 
       const directos: string[] = []
       for (let i = 0; i < plan.directos; i++) {
-        const id = await crear({ nivel: 1, mayor: rnd() < 0.4, comunas: plan.comunas, leaderId: liderId })
-        if (id) { directos.push(id); total++ }
+        const r = await crear({ nivel: 1, mayor: rnd() < 0.4, comunas: plan.comunas, leaderId: lider.id })
+        if (r) { directos.push(r.id); if (r.nuevo) total++ }
       }
 
       // Las subredes cuelgan de los primeros directos, en ese orden.
       for (let i = 0; i < plan.subredes.length && i < directos.length; i++) {
         for (let j = 0; j < plan.subredes[i]; j++) {
-          const id = await crear({ nivel: 2, mayor: rnd() < 0.25, comunas: plan.comunas, leaderId: directos[i] })
-          if (id) total++
+          const r = await crear({ nivel: 2, mayor: rnd() < 0.25, comunas: plan.comunas, leaderId: directos[i] })
+          if (r?.nuevo) total++
         }
       }
     }
@@ -281,15 +312,29 @@ async function main() {
     const rurales = zonas.filter((z) => !z.name.startsWith('Comuna')).map((z) => z.name)
     for (let i = 0; i < SUELTOS; i++) {
       const comunas = i < 2 && rurales.length > 0 ? rurales : ['Comuna 1', 'Comuna 2', 'Comuna 4', 'Comuna 6']
-      const id = await crear({ nivel: 0, mayor: rnd() < 0.3, comunas })
-      if (id) total++
+      const r = await crear({ nivel: 0, mayor: rnd() < 0.3, comunas })
+      if (r?.nuevo) total++
+    }
+
+    // El candidato va AL FINAL a propósito: crearlo antes correría la secuencia
+    // del generador determinista y las cédulas de toda la red saldrían distintas,
+    // así que una segunda corrida no reconocería a nadie y sembraría duplicados.
+    // El schema admite a lo sumo un candidato por tenant, igual que setCandidato().
+    if (!(await db.voter.findFirst({ where: { tenantId: t.id, isCandidate: true }, select: { id: true } }))) {
+      const r = await crear({
+        nivel: 0, mayor: true, comunas: [COMUNA_CANDIDATO],
+        nombreFijo: CANDIDATO, esCandidato: true,
+      })
+      if (r?.nuevo) { total++; console.log(`      candidato: ${CANDIDATO}`) }
     }
 
     // Los sueltos no son de nadie: nadie los ha trabajado, así que quedan sin
     // contactar — compromisoPorNivel(0) los habría puesto como voto seguro,
     // que es el estado de un líder, no el de alguien que se registró solo.
     await db.voter.updateMany({
-      where: { tenantId: t.id, notes: { startsWith: MARCA }, leaderId: null, targetVotes: 0 },
+      // isCandidate excluido: comparte el perfil de un suelto (sin líder, meta 0)
+      // pero obviamente no está "sin contactar".
+      where: { tenantId: t.id, notes: { startsWith: MARCA }, leaderId: null, targetVotes: 0, isCandidate: false },
       data:  { commitmentStatus: 'SIN_CONTACTAR' },
     })
 
