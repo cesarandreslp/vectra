@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import 'leaflet/dist/leaflet.css'
-import { geocodificarPendientes, type VoterGeo, type GeoStats, type StationGeo, type ComunaGeo } from '../actions'
+import { geocodificarPendientes, type VoterGeo, type GeoStats, type StationGeo, type ComunaGeo, type CentroMunicipio } from '../actions'
 import { intensidadDeEstado, COLOR_TEMPERATURA, ETIQUETA_TEMPERATURA, GRADIENTE_CALOR } from '@/lib/temperatura'
 
 const COLOR_ESTADO: Record<string, string> = {
@@ -78,8 +78,15 @@ function dibujarCapaPuestos(L: typeof import('leaflet'), capa: import('leaflet')
   }
 }
 
-export function MapaElectores({ puntos, geoStats, puestos, comunas }: {
+/** Zoom al que se ve un municipio colombiano entero sin perder las calles. */
+const ZOOM_MUNICIPIO = 13
+/** Vista de arranque si la campaña aún no tiene municipio configurado. */
+const VISTA_COLOMBIA: [[number, number], number] = [[4.6, -74.08], 5]
+
+export function MapaElectores({ puntos, geoStats, puestos, comunas, centro }: {
   puntos: VoterGeo[]; geoStats: GeoStats; puestos: StationGeo[]; comunas: ComunaGeo[]
+  /** Centro del municipio configurado. null = sin municipio elegido todavía. */
+  centro: CentroMunicipio | null
 }) {
   const contenedor = useRef<HTMLDivElement>(null)
   const mapaRef    = useRef<import('leaflet').Map | null>(null)
@@ -105,7 +112,12 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas }: {
       if (cancelado || !contenedor.current) return
 
       if (!mapaRef.current) {
-        mapaRef.current = L.map(contenedor.current).setView([4.6, -74.08], 5) // centro Colombia, mientras no se conozca el municipio
+        // Arranca ya en el municipio de la campaña. Antes abría en Colombia
+        // entera y solo se acercaba si había datos propios que encuadrar, así
+        // que una campaña nueva veía el país aunque tuviera municipio elegido.
+        const [inicio, zoom]: [[number, number], number] =
+          centro ? [[centro.lat, centro.lng], ZOOM_MUNICIPIO] : VISTA_COLOMBIA
+        mapaRef.current = L.map(contenedor.current).setView(inicio, zoom)
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           attribution: '© OpenStreetMap',
           maxZoom: 19,
@@ -122,7 +134,12 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas }: {
           ...puestos.map((s): [number, number] => [s.lat, s.lng]),
           ...comunas.flatMap((c) => c.boundary),
         ]
-        if (puntosMunicipio.length > 0) mapa.fitBounds(L.latLngBounds(puntosMunicipio).pad(0.2))
+        if (puntosMunicipio.length > 0) {
+          mapa.fitBounds(L.latLngBounds(puntosMunicipio).pad(0.2))
+        } else if (centro) {
+          // Ni puestos ni comunas cargadas: al menos el municipio configurado.
+          mapa.setView([centro.lat, centro.lng], ZOOM_MUNICIPIO)
+        }
       }
 
       if (vista === 'calor') {
@@ -152,7 +169,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas }: {
     return () => {
       cancelado = true
     }
-  }, [vista, puntos, puestos, comunas])
+  }, [vista, puntos, puestos, comunas, centro])
 
   useEffect(() => () => {
     if (mapaRef.current) { mapaRef.current.remove(); mapaRef.current = null }

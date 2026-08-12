@@ -1343,6 +1343,58 @@ export async function getVotingStationsGeo(): Promise<StationGeo[]> {
   }))
 }
 
+export interface CentroMunicipio {
+  lat:  number
+  lng:  number
+  name: string
+}
+
+/**
+ * Centro del municipio configurado para la campaña, para encuadrar los mapas
+ * cuando todavía no hay datos propios que encuadrar.
+ *
+ * Sin esto una campaña recién creada abre el dashboard mirando Colombia entera,
+ * aunque ya haya elegido departamento y municipio: los mapas solo se acercaban
+ * a partir de puestos con electores o comunas con límites, y una campaña nueva
+ * no tiene ninguno de los dos.
+ *
+ * DIVIPOLA no trae coordenadas, así que la primera vez se geocodifica el nombre
+ * del municipio y se guarda en Municipality. A partir de ahí sale de la DB: una
+ * sola llamada a Nominatim por municipio, nunca una por visita al dashboard.
+ */
+export async function getCentroMunicipio(): Promise<CentroMunicipio | null> {
+  const session  = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR', 'LIDER', 'TESTIGO'], 'CORE_DASHBOARD')
+  const db       = await obtenerDbTenant(session.user.tenantId)
+  const tenantId = session.user.tenantId
+
+  const config = await db.tenantConfig.findUnique({
+    where:  { tenantId },
+    select: { electionMunicipalityDivipola: true },
+  })
+  const divipola = config?.electionMunicipalityDivipola
+  if (!divipola) return null // campaña sin municipio configurado: no hay dónde centrar
+
+  const municipio = await db.municipality.findUnique({
+    where:  { divipola },
+    select: { id: true, name: true, lat: true, lng: true, department: { select: { name: true } } },
+  })
+  if (!municipio) return null
+
+  if (municipio.lat !== null && municipio.lng !== null) {
+    return { lat: municipio.lat, lng: municipio.lng, name: municipio.name }
+  }
+
+  // Con el departamento y el país, si no "Buga" cae en cualquier otro país.
+  const punto = await geocodeAddress(`${municipio.name}, ${municipio.department.name}, Colombia`)
+  if (!punto) return null // best-effort: sin centro, el mapa se queda como estaba
+
+  await db.municipality.update({
+    where: { id: municipio.id },
+    data:  { lat: punto.lat, lng: punto.lng },
+  })
+  return { lat: punto.lat, lng: punto.lng, name: municipio.name }
+}
+
 export interface ComunaGeo {
   id:             string
   name:           string

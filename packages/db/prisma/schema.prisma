@@ -313,6 +313,11 @@ model Municipality {
   divipola     String @unique // Código de 5 dígitos. Ej: "05001" para Medellín
   name         String
   departmentId String
+  // Centro del municipio, para encuadrar los mapas antes de que haya datos
+  // propios que encuadrar. Se rellena geocodificando una sola vez, la primera
+  // vez que hace falta (ver getCentroMunicipio).
+  lat          Float?
+  lng          Float?
 
   department     Department      @relation(fields: [departmentId], references: [id])
   communes       Commune[]
