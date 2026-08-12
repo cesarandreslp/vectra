@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { NodoOrganizacion } from '../../actions'
+import { TITULOS } from '@/lib/lideres'
 
 /**
  * Organigrama visual (no lista con sangría) — cajas conectadas por líneas,
@@ -39,16 +40,19 @@ function NodoOrganigrama({ nodo, esRaiz = false }: { nodo: NodoOrganizacion; esR
           <div style={{ fontSize: '0.7rem', opacity: 0.75, marginTop: '1px' }}>{nodo.zone}</div>
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.3rem' }}>
-          <span style={{ fontSize: '0.7rem', opacity: 0.75 }}>{nodo.directos} directos</span>
-          {nodo.esLider && (
-            <span style={{
-              background: esRaiz ? 'rgba(255,255,255,0.15)' : '#dbeafe',
-              color:      esRaiz ? '#fff' : '#1e40af',
+          <span style={{ fontSize: '0.7rem', opacity: 0.75 }}>
+            {nodo.directos} directos · {nodo.red} en red
+          </span>
+          {nodo.titulos.map((t) => (
+            <span key={t} title={TITULOS[t].descripcion} style={{
+              background: esRaiz ? 'rgba(255,255,255,0.15)' : `${TITULOS[t].color}1a`,
+              color:      esRaiz ? '#fff' : TITULOS[t].color,
               padding: '0.05rem 0.4rem', borderRadius: 999, fontSize: '0.6rem', fontWeight: 700,
+              whiteSpace: 'nowrap',
             }}>
-              LÍDER
+              {TITULOS[t].nombre.toUpperCase()}
             </span>
-          )}
+          ))}
         </div>
       </Link>
 

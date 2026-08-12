@@ -17,7 +17,7 @@ import { puntoEnPoligono }            from '@/lib/geometry'
 import { coloresPorZona }             from '@/lib/colores-comuna'
 import { crearQrPropio }              from '@/lib/qr'
 import { calcularIndiceCompromiso }   from '@/lib/compromiso'
-import { UMBRAL_LIDER_DIRECTOS }      from '@/lib/lideres'
+import { titulosDe, type TituloLider } from '@/lib/lideres'
 import { chatGroq }                   from '@campaignos/ai'
 import { getTenantAiKeys }            from '@/lib/tenant-ai'
 import { revalidatePath }             from 'next/cache'
@@ -68,6 +68,8 @@ export interface LeaderSummary {
   tieneAgenda:    boolean
   pctAvance:      number // 0-100
   parentLeaderId: string | null
+  /** Títulos ganados (reclutamiento directo y/o red construida). Ver lib/lideres.ts. */
+  titulos:        TituloLider[]
 }
 
 export interface CreateVoterInput {
@@ -121,20 +123,61 @@ async function obtenerDbTenant(tenantId: string) {
   return getTenantDb(connectionString)
 }
 
-/** Ids de electores que califican como "líder" según UMBRAL_LIDER_DIRECTOS. */
+/**
+ * Punto ÚNICO donde se decide qué títulos tiene cada elector. Todo lo demás
+ * (panel, ranking, Analytics, agenda de la PWA) deriva de acá — antes la regla
+ * estaba repetida en SQL crudo en Analytics y se habría desincronizado sola.
+ *
+ * Devuelve solo a quienes ganaron al menos un título.
+ */
+export async function titulosPorLider(
+  tenantId: string, db: ReturnType<typeof getTenantDb>,
+): Promise<Map<string, TituloLider[]>> {
+  const todos = await db.voter.findMany({
+    where:  { tenantId },
+    select: { id: true, leaderId: true },
+  })
+
+  const hijos = new Map<string, string[]>()
+  for (const v of todos) {
+    if (!v.leaderId) continue
+    const lista = hijos.get(v.leaderId) ?? []
+    lista.push(v.id)
+    hijos.set(v.leaderId, lista)
+  }
+
+  // Tamaño de la red completa debajo de cada quien. `enCurso` corta un ciclo
+  // (A→B→A) en vez de desbordar la pila: el árbol lo arman humanos desde la UI.
+  const cache   = new Map<string, number>()
+  const enCurso = new Set<string>()
+  function red(id: string): number {
+    const memo = cache.get(id)
+    if (memo !== undefined) return memo
+    if (enCurso.has(id)) return 0
+    enCurso.add(id)
+
+    const propios = hijos.get(id) ?? []
+    let total = propios.length
+    for (const h of propios) total += red(h)
+
+    enCurso.delete(id)
+    cache.set(id, total)
+    return total
+  }
+
+  const titulos = new Map<string, TituloLider[]>()
+  for (const v of todos) {
+    const ganados = titulosDe(hijos.get(v.id)?.length ?? 0, red(v.id))
+    if (ganados.length > 0) titulos.set(v.id, ganados)
+  }
+  return titulos
+}
+
+/** Ids de electores que califican como "líder" — los que tienen algún título. */
 export async function idsLideres(
   tenantId: string, db: ReturnType<typeof getTenantDb>,
 ): Promise<Set<string>> {
-  const conteos = await db.voter.groupBy({
-    by:     ['leaderId'],
-    where:  { tenantId, leaderId: { not: null } },
-    _count: { id: true },
-  })
-  const ids = new Set<string>()
-  for (const c of conteos) {
-    if (c.leaderId && c._count.id >= UMBRAL_LIDER_DIRECTOS) ids.add(c.leaderId)
-  }
-  return ids
+  return new Set((await titulosPorLider(tenantId, db)).keys())
 }
 
 /**
@@ -201,7 +244,9 @@ export interface NodoOrganizacion {
   name:     string
   zone:     string | null
   directos: number
-  esLider:  boolean // >= UMBRAL_LIDER_DIRECTOS
+  /** Red completa debajo suyo, a cualquier profundidad. */
+  red:      number
+  titulos:  TituloLider[]
   children: NodoOrganizacion[]
 }
 
@@ -241,35 +286,47 @@ export async function getArbolOrganizacion(raizId: string): Promise<NodoOrganiza
     hijosPorLider.set(v.leaderId, lista)
   }
 
-  function construirHijos(id: string): NodoOrganizacion[] {
-    const hijos = hijosPorLider.get(id) ?? []
-    return hijos
-      .filter((h) => (hijosPorLider.get(h.id)?.length ?? 0) > 0)
-      .map((h) => {
-        const propios = hijosPorLider.get(h.id) ?? []
-        return {
-          id: h.id, name: h.name, zone: h.zone,
-          directos: propios.length,
-          esLider:  propios.length >= UMBRAL_LIDER_DIRECTOS,
-          children: construirHijos(h.id),
-        }
-      })
+  // Mismo criterio de título que el panel y el ranking: si acá se calculara
+  // solo con los directos, María Eugenia saldría sin distintivo en el árbol y
+  // con "Constructor de red" en el panel, contradiciéndose.
+  const cacheRed = new Map<string, number>()
+  function red(id: string): number {
+    const memo = cacheRed.get(id)
+    if (memo !== undefined) return memo
+    cacheRed.set(id, 0) // corta ciclos antes de recursar
+    const propios = hijosPorLider.get(id) ?? []
+    let total = propios.length
+    for (const h of propios) total += red(h.id)
+    cacheRed.set(id, total)
+    return total
   }
 
-  const directosRaiz = hijosPorLider.get(raizId) ?? []
-  return {
-    id: raiz.id, name: raiz.name, zone: raiz.zone,
-    directos: directosRaiz.length,
-    esLider:  directosRaiz.length >= UMBRAL_LIDER_DIRECTOS,
-    children: construirHijos(raizId),
+  function nodo(v: { id: string; name: string; zone: string | null }): NodoOrganizacion {
+    const directos = hijosPorLider.get(v.id)?.length ?? 0
+    const total    = red(v.id)
+    return {
+      id: v.id, name: v.name, zone: v.zone,
+      directos, red: total,
+      titulos:  titulosDe(directos, total),
+      children: construirHijos(v.id),
+    }
   }
+
+  function construirHijos(id: string): NodoOrganizacion[] {
+    return (hijosPorLider.get(id) ?? [])
+      .filter((h) => (hijosPorLider.get(h.id)?.length ?? 0) > 0)
+      .map(nodo)
+  }
+
+  return nodo(raiz)
 }
 
 // ── Acciones de líderes ───────────────────────────────────────────────────────
 // No existe "crear líder": todos se crean como electores (createVoter, más
-// abajo). "Líder" es una etiqueta que aparece sola al llegar a
-// UMBRAL_LIDER_DIRECTOS electores directos — lo único que se edita aquí es
-// lo que solo tiene sentido una vez alguien actúa como tal (zona, meta).
+// abajo). "Líder" es una etiqueta que aparece sola al ganar algún título, por
+// reclutamiento directo o por red construida (ver titulosPorLider) — lo único
+// que se edita aquí es lo que solo tiene sentido una vez alguien actúa como
+// tal (zona, meta).
 
 /**
  * Actualiza datos de un líder existente.
@@ -381,7 +438,7 @@ export async function setTieneAgenda(id: string, tieneAgenda: boolean): Promise<
 }
 
 /**
- * Lista líderes (Voters con >= UMBRAL_LIDER_DIRECTOS electores directos) con
+ * Lista líderes (Voters con al menos un título — ver titulosPorLider) con
  * métricas de avance. Los LIDER solo ven sus propios datos.
  */
 export async function listLeaders(filters?: LeaderFilters): Promise<LeaderSummary[]> {
@@ -395,6 +452,8 @@ export async function listLeaders(filters?: LeaderFilters): Promise<LeaderSummar
     ? (session.user.voterId ? await idsSubarbol(session.user.voterId, session.user.tenantId, db) : new Set<string>())
     : null
 
+  const titulos = await titulosPorLider(session.user.tenantId, db)
+
   const condiciones: any[] = [{ tenantId: session.user.tenantId }]
   // Buscar por id puntual (ej. la ficha de un líder recién creado, sin
   // followers todavía) NO exige "es líder"; listar/rankear sí lo exige.
@@ -403,7 +462,7 @@ export async function listLeaders(filters?: LeaderFilters): Promise<LeaderSummar
   condiciones.push(
     filters?.id
       ? { id: filters.id }
-      : { id: { in: [...(await idsLideres(session.user.tenantId, db))] }, isCandidate: false },
+      : { id: { in: [...titulos.keys()] }, isCandidate: false },
   )
   if (idsPermitidos) condiciones.push({ id: { in: [...idsPermitidos] } })
   if (filters?.zone)           condiciones.push({ zone: filters.zone })
@@ -451,6 +510,7 @@ export async function listLeaders(filters?: LeaderFilters): Promise<LeaderSummar
         ? Math.round((comprometidos / l.targetVotes) * 100)
         : 0,
       parentLeaderId: l.leaderId,
+      titulos:        titulos.get(l.id) ?? [],
     }
   })
 }
@@ -1082,6 +1142,8 @@ export interface LeaderRankingEntry {
   totalDownline:         number // directos + todo el sub-árbol (no solo followers directos)
   comprometidosDownline: number
   profundidad:           number // niveles de sub-líderes debajo de este
+  directos:              number // followers inmediatos — el otro eje del título
+  titulos:               TituloLider[]
 }
 
 /**
@@ -1129,17 +1191,20 @@ export async function getLeaderRanking(limit?: number): Promise<LeaderRankingEnt
   }
 
   const ranking = todos
-    // Solo quienes califican como líder (>= UMBRAL_LIDER_DIRECTOS directos) —
-    // las líneas indirectas ya suman a totalDownline, pero no deciden esto.
+    // Califica quien tenga ALGÚN título: por reclutar de su propia mano o por
+    // la red que construyó. Antes solo contaban los directos, así que quien
+    // armaba una red grande a través de sus reclutados no aparecía.
     // El candidato cuenta para el sub-árbol de quien sí aparece, pero no se lista él mismo.
-    .filter((v) => (hijosPorLider.get(v.id)?.length ?? 0) >= UMBRAL_LIDER_DIRECTOS && !v.isCandidate)
     .map((v) => {
-      const s = subarbol(v.id)
+      const s        = subarbol(v.id)
+      const directos = hijosPorLider.get(v.id)?.length ?? 0
       return {
         id: v.id, name: v.name, zone: v.zone,
         totalDownline: s.total, comprometidosDownline: s.comprometidos, profundidad: s.profundidad,
+        directos, titulos: v.isCandidate ? [] : titulosDe(directos, s.total),
       }
     })
+    .filter((v) => v.titulos.length > 0)
     .sort((a, b) => b.totalDownline - a.totalDownline)
 
   return limit ? ranking.slice(0, limit) : ranking

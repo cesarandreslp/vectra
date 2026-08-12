@@ -14,7 +14,6 @@ import { getTenantDb }         from '@campaignos/db'
 import { chatZhipu }           from '@campaignos/ai'
 import { getTenantAiKeys }     from '@/lib/tenant-ai'
 import { idsLideres }          from '@/app/(tenant)/core/actions'
-import { UMBRAL_LIDER_DIRECTOS } from '@/lib/lideres'
 import { revalidatePath }      from 'next/cache'
 
 // ── Tipos exportados ──────────────────────────────────────────────────────────
@@ -121,7 +120,7 @@ export async function getAnalyticsDashboard(): Promise<DashboardKpi> {
   const hace7dias   = new Date(hoy.getTime() - 7 * 24 * 60 * 60 * 1000)
   const hace30dias  = new Date(hoy.getTime() - 30 * 24 * 60 * 60 * 1000)
 
-  // Líder = >= UMBRAL_LIDER_DIRECTOS electores directos (ver core/actions.ts).
+  // Líder = tiene algún título de red (ver titulosPorLider en core/actions.ts).
   const liderIds = await idsLideres(tenantId, db)
 
   const [
@@ -227,6 +226,12 @@ export async function getAnalyticsDashboard(): Promise<DashboardKpi> {
 export async function getAnalysisByTerritory(): Promise<TerritoryRow[]> {
   const { db, tenantId } = await getDbAndTenant('ANALYTICS_TERRITORIO')
 
+  // Quién es líder lo decide titulosPorLider() en CORE, no un HAVING acá.
+  // Antes estas dos consultas repetían la regla en SQL (>= N directos) y se
+  // habrían desincronizado en silencio al cambiarla, mostrando en Analytics
+  // un conteo de líderes distinto al del panel.
+  const lideres = [...(await idsLideres(tenantId, db))]
+
   // Electores CON mesa asignada → agrupados por municipio
   const conMesa = await db.$queryRaw<{
     municipio: string
@@ -244,11 +249,7 @@ export async function getAnalysisByTerritory(): Promise<TerritoryRow[]> {
         WHERE v."commitmentStatus" IN ('COMPROMETIDO', 'VOTO_SEGURO')
       )::bigint                                                       AS comprometidos,
       COUNT(DISTINCT l.id) FILTER (
-        WHERE l.status = 'ACTIVO' AND l.id IN (
-          SELECT "leaderId" FROM "Voter"
-          WHERE "tenantId" = ${tenantId} AND "leaderId" IS NOT NULL
-          GROUP BY "leaderId" HAVING COUNT(*) >= ${UMBRAL_LIDER_DIRECTOS}
-        )
+        WHERE l.status = 'ACTIVO' AND l.id = ANY(${lideres})
       )::bigint                                                       AS lideres_activos,
       COALESCE(SUM(DISTINCT l."targetVotes"), 0)::bigint              AS meta
     FROM "Voter" v
@@ -274,11 +275,7 @@ export async function getAnalysisByTerritory(): Promise<TerritoryRow[]> {
         WHERE v."commitmentStatus" IN ('COMPROMETIDO', 'VOTO_SEGURO')
       )::bigint                                                       AS comprometidos,
       COUNT(DISTINCT l.id) FILTER (
-        WHERE l.status = 'ACTIVO' AND l.id IN (
-          SELECT "leaderId" FROM "Voter"
-          WHERE "tenantId" = ${tenantId} AND "leaderId" IS NOT NULL
-          GROUP BY "leaderId" HAVING COUNT(*) >= ${UMBRAL_LIDER_DIRECTOS}
-        )
+        WHERE l.status = 'ACTIVO' AND l.id = ANY(${lideres})
       )::bigint                                                       AS lideres_activos,
       COALESCE(SUM(DISTINCT l."targetVotes"), 0)::bigint              AS meta
     FROM "Voter" v
@@ -345,7 +342,7 @@ export async function getLeaderAnalytics(filters?: LeaderFilters): Promise<Leade
   const where: Record<string, unknown> = { tenantId }
   if (filters?.zona) where.zone = filters.zona
 
-  // Líder = >= UMBRAL_LIDER_DIRECTOS electores directos (ver core/actions.ts).
+  // Líder = tiene algún título de red (ver titulosPorLider en core/actions.ts).
   const liderIds = await idsLideres(tenantId, db)
 
   const leaders = await db.voter.findMany({

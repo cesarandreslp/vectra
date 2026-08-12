@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { getLeaderRanking } from '../../actions'
+import { TitulosLider } from '../_components/titulos-lider'
 
 export const metadata = { title: 'Ranking de líderes' }
 
@@ -32,12 +33,15 @@ export default async function RankingLideresPage() {
             >
               <span style={{ fontWeight: 700, color: '#94a3b8', width: '2rem' }}>#{i + 1}</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{l.name}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{l.name}</span>
+                  <TitulosLider titulos={l.titulos} />
+                </div>
                 {l.zone && <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{l.zone}</div>}
               </div>
               <div style={{ textAlign: 'right', fontSize: '0.8rem', color: '#64748b' }}>
                 <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '1rem' }}>{l.totalDownline}</div>
-                <div>{l.comprometidosDownline} comprometidos{l.profundidad > 0 ? ` · ${l.profundidad} nivel(es)` : ''}</div>
+                <div>{l.directos} directos · {l.comprometidosDownline} comprometidos{l.profundidad > 0 ? ` · ${l.profundidad} nivel(es)` : ''}</div>
               </div>
             </Link>
           ))}

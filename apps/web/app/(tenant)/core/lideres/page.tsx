@@ -2,7 +2,8 @@ import Link                      from 'next/link'
 import { auth }                  from '@campaignos/auth'
 import { listLeaders }           from '../actions'
 import { BarraProgreso }         from './_components/barra-progreso'
-import { UMBRAL_LIDER_DIRECTOS } from '@/lib/lideres'
+import { TitulosLider }          from './_components/titulos-lider'
+import { UMBRAL_LIDER_DIRECTOS, UMBRAL_LIDER_RED } from '@/lib/lideres'
 
 export const metadata = { title: 'Líderes' }
 
@@ -66,7 +67,7 @@ export default async function LideresPage({ searchParams }: Props) {
         <div style={{ color: '#64748b', marginTop: '2rem' }}>
           {params.q
             ? 'Ningún líder coincide con la búsqueda.'
-            : `Todavía nadie llega a ${UMBRAL_LIDER_DIRECTOS} electores directos — un elector se vuelve "líder" automáticamente al alcanzarlos.`}
+            : `Todavía nadie gana un título: hacen falta ${UMBRAL_LIDER_DIRECTOS} electores traídos de su propia mano (Reclutador) o una red de ${UMBRAL_LIDER_RED} personas a cualquier profundidad (Constructor de red).`}
           {esAdmin && !params.q && <> <Link href="/core/electores/nuevo">Crear electores →</Link></>}
         </div>
       ) : (
@@ -91,6 +92,9 @@ export default async function LideresPage({ searchParams }: Props) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
                   <div>
                     <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{lider.name}</div>
+                    <div style={{ marginTop: '4px' }}>
+                      <TitulosLider titulos={lider.titulos} />
+                    </div>
                     {lider.zone && (
                       <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
                         {lider.zone}
