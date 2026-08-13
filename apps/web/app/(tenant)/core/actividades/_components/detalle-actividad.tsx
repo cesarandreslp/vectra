@@ -30,6 +30,7 @@ export function DetalleActividad({ actividadId, electores }: { actividadId: stri
   return (
     <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{detalle.nombre} — grupos y logística</h2>
+      <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '-0.6rem' }}>Doliente: {detalle.doliente}</div>
 
       <form onSubmit={addGrupo} style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', alignItems: 'flex-end', background: '#f8fafc', borderRadius: '8px', padding: '0.75rem' }}>
         <label style={lbl}>Grupo / lugar<input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Parque San José" required style={input} /></label>

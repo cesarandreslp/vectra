@@ -20,6 +20,7 @@ async function db(edit = false) {
 
 export interface ActividadResumen {
   id: string; nombre: string; categoria: string | null; fecha: string | null; estado: string
+  doliente: string
   grupos: number; simpatizantes: number; insumos: number
 }
 
@@ -28,21 +29,34 @@ export async function getActividades(): Promise<ActividadResumen[]> {
   const acts = await d.actividad.findMany({
     where:   { tenantId },
     orderBy: [{ fecha: 'desc' }, { createdAt: 'desc' }],
-    include: { grupos: { select: { _count: { select: { miembros: true, insumos: true } } } } },
+    include: {
+      doliente: { select: { name: true } },
+      grupos:   { select: { _count: { select: { miembros: true, insumos: true } } } },
+    },
   })
   return acts.map((a) => ({
     id: a.id, nombre: a.nombre, categoria: a.categoria, fecha: a.fecha?.toISOString() ?? null, estado: a.estado,
+    doliente: a.doliente.name,
     grupos: a.grupos.length,
     simpatizantes: a.grupos.reduce((n, g) => n + g._count.miembros, 0),
     insumos: a.grupos.reduce((n, g) => n + g._count.insumos, 0),
   }))
 }
 
-export async function crearActividad(data: { nombre: string; categoria?: string; fecha?: string }) {
+export async function crearActividad(data: { nombre: string; categoria?: string; fecha?: string; dolienteId: string }) {
   const { db: d, tenantId } = await db(true)
   if (!data.nombre.trim()) return { success: false, error: 'Falta el nombre.' }
+  if (!data.dolienteId)    return { success: false, error: 'Toda actividad necesita un doliente.' }
+
+  const doliente = await d.voter.findFirst({ where: { id: data.dolienteId, tenantId }, select: { id: true } })
+  if (!doliente) return { success: false, error: 'El doliente no es válido.' }
+
   await d.actividad.create({
-    data: { tenantId, nombre: data.nombre.trim(), categoria: data.categoria?.trim() || undefined, fecha: data.fecha ? new Date(data.fecha) : undefined },
+    data: {
+      tenantId, nombre: data.nombre.trim(), dolienteId: doliente.id,
+      categoria: data.categoria?.trim() || undefined,
+      fecha: data.fecha ? new Date(data.fecha) : undefined,
+    },
   })
   revalidatePath('/core/actividades')
   return { success: true }
@@ -66,7 +80,7 @@ export interface GrupoDetalle {
 }
 export interface ActividadDetalle {
   id: string; nombre: string; categoria: string | null; fecha: string | null; estado: string
-  descripcion: string | null; grupos: GrupoDetalle[]
+  doliente: string; descripcion: string | null; grupos: GrupoDetalle[]
 }
 
 export async function getActividadDetalle(id: string): Promise<ActividadDetalle | null> {
@@ -74,6 +88,7 @@ export async function getActividadDetalle(id: string): Promise<ActividadDetalle 
   const a = await d.actividad.findFirst({
     where:   { id, tenantId },
     include: {
+      doliente: { select: { name: true } },
       grupos: {
         orderBy: { createdAt: 'asc' },
         include: {
@@ -86,7 +101,8 @@ export async function getActividadDetalle(id: string): Promise<ActividadDetalle 
   })
   if (!a) return null
   return {
-    id: a.id, nombre: a.nombre, categoria: a.categoria, fecha: a.fecha?.toISOString() ?? null, estado: a.estado, descripcion: a.descripcion,
+    id: a.id, nombre: a.nombre, categoria: a.categoria, fecha: a.fecha?.toISOString() ?? null, estado: a.estado,
+    doliente: a.doliente.name, descripcion: a.descripcion,
     grupos: a.grupos.map((g) => ({
       id: g.id, nombre: g.nombre, lugar: g.lugar, responsableName: g.responsable?.name ?? null,
       miembros: g.miembros.map((m) => ({ id: m.id, voterId: m.voterId, name: m.voter.name })),

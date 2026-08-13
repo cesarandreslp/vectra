@@ -14,13 +14,14 @@ export function PanelActividades({ actividades, electores }: { actividades: Acti
   const [nombre, setNombre] = useState('')
   const [categoria, setCategoria] = useState('')
   const [fecha, setFecha] = useState('')
+  const [dolienteId, setDolienteId] = useState('')
   const [sel, setSel] = useState<string | null>(null)
 
   async function crear(e: React.FormEvent) {
     e.preventDefault()
-    const r = await crearActividad({ nombre, categoria: categoria || undefined, fecha: fecha || undefined })
+    const r = await crearActividad({ nombre, categoria: categoria || undefined, fecha: fecha || undefined, dolienteId })
     if (!r.success) { alert(r.error); return }
-    setNombre(''); setCategoria(''); setFecha(''); router.refresh()
+    setNombre(''); setCategoria(''); setFecha(''); setDolienteId(''); router.refresh()
   }
   async function borrar(id: string) {
     if (!confirm('¿Borrar la actividad y todos sus grupos, miembros e insumos?')) return
@@ -36,6 +37,12 @@ export function PanelActividades({ actividades, electores }: { actividades: Acti
         <label style={lbl}>Actividad<input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Brigada de salud" required style={input} /></label>
         <label style={lbl}>Categoría<input value={categoria} onChange={(e) => setCategoria(e.target.value)} placeholder="salud, mascotas…" style={input} /></label>
         <label style={lbl}>Fecha<input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} style={input} /></label>
+        <label style={lbl}>Doliente
+          <select value={dolienteId} onChange={(e) => setDolienteId(e.target.value)} required style={input}>
+            <option value="">Quién responde…</option>
+            {electores.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+          </select>
+        </label>
         <button type="submit" style={btn}>Crear actividad</button>
       </form>
 
@@ -51,6 +58,9 @@ export function PanelActividades({ actividades, electores }: { actividades: Acti
               {a.categoria ? `${a.categoria} · ` : ''}{a.fecha ? new Date(a.fecha).toLocaleDateString('es-CO') : 'sin fecha'} · {a.estado}
             </div>
             <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '0.4rem' }}>
+              Doliente: <strong>{a.doliente}</strong>
+            </div>
+            <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '0.15rem' }}>
               {a.grupos} grupo(s) · {a.simpatizantes} simpatizante(s) · {a.insumos} insumo(s)
             </div>
           </div>

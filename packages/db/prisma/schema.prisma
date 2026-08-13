@@ -262,6 +262,7 @@ model Voter {
   // Actividades sociales: grupos temporales que coordina o integra
   gruposCoordinados       GrupoActividad[]           @relation("GrupoResponsable")
   membresiasGrupo         MiembroGrupo[]             @relation("MiembroGrupoVoter")
+  actividadesADoliente    Actividad[]                @relation("ActividadDoliente")
 
   leader      Voter?       @relation("VoterHierarchy", fields: [leaderId], references: [id])
   followers   Voter[]      @relation("VoterHierarchy")
@@ -1215,10 +1216,16 @@ model Actividad {
   descripcion String?
   fecha       DateTime?
   estado      ActividadEstado @default(PLANEADA)
+  // Doliente: el responsable de que la actividad ocurra. Obligatorio — no hay
+  // actividad sin alguien que responda por ella. Restrict: no se puede borrar
+  // al elector mientras tenga actividades a cargo (primero se reasignan).
+  dolienteId  String
   createdAt   DateTime        @default(now())
 
-  grupos GrupoActividad[]
+  doliente Voter            @relation("ActividadDoliente", fields: [dolienteId], references: [id])
+  grupos   GrupoActividad[]
 
+  @@index([tenantId, dolienteId])
   @@index([tenantId, fecha])
   @@index([tenantId, estado])
 }

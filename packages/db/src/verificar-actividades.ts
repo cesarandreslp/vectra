@@ -31,7 +31,8 @@ async function main() {
 
   let actividadId: string | null = null
   try {
-    const act = await db.actividad.create({ data: { tenantId, nombre: '__test brigada', categoria: 'salud', fecha: new Date() } })
+    const act = await db.actividad.create({ data: { tenantId, nombre: '__test brigada', categoria: 'salud', fecha: new Date(), dolienteId: voter.id } })
+    ok((await db.actividad.findUnique({ where: { id: act.id }, include: { doliente: true } }))?.doliente.id === voter.id, 'la actividad guarda su doliente')
     actividadId = act.id
     const grupo = await db.grupoActividad.create({ data: { tenantId, actividadId: act.id, nombre: '__test parque', lugar: 'cra 1', responsableId: voter.id } })
 
