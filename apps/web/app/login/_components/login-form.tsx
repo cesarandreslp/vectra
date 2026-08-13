@@ -184,6 +184,12 @@ export function LoginForm({ callbackUrl, tenantName, logoUrl, primaryColor }: Lo
             {isPending ? 'Iniciando sesión...' : 'Iniciar sesión'}
           </button>
         </form>
+
+        <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+          <a href="/login/olvide" style={{ fontSize: '0.8rem', color: '#64748b' }}>
+            ¿Olvidaste tu contraseña?
+          </a>
+        </div>
       </div>
     </div>
   )
