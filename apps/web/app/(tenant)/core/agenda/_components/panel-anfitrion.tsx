@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
-  getAgendaDeAnfitrion, getConvocatoriasDeAnfitrion,
+  getAgendaDeAnfitrion, getConvocatoriasDeAnfitrion, eliminarEntradaAgendaAdmin,
   type AnfitrionOption, type EntradaAgendaAdmin, type ConvocatoriaAdminListado,
 } from '../actions'
 import { CalendarioMensual, type EventoCalendario } from '@/app/_components/calendario-mensual'
+import { FormCrearEntrada } from './form-crear-entrada'
 
 function claveFechaLocal(iso: string): string {
   const d = new Date(iso)
@@ -29,12 +30,23 @@ export function PanelAnfitrion({ anfitriones }: { anfitriones: AnfitrionOption[]
   const [convocatorias, setConvocatorias] = useState<ConvocatoriaAdminListado[]>([])
   const [diaSeleccionado, setDiaSeleccionado] = useState<Date | null>(null)
 
-  useEffect(() => {
+  const cargar = useCallback(() => {
     if (!anfitrionId) return
-    setDiaSeleccionado(null)
     void getAgendaDeAnfitrion(anfitrionId).then(setAgenda)
     void getConvocatoriasDeAnfitrion(anfitrionId).then(setConvocatorias)
   }, [anfitrionId])
+
+  useEffect(() => {
+    setDiaSeleccionado(null)
+    cargar()
+  }, [anfitrionId, cargar])
+
+  async function borrar(id: string) {
+    if (!confirm('¿Borrar esta entrada de la agenda?')) return
+    const r = await eliminarEntradaAgendaAdmin(id)
+    if (!r.success) { alert(r.error ?? 'No se pudo borrar.'); return }
+    cargar()
+  }
 
   if (anfitriones.length === 0) {
     return (
@@ -65,6 +77,8 @@ export function PanelAnfitrion({ anfitriones }: { anfitriones: AnfitrionOption[]
 
       <CalendarioMensual eventos={eventos} onDiaClick={(fecha) => setDiaSeleccionado(fecha)} />
 
+      <FormCrearEntrada anfitrionId={anfitrionId} onCreada={cargar} />
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1rem' }}>
         <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1.25rem' }}>
           <h3 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.75rem' }}>
@@ -76,14 +90,21 @@ export function PanelAnfitrion({ anfitriones }: { anfitriones: AnfitrionOption[]
           {diaSeleccionado && entradasDelDia.length === 0 && <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Sin entradas ese día.</div>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
             {entradasDelDia.map((e) => (
-              <div key={e.id} style={{ fontSize: '0.85rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
-                <div style={{ fontWeight: 600 }}>
-                  {e.disponible ? (e.reservanteName ? `Reservado — ${e.reservanteName}` : 'Hueco disponible') : e.titulo}
+              <div key={e.id} style={{ fontSize: '0.85rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                <div>
+                  <div style={{ fontWeight: 600 }}>
+                    {e.disponible ? (e.reservanteName ? `Reservado — ${e.reservanteName}` : 'Hueco disponible') : e.titulo}
+                  </div>
+                  <div style={{ color: '#94a3b8', fontSize: '0.78rem' }}>
+                    {new Date(e.startsAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })} – {new Date(e.endsAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                    {e.motivo ? ` · ${e.motivo}` : ''}
+                  </div>
                 </div>
-                <div style={{ color: '#94a3b8', fontSize: '0.78rem' }}>
-                  {new Date(e.startsAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })} – {new Date(e.endsAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
-                  {e.motivo ? ` · ${e.motivo}` : ''}
-                </div>
+                {!e.reservanteName && (
+                  <button onClick={() => borrar(e.id)} style={{ border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', borderRadius: '6px', padding: '0.2rem 0.5rem', fontSize: '0.72rem', cursor: 'pointer', flexShrink: 0 }}>
+                    Borrar
+                  </button>
+                )}
               </div>
             ))}
           </div>

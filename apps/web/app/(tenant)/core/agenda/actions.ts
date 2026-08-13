@@ -1,5 +1,6 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantDb } from '@campaignos/db'
 import { getTenantConnection } from '@/lib/tenant'
@@ -50,6 +51,63 @@ export async function getAgendaDeAnfitrion(anfitrionId: string): Promise<Entrada
     disponible: e.disponible, titulo: e.titulo,
     reservanteName: e.reservante?.name ?? null, motivo: e.motivo,
   }))
+}
+
+// ── Gestión desde el admin (respaldo cuando no hay gestor de la agenda) ─────────
+// Mismos criterios que crear/eliminar del anfitrión en la PWA, pero autorizado
+// para el admin del tenant y actuando sobre la agenda de un anfitrión elegido.
+
+async function anfitrionValido(anfitrionId: string, tenantId: string, db: ReturnType<typeof getTenantDb>) {
+  return db.voter.findFirst({
+    where:  { id: anfitrionId, tenantId, OR: [{ isCandidate: true }, { tieneAgenda: true }] },
+    select: { id: true },
+  })
+}
+
+/** Publica un hueco disponible o bloquea un compromiso en la agenda de un anfitrión. */
+export async function crearEntradaAgendaAdmin(
+  anfitrionId: string,
+  data: { startsAt: string; endsAt: string; disponible: boolean; titulo?: string },
+) {
+  const session = await requireModuleOrScreen('CORE', [...ROLES_ADMIN], 'CORE_AGENDA')
+  const db = getTenantDb(await getTenantConnection(session.user.tenantId))
+
+  if (!(await anfitrionValido(anfitrionId, session.user.tenantId, db))) {
+    return { success: false, error: 'Solo el candidato o un jefe de debate tiene agenda.' }
+  }
+
+  const startsAt = new Date(data.startsAt)
+  const endsAt   = new Date(data.endsAt)
+  if (!(endsAt > startsAt)) return { success: false, error: 'La hora de fin debe ser después de la de inicio.' }
+  if (!data.disponible && !data.titulo?.trim()) return { success: false, error: 'Falta el título del compromiso.' }
+
+  await db.agendaEntrada.create({
+    data: {
+      tenantId: session.user.tenantId, anfitrionId,
+      startsAt, endsAt, disponible: data.disponible,
+      titulo: data.disponible ? undefined : data.titulo!.trim(),
+    },
+  })
+
+  revalidatePath('/core/agenda')
+  return { success: true }
+}
+
+/** Borra una entrada de la agenda de un anfitrión — bloqueado si ya fue reservada. */
+export async function eliminarEntradaAgendaAdmin(entradaId: string) {
+  const session = await requireModuleOrScreen('CORE', [...ROLES_ADMIN], 'CORE_AGENDA')
+  const db = getTenantDb(await getTenantConnection(session.user.tenantId))
+
+  const entrada = await db.agendaEntrada.findFirst({
+    where:  { id: entradaId, tenantId: session.user.tenantId },
+    select: { id: true, reservadoPor: true },
+  })
+  if (!entrada) return { success: false, error: 'Entrada no encontrada.' }
+  if (entrada.reservadoPor) return { success: false, error: 'Ya fue reservada — avisá al elector antes de borrarla.' }
+
+  await db.agendaEntrada.delete({ where: { id: entradaId } })
+  revalidatePath('/core/agenda')
+  return { success: true }
 }
 
 export interface ConvocatoriaAdminListado {
