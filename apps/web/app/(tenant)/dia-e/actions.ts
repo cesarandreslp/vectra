@@ -618,47 +618,75 @@ export async function aplicarCorreccionesRegistraduria(
   try {
     const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'], 'DIA_E_ASIGNACIONES', 'edit')
     const ahora = new Date()
-    let aplicados = 0
+
+    // Todas las asignaciones de una sola vez: antes era un findFirst por testigo
+    // dentro del bucle, y el listado de la Registraduría trae cientos de filas.
+    const ids = cambios.map(c => c.assignmentId).filter(Boolean)
+    if (ids.length === 0) return { success: true, aplicados: 0 }
+
+    const actuales = await db.witnessAssignment.findMany({ where: { id: { in: ids }, tenantId } })
+    const porId = new Map(actuales.map(a => [a.id, a]))
+
+    // Los que quedan igual y los rechazados reciben datos idénticos: van en dos
+    // updateMany. Solo los movidos de mesa necesitan un update propio, porque
+    // cada uno guarda su mesa anterior.
+    const sinCambio:  string[] = []
+    const rechazados: string[] = []
+    const movidos: ReturnType<typeof db.witnessAssignment.update>[] = []
 
     for (const c of cambios) {
-      if (!c.assignmentId) continue
-      const actual = await db.witnessAssignment.findFirst({ where: { id: c.assignmentId, tenantId } })
+      const actual = porId.get(c.assignmentId)
       if (!actual) continue
 
       if (c.tipo === 'SIN_CAMBIO') {
-        await db.witnessAssignment.update({
-          where: { id: c.assignmentId },
-          data:  { estado: 'APROBADO', resueltoAt: ahora },
-        })
+        sinCambio.push(actual.id)
+      } else if (c.tipo === 'RECHAZADO') {
+        rechazados.push(actual.id)
       } else if (c.tipo === 'MESA_CAMBIADA' && c.votingTableIdAprobado) {
-        await db.witnessAssignment.update({
-          where: { id: c.assignmentId },
+        movidos.push(db.witnessAssignment.update({
+          where: { id: actual.id },
           data: {
             estado:                 'APROBADO',
             votingTableIdPropuesto: actual.votingTableIdPropuesto ?? actual.votingTableId,
             votingTableId:          c.votingTableIdAprobado,
             resueltoAt:             ahora,
           },
-        })
-      } else if (c.tipo === 'RECHAZADO') {
-        await db.witnessAssignment.update({
-          where: { id: c.assignmentId },
-          data: {
-            estado:      'RECHAZADO',
-            observacion: 'No apareció en el listado aprobado por la Registraduría.',
-            resueltoAt:  ahora,
-          },
-        })
-      } else {
-        continue
+        }))
       }
-      aplicados++
     }
 
+    // Todo o nada: esto asienta la respuesta oficial de la Registraduría. A
+    // medio aplicar, la campaña no sabría qué testigos quedaron en firme.
+    await db.$transaction([
+      ...(sinCambio.length > 0 ? [db.witnessAssignment.updateMany({
+        where: { id: { in: sinCambio }, tenantId },
+        data:  { estado: 'APROBADO', resueltoAt: ahora },
+      })] : []),
+      ...(rechazados.length > 0 ? [db.witnessAssignment.updateMany({
+        where: { id: { in: rechazados }, tenantId },
+        data: {
+          estado:      'RECHAZADO',
+          observacion: 'No apareció en el listado aprobado por la Registraduría.',
+          resueltoAt:  ahora,
+        },
+      })] : []),
+      ...movidos,
+    ])
+
     revalidatePath('/dia-e/sala/asignaciones')
-    return { success: true, aplicados }
+    return { success: true, aplicados: sinCambio.length + rechazados.length + movidos.length }
   } catch (err) {
     console.error('[aplicarCorreccionesRegistraduria]', err instanceof Error ? err.message : err)
+
+    // Dos testigos no pueden quedar en la misma mesa (índice único mesa+principal).
+    // Pasa cuando la Registraduría mueve a alguien a una mesa ya ocupada: sin
+    // decirlo, el admin solo ve "no se pudo" y no sabe qué corregir.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      return {
+        success: false, aplicados: 0,
+        error: 'Dos testigos quedarían en la misma mesa. Revisa las mesas de destino del archivo aprobado: no se aplicó ningún cambio.',
+      }
+    }
     return { success: false, aplicados: 0, error: 'No se pudieron aplicar las correcciones.' }
   }
 }
