@@ -23,12 +23,17 @@ const ROL_LABEL: Record<string, string> = {
   LIDER: 'Líder', TESTIGO: 'Testigo', PERSONALIZADO: 'Personalizado',
 }
 
+// Roles de cumplimiento del primer anillo: no son roles fijos del sistema, se
+// arman como rol personalizado. Detectamos al jurídico por el nombre del rol.
+const JURIDICO_RE = /jur[íi]dic|abogad|asesor.*legal|\blegal\b/i
+
 export interface EstructuraView {
-  candidato:  { nombre: string; cargo: string | null }
-  tesorero:   { nombre: string | null } | null // null si FINANZAS no está activo
-  sede:       { nombre: string | null; direccion: string | null; lider: string | null }
-  territorio: { comunas: number; comunasConLider: number; barrios: number; barriosConLider: number }
-  staff:      { email: string; nombre: string | null; rol: string; activo: boolean }[]
+  candidato:      { nombre: string; cargo: string | null }
+  tesorero:       { nombre: string | null } | null // null si FINANZAS no está activo
+  asesorJuridico: string | null // nombre del staff con rol jurídico, o null (sugerido)
+  sede:           { nombre: string | null; direccion: string | null; lider: string | null }
+  territorio:     { comunas: number; comunasConLider: number; barrios: number; barriosConLider: number }
+  staff:          { email: string; nombre: string | null; rol: string; activo: boolean }[]
 }
 
 export async function getEstructura(): Promise<EstructuraView> {
@@ -59,12 +64,16 @@ export async function getEstructura(): Promise<EstructuraView> {
     sedeLider = v?.name ?? null
   }
 
+  // ¿Ya hay un asesor jurídico? Buscamos un staff cuyo rol personalizado suene a jurídico.
+  const jur = usuarios.find((u) => u.customRole?.name && JURIDICO_RE.test(u.customRole.name))
+
   return {
     candidato: {
       nombre: session.user.tenantName ?? 'Campaña',
       cargo:  cfg?.electionOffice ? CARGO_LABEL[cfg.electionOffice] ?? cfg.electionOffice : null,
     },
-    tesorero:   session.user.activeModules.includes('FINANZAS') ? { nombre: financeCfg?.nombreTesorero ?? null } : null,
+    tesorero:       session.user.activeModules.includes('FINANZAS') ? { nombre: financeCfg?.nombreTesorero ?? null } : null,
+    asesorJuridico: jur ? (jur.name ?? jur.email) : null,
     sede:       { nombre: cfg?.sedeNombre ?? null, direccion: cfg?.sedeDireccion ?? null, lider: sedeLider },
     territorio: { comunas, comunasConLider, barrios, barriosConLider },
     staff: usuarios.map((u) => ({

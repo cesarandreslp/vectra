@@ -3,7 +3,7 @@ import type { EstructuraView } from '../actions'
 
 /** Vista compuesta de solo lectura: cada bloque enlaza a donde se edita. */
 export function EstructuraPanel({ data }: { data: EstructuraView }) {
-  const { candidato, tesorero, sede, territorio, staff } = data
+  const { candidato, tesorero, asesorJuridico, sede, territorio, staff } = data
   const total     = territorio.comunas + territorio.barrios
   const conLider  = territorio.comunasConLider + territorio.barriosConLider
   const cobertura = total ? Math.round((conLider / total) * 100) : 0
@@ -13,16 +13,31 @@ export function EstructuraPanel({ data }: { data: EstructuraView }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
 
       <Bloque titulo="Cabeza" editar="/core/configuracion">
-        <div style={grid}>
-          <Persona nombre={candidato.nombre} sub={candidato.cargo ? `Candidato · ${candidato.cargo}` : 'Candidato · cargo sin definir'} />
-          {tesorero && (
-            <Persona
-              nombre={tesorero.nombre ?? 'Sin asignar'}
-              sub="Tesorero"
-              alerta={!tesorero.nombre}
-              editar="/finanzas/configuracion"
-            />
-          )}
+        <Persona nombre={candidato.nombre} sub={candidato.cargo ? `Candidato · ${candidato.cargo}` : 'Candidato · cargo sin definir'} />
+      </Bloque>
+
+      <Bloque titulo="Roles de cumplimiento (sugeridos)" editar="/core/configuracion">
+        <p style={notaStyle}>
+          El primer anillo que responde por la legalidad de la campaña. No son roles fijos:
+          se arman como rol personalizado en Configuración.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          <RolFila
+            rol="Tesorero"
+            descripcion="La plata: topes, rendición de cuentas (Cuentas Claras) e informes al CNE."
+            estado={tesorero ? (tesorero.nombre ?? 'Sin asignar') : 'Requiere módulo FINANZAS'}
+            asignado={Boolean(tesorero?.nombre)}
+            editar={tesorero && !tesorero.nombre ? '/finanzas/configuracion' : undefined}
+            editarLabel="asignar"
+          />
+          <RolFila
+            rol="Asesor jurídico"
+            descripcion="La ley: habilitación del candidato, protección de datos y reclamaciones del día E."
+            estado={asesorJuridico ?? 'Sugerido — sin asignar'}
+            asignado={Boolean(asesorJuridico)}
+            editar={asesorJuridico ? undefined : '/core/configuracion'}
+            editarLabel="crear rol"
+          />
         </div>
       </Bloque>
 
@@ -47,7 +62,7 @@ export function EstructuraPanel({ data }: { data: EstructuraView }) {
       </Bloque>
 
       <Bloque titulo="Staff con acceso al panel" editar="/core/configuracion">
-        <p style={{ margin: '0 0 0.75rem', fontSize: '0.78rem', color: '#64748b' }}>
+        <p style={notaStyle}>
           Quién entra al panel y con qué alcance. No es la cadena territorial: un líder de
           zona no necesita cuenta.
         </p>
@@ -82,14 +97,28 @@ function Bloque({ titulo, editar, children }: { titulo: string; editar: string; 
   )
 }
 
-function Persona({ nombre, sub, alerta, editar }: { nombre: string; sub: string; alerta?: boolean; editar?: string }) {
+function Persona({ nombre, sub }: { nombre: string; sub: string }) {
   return (
     <div>
       <p style={{ margin: 0, fontWeight: 500, fontSize: '0.9rem', color: '#0f172a' }}>{nombre}</p>
-      <p style={{ margin: 0, fontSize: '0.78rem', color: alerta ? '#b45309' : '#64748b' }}>
-        {sub}{alerta && ' · pieza suelta'}
-        {editar && <> · <Link href={editar} style={{ color: '#1e40af' }}>editar</Link></>}
-      </p>
+      <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b' }}>{sub}</p>
+    </div>
+  )
+}
+
+function RolFila({ rol, descripcion, estado, asignado, editar, editarLabel }: {
+  rol: string; descripcion: string; estado: string; asignado: boolean; editar?: string; editarLabel?: string
+}) {
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.75rem' }}>
+        <span style={{ fontWeight: 500, fontSize: '0.9rem', color: '#0f172a' }}>{rol}</span>
+        <span style={{ fontSize: '0.8rem', color: asignado ? '#0f172a' : '#b45309', whiteSpace: 'nowrap' }}>
+          {estado}
+          {editar && <> · <Link href={editar} style={{ color: '#1e40af' }}>{editarLabel}</Link></>}
+        </span>
+      </div>
+      <p style={{ margin: '0.1rem 0 0', fontSize: '0.75rem', color: '#64748b' }}>{descripcion}</p>
     </div>
   )
 }
@@ -107,3 +136,4 @@ function Tile({ label, valor, sufijo, alerta }: { label: string; valor: string; 
 
 const grid: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }
 const vacio: React.CSSProperties = { margin: 0, fontSize: '0.85rem', color: '#94a3b8' }
+const notaStyle: React.CSSProperties = { margin: '0 0 0.75rem', fontSize: '0.78rem', color: '#64748b' }
