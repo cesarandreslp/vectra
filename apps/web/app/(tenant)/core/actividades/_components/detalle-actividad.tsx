@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { getActividadDetalle, crearGrupo, type ActividadDetalle } from '../actions'
 import { GrupoCard } from './grupo-card'
 
@@ -10,12 +11,18 @@ const card = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8
 const input = { border: '1px solid #cbd5e1', borderRadius: '6px', padding: '0.45rem 0.65rem', fontSize: '0.85rem' }
 
 export function DetalleActividad({ actividadId, electores }: { actividadId: string; electores: Elector[] }) {
+  const router = useRouter()
   const [detalle, setDetalle] = useState<ActividadDetalle | null>(null)
   const [nombre, setNombre] = useState('')
   const [lugar, setLugar] = useState('')
   const [responsableId, setResponsableId] = useState('')
 
-  const cargar = useCallback(() => { void getActividadDetalle(actividadId).then(setDetalle) }, [actividadId])
+  // refresh() además del fetch: los contadores de la tarjeta y la marca ·simp de
+  // la lista de electores vienen del render del servidor, y si no, quedan viejos.
+  const cargar = useCallback(() => {
+    void getActividadDetalle(actividadId).then(setDetalle)
+    router.refresh()
+  }, [actividadId, router])
   useEffect(() => { cargar() }, [cargar])
 
   if (!detalle) return <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Cargando…</div>

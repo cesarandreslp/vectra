@@ -55,7 +55,9 @@ export async function crearActividad(data: { nombre: string; categoria?: string;
     data: {
       tenantId, nombre: data.nombre.trim(), dolienteId: doliente.id,
       categoria: data.categoria?.trim() || undefined,
-      fecha: data.fecha ? new Date(data.fecha) : undefined,
+      // Mediodía UTC: new Date('2026-08-22') es medianoche UTC y en Colombia
+      // (-5) se muestra como el 21. Con las 12:00 el día no se corre en ninguna zona.
+      fecha: data.fecha ? new Date(`${data.fecha}T12:00:00Z`) : undefined,
     },
   })
   revalidatePath('/core/actividades')
