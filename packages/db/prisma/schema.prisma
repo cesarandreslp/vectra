@@ -263,6 +263,7 @@ model Voter {
   gruposCoordinados       GrupoActividad[]           @relation("GrupoResponsable")
   membresiasGrupo         MiembroGrupo[]             @relation("MiembroGrupoVoter")
   actividadesADoliente    Actividad[]                @relation("ActividadDoliente")
+  perfil                  PerfilSimpatizante?        @relation("PerfilDelVoter")
 
   leader      Voter?       @relation("VoterHierarchy", fields: [leaderId], references: [id])
   followers   Voter[]      @relation("VoterHierarchy")
@@ -1186,6 +1187,22 @@ model AgendaApertura {
 // propia logística (alimentación, insumos, materiales, herramientas). El estado
 // APROBADO de un insumo es donde interviene el tesorero (presupuesto).
 
+enum VehiculoPropio {
+  NINGUNO
+  BICICLETA
+  MOTO
+  CARRO
+  CAMION
+}
+
+enum NivelEducativo {
+  PRIMARIA
+  BACHILLER
+  TECNICO
+  UNIVERSITARIO
+  POSGRADO
+}
+
 enum ActividadEstado {
   PLANEADA
   EN_CURSO
@@ -1234,6 +1251,37 @@ model Actividad {
   @@index([tenantId, dolienteId])
   @@index([tenantId, fecha])
   @@index([tenantId, estado])
+}
+
+/// Hoja de vida que el propio simpatizante llena desde su PWA, para que quien
+/// arma las actividades encuentre los perfiles que necesita ("3 con moto libres
+/// el sábado por la mañana") en vez de preguntar por WhatsApp.
+///
+/// Datos sensibles (Ley 1581): esta ficha la ve el equipo con permiso sobre la
+/// pantalla de perfiles, no cualquiera con acceso al panel. La cédula y el
+/// teléfono NO viven acá — siguen cifrados en Voter.
+model PerfilSimpatizante {
+  id       String @id @default(cuid())
+  tenantId String
+  voterId  String @unique
+
+  oficio         String? // a qué se dedica
+  habilidades    String[] // etiquetas libres: conduce, cocina, primeros auxilios, sonido…
+  herramientas   String[] // lo que puede poner: carpa, megáfono, olla comunitaria…
+  // Franjas en las que puede: tokens DIA_FRANJA (ej. "SAB_MANANA"). Se cruzan
+  // con el horario de los grupos para no convocar a alguien que no puede.
+  disponibilidad String[]
+  vehiculo       VehiculoPropio  @default(NINGUNO)
+  nivelEducativo NivelEducativo?
+  experiencia    String? // experiencia previa en campaña o actividades sociales
+  zonaAccion     String? // barrio o zona donde se mueve
+  aceptaWhatsapp Boolean         @default(false)
+  nota           String?
+  actualizadoEn  DateTime        @updatedAt
+
+  voter Voter @relation("PerfilDelVoter", fields: [voterId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
 }
 
 /// Grupo temporal que ejecuta una actividad en un lugar puntual. Una actividad

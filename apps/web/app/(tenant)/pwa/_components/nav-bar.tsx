@@ -9,7 +9,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { IconUsers, IconCalendar, IconClipboard, IconClock } from '@/app/_components/icons'
+import { IconUsers, IconCalendar, IconClipboard, IconClock, IconCheck } from '@/app/_components/icons'
 
 interface NavBarProps {
   mostrarEncuestas: boolean
@@ -30,6 +30,9 @@ export function NavBar({ mostrarEncuestas, mostrarActividades }: NavBarProps) {
     ...(mostrarEncuestas
       ? [{ href: '/pwa/encuestas', label: 'Encuesta', icon: IconClipboard, activo: pathname.startsWith('/pwa/encuestas') }]
       : []),
+    // Para todos: es donde alguien se ofrece para las actividades. Llenarlo es
+    // lo que lo convierte en simpatizante, así que no se puede exigir serlo antes.
+    { href: '/pwa/perfil', label: 'Mi perfil', icon: IconCheck, activo: pathname.startsWith('/pwa/perfil') },
   ]
 
   return (

@@ -30,6 +30,7 @@ async function main() {
   if (!voter) { console.log('El tenant no tiene electores; no se puede probar miembros.'); process.exit(1) }
 
   let actividadId: string | null = null
+  let perfilId: string | null = null
   try {
     const act = await db.actividad.create({ data: { tenantId, nombre: '__test brigada', categoria: 'salud', fecha: new Date(), dolienteId: voter.id } })
     ok((await db.actividad.findUnique({ where: { id: act.id }, include: { doliente: true } }))?.doliente.id === voter.id, 'la actividad guarda su doliente')
@@ -70,6 +71,20 @@ async function main() {
       ok(ajeno === null, 'otro elector NO alcanza los grupos de esa actividad')
     }
 
+    // Buscador de perfiles: lo que se puede equivocar es el hasEvery (pedir varias
+    // franjas y que alcance con tener una).
+    if (!(await db.perfilSimpatizante.findUnique({ where: { voterId: voter.id }, select: { id: true } }))) {
+      const p = await db.perfilSimpatizante.create({
+        data: { tenantId, voterId: voter.id, oficio: '__test electricista', habilidades: ['sonido'], disponibilidad: ['SAB_MANANA', 'SAB_TARDE'], vehiculo: 'MOTO' },
+      })
+      perfilId = p.id
+      const busca = (w: object) => db.perfilSimpatizante.count({ where: { tenantId, voterId: voter.id, ...w } })
+      ok(await busca({ disponibilidad: { hasEvery: ['SAB_MANANA'] } }) === 1, 'buscar por una franja que sí tiene lo encuentra')
+      ok(await busca({ disponibilidad: { hasEvery: ['SAB_MANANA', 'DOM_MANANA'] } }) === 0, 'pedir dos franjas y tener solo una NO alcanza')
+      ok(await busca({ vehiculo: 'MOTO' }) === 1, 'filtra por vehículo')
+      ok(await busca({ habilidades: { has: 'sonido' } }) === 1, 'filtra por habilidad')
+    }
+
     // agregados de getActividades()
     const listado = await db.actividad.findMany({
       where: { tenantId, id: act.id },
@@ -93,6 +108,7 @@ async function main() {
       const quedan = await db.grupoActividad.count({ where: { actividadId } })
       ok(quedan === 0, 'borrar la actividad arrastra grupos/miembros/insumos en cascada')
     }
+    if (perfilId) await db.perfilSimpatizante.delete({ where: { id: perfilId } })
     await db.voter.update({ where: { id: voter.id }, data: { esSimpatizante: voter.esSimpatizante } })
     await db.$disconnect(); await superadmin.$disconnect()
   }
