@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantDb } from '@campaignos/db'
 import { getTenantConnection } from '@/lib/tenant'
+import { getGestor, type AgendaAmbito } from '@/lib/agenda'
 
 const ROLES_ADMIN = ['ADMIN_CAMPANA', 'COORDINADOR'] as const
 
@@ -106,6 +107,101 @@ export async function eliminarEntradaAgendaAdmin(entradaId: string) {
   if (entrada.reservadoPor) return { success: false, error: 'Ya fue reservada — avisá al elector antes de borrarla.' }
 
   await db.agendaEntrada.delete({ where: { id: entradaId } })
+  revalidatePath('/core/agenda')
+  return { success: true }
+}
+
+// ── Gestión del ámbito: gestor ("doliente") y apertura/cierre con bitácora ──────
+
+export interface GestionAgenda {
+  gestorCandidato:  { id: string; name: string } | null
+  gestorJefes:      { id: string; name: string } | null
+  candidato:        { id: string; name: string; agendaAbierta: boolean } | null
+  posiblesGestores: { id: string; name: string }[]
+  bitacora:         { id: string; abierta: boolean; quien: string; motivo: string | null; createdAt: string }[]
+}
+
+/** Gestores por ámbito, apertura de la agenda del candidato y su bitácora. */
+export async function getGestionAgenda(): Promise<GestionAgenda> {
+  const session = await requireModuleOrScreen('CORE', [...ROLES_ADMIN], 'CORE_AGENDA')
+  const tenantId = session.user.tenantId
+  const db = getTenantDb(await getTenantConnection(tenantId))
+
+  const [gestorCandidato, gestorJefes, candidato, posiblesGestores] = await Promise.all([
+    getGestor('CANDIDATO', tenantId, db),
+    getGestor('JEFES', tenantId, db),
+    db.voter.findFirst({ where: { tenantId, isCandidate: true }, select: { id: true, name: true, agendaAbierta: true } }),
+    db.voter.findMany({ where: { tenantId }, select: { id: true, name: true }, orderBy: { name: 'asc' } }),
+  ])
+
+  let bitacora: GestionAgenda['bitacora'] = []
+  if (candidato) {
+    const rows = await db.agendaApertura.findMany({
+      where:   { tenantId, anfitrionId: candidato.id },
+      include: { gestor: { select: { name: true } } },
+      orderBy: { createdAt: 'desc' },
+      take:    20,
+    })
+    bitacora = rows.map((r) => ({
+      id: r.id, abierta: r.abierta,
+      quien: r.gestor?.name ?? 'Admin del tenant',
+      motivo: r.motivo, createdAt: r.createdAt.toISOString(),
+    }))
+  }
+
+  return { gestorCandidato, gestorJefes, candidato, posiblesGestores, bitacora }
+}
+
+/** Asigna un elector como gestor de un ámbito (a lo sumo uno por ámbito). */
+export async function asignarGestor(voterId: string, ambito: AgendaAmbito) {
+  const session = await requireModuleOrScreen('CORE', [...ROLES_ADMIN], 'CORE_AGENDA')
+  const tenantId = session.user.tenantId
+  const db = getTenantDb(await getTenantConnection(tenantId))
+
+  const v = await db.voter.findFirst({ where: { id: voterId, tenantId }, select: { id: true } })
+  if (!v) return { success: false, error: 'Elector no válido.' }
+
+  await db.$transaction([
+    db.voter.updateMany({ where: { tenantId, gestionaAgenda: ambito }, data: { gestionaAgenda: null } }),
+    db.voter.update({ where: { id: voterId }, data: { gestionaAgenda: ambito } }),
+  ])
+  revalidatePath('/core/agenda')
+  return { success: true }
+}
+
+/** Deja un ámbito sin gestor — vuelve a quedar el admin como responsable. */
+export async function quitarGestor(ambito: AgendaAmbito) {
+  const session = await requireModuleOrScreen('CORE', [...ROLES_ADMIN], 'CORE_AGENDA')
+  const tenantId = session.user.tenantId
+  const db = getTenantDb(await getTenantConnection(tenantId))
+  await db.voter.updateMany({ where: { tenantId, gestionaAgenda: ambito }, data: { gestionaAgenda: null } })
+  revalidatePath('/core/agenda')
+  return { success: true }
+}
+
+/** Abre o cierra la agenda del candidato a reservas de electores, y lo registra en la bitácora. */
+export async function toggleAgendaAbierta(abierta: boolean, motivo?: string) {
+  const session = await requireModuleOrScreen('CORE', [...ROLES_ADMIN], 'CORE_AGENDA')
+  const tenantId = session.user.tenantId
+  const db = getTenantDb(await getTenantConnection(tenantId))
+
+  const candidato = await db.voter.findFirst({ where: { tenantId, isCandidate: true }, select: { id: true } })
+  if (!candidato) return { success: false, error: 'No hay candidato marcado.' }
+
+  const gestor = await getGestor('CANDIDATO', tenantId, db)
+  const soyGestor = Boolean(session.user.voterId) && session.user.voterId === gestor?.id
+
+  await db.$transaction([
+    db.voter.update({ where: { id: candidato.id }, data: { agendaAbierta: abierta } }),
+    db.agendaApertura.create({
+      data: {
+        tenantId, anfitrionId: candidato.id, abierta,
+        gestorId:    soyGestor ? gestor!.id : null,
+        adminUserId: soyGestor ? null : session.user.userId,
+        motivo:      motivo?.trim() || undefined,
+      },
+    }),
+  ])
   revalidatePath('/core/agenda')
   return { success: true }
 }

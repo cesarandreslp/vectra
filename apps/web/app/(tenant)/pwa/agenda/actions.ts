@@ -137,6 +137,13 @@ export async function getHuecosDisponibles(anfitrionId: string): Promise<HuecoDi
   const session = await requireAuth(ROLES_PWA)
   const db = getTenantDb(await getTenantConnection(session.user.tenantId))
 
+  // Solo la agenda del candidato es reservable, y solo mientras esté abierta.
+  const anfitrion = await db.voter.findFirst({
+    where:  { id: anfitrionId, tenantId: session.user.tenantId },
+    select: { isCandidate: true, agendaAbierta: true },
+  })
+  if (!anfitrion?.isCandidate || !anfitrion.agendaAbierta) return []
+
   const huecos = await db.agendaEntrada.findMany({
     where: {
       tenantId: session.user.tenantId, anfitrionId,
@@ -155,6 +162,15 @@ export async function reservarHueco(entradaId: string, motivo?: string) {
   if (!session.user.voterId) return { success: false, error: 'Cuenta sin elector enlazado.' }
 
   const db = getTenantDb(await getTenantConnection(session.user.tenantId))
+
+  // La entrada debe ser de la agenda del candidato y estar abierta a reservas.
+  const entrada = await db.agendaEntrada.findFirst({
+    where:  { id: entradaId, tenantId: session.user.tenantId },
+    select: { anfitrion: { select: { isCandidate: true, agendaAbierta: true } } },
+  })
+  if (!entrada?.anfitrion.isCandidate || !entrada.anfitrion.agendaAbierta) {
+    return { success: false, error: 'La agenda no está abierta a reservas.' }
+  }
 
   const resultado = await db.agendaEntrada.updateMany({
     where: { id: entradaId, tenantId: session.user.tenantId, disponible: true, reservadoPor: null },
