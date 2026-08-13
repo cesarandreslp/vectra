@@ -228,6 +228,9 @@ model Voter {
   // los electores reserven. La abre y la cierra su gestor, según haya espacios
   // por cubrir o por orden del candidato.
   agendaAbierta    Boolean          @default(false)
+  // Simpatizante: subconjunto de electores que ejecuta actividades sociales de
+  // la campaña. Todo simpatizante es elector, no todo elector es simpatizante.
+  esSimpatizante   Boolean          @default(false)
   votingTableId    String? // Mesa donde está inscrito
   commitmentStatus CommitmentStatus @default(SIN_CONTACTAR)
   lastContact      DateTime? // Último contacto registrado
@@ -255,6 +258,10 @@ model Voter {
   aperturasAgendaGestion  AgendaApertura[]            @relation("AgendaAperturaGestor")
   convocatoriasCreadas    Convocatoria[]
   convocatoriasRecibidas  ConvocatoriaDestinatario[]
+
+  // Actividades sociales: grupos temporales que coordina o integra
+  gruposCoordinados       GrupoActividad[]           @relation("GrupoResponsable")
+  membresiasGrupo         MiembroGrupo[]             @relation("MiembroGrupoVoter")
 
   leader      Voter?       @relation("VoterHierarchy", fields: [leaderId], references: [id])
   followers   Voter[]      @relation("VoterHierarchy")
@@ -1169,6 +1176,102 @@ model AgendaApertura {
   gestor    Voter? @relation("AgendaAperturaGestor", fields: [gestorId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, anfitrionId, createdAt])
+}
+
+// ── Actividades sociales ────────────────────────────────────────────────────────
+// Jornadas que ejecutan los simpatizantes (brigadas de salud, vacunación de
+// mascotas, chocolatadas, ambientales, etc.). Una actividad puede correr en
+// varios lugares a la vez con grupos TEMPORALES distintos, cada uno con su
+// propia logística (alimentación, insumos, materiales, herramientas). El estado
+// APROBADO de un insumo es donde interviene el tesorero (presupuesto).
+
+enum ActividadEstado {
+  PLANEADA
+  EN_CURSO
+  REALIZADA
+  CANCELADA
+}
+
+enum InsumoTipo {
+  ALIMENTACION
+  INSUMO
+  MATERIAL
+  HERRAMIENTA
+}
+
+enum InsumoEstado {
+  REQUERIDO // pedido, falta conseguir/aprobar
+  APROBADO // el tesorero confirmó presupuesto
+  CONSEGUIDO // ya se tiene
+}
+
+/// Actividad social de campaña. El "qué" y el "cuándo"; el "dónde/quién" vive
+/// en sus grupos.
+model Actividad {
+  id          String          @id @default(cuid())
+  tenantId    String
+  nombre      String
+  categoria   String? // salud, mascotas, recreación, ambiental, etc.
+  descripcion String?
+  fecha       DateTime?
+  estado      ActividadEstado @default(PLANEADA)
+  createdAt   DateTime        @default(now())
+
+  grupos GrupoActividad[]
+
+  @@index([tenantId, fecha])
+  @@index([tenantId, estado])
+}
+
+/// Grupo temporal que ejecuta una actividad en un lugar puntual. Una actividad
+/// puede tener varios; se arman para la ocasión y no persisten como estructura.
+model GrupoActividad {
+  id            String   @id @default(cuid())
+  tenantId      String
+  actividadId   String
+  nombre        String // ej: "Parque San José" o "Brigada norte"
+  lugar         String? // dirección o referencia del punto de ejecución
+  responsableId String? // Voter que coordina el grupo
+  createdAt     DateTime @default(now())
+
+  actividad   Actividad      @relation(fields: [actividadId], references: [id], onDelete: Cascade)
+  responsable Voter?         @relation("GrupoResponsable", fields: [responsableId], references: [id], onDelete: SetNull)
+  miembros    MiembroGrupo[]
+  insumos     InsumoGrupo[]
+
+  @@index([tenantId, actividadId])
+}
+
+/// Un simpatizante asignado a un grupo temporal.
+model MiembroGrupo {
+  id       String @id @default(cuid())
+  tenantId String
+  grupoId  String
+  voterId  String
+
+  grupo GrupoActividad @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+  voter Voter          @relation("MiembroGrupoVoter", fields: [voterId], references: [id], onDelete: Cascade)
+
+  @@unique([grupoId, voterId])
+  @@index([tenantId, voterId])
+}
+
+/// Ítem de logística de un grupo. El tesorero aprueba (estado APROBADO) según
+/// costoEstimado.
+model InsumoGrupo {
+  id            String       @id @default(cuid())
+  tenantId      String
+  grupoId       String
+  descripcion   String
+  tipo          InsumoTipo
+  cantidad      Int          @default(1)
+  costoEstimado Float? // lo revisa/aprueba el tesorero
+  estado        InsumoEstado @default(REQUERIDO)
+  createdAt     DateTime     @default(now())
+
+  grupo GrupoActividad @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, grupoId])
 }
 
 /// Convocatoria del candidato o un jefe de debate hacia electores (algunos o
