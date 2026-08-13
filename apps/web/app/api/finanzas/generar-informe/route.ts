@@ -29,7 +29,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Recopilar todos los datos financieros
-    const [config, expenses, donations, expenseAgg, donationAgg] = await Promise.all([
+    const [tenantCfg, config, expenses, donations, expenseAgg, donationAgg] = await Promise.all([
+      db.tenantConfig.findUnique({ where: { tenantId } }),
       db.financeConfig.findUnique({ where: { tenantId } }),
       db.expense.findMany({
         where:   { tenantId },
@@ -74,11 +75,30 @@ export async function POST(req: NextRequest) {
       donacionesPorTipo[d.donorType] = (donacionesPorTipo[d.donorType] ?? 0) + d.amount
     }
 
+    // Cargo y circunscripción salen de la config de campaña (core), única
+    // fuente. Antes se re-pedían en la config de finanzas (columnas muertas).
+    const CARGO_LABEL: Record<string, string> = {
+      ALCALDE: 'Alcalde/Alcaldesa', CONCEJAL: 'Concejal', GOBERNADOR: 'Gobernador/Gobernadora',
+      DIPUTADO: 'Diputado (Asamblea Departamental)', REPRESENTANTE: 'Representante a la Cámara',
+      SENADOR: 'Senador/Senadora', PRESIDENTE: 'Presidente',
+    }
+    const cargoPostulado = tenantCfg?.electionOffice
+      ? CARGO_LABEL[tenantCfg.electionOffice] ?? tenantCfg.electionOffice
+      : null
+    let municipio: string | null = null
+    if (tenantCfg?.electionMunicipalityDivipola) {
+      const m = await db.municipality.findUnique({
+        where:   { divipola: tenantCfg.electionMunicipalityDivipola },
+        include: { department: true },
+      })
+      if (m) municipio = `${m.name}, ${m.department.name}`
+    }
+
     const informeData: InformeData = {
       type,
       config: config ? {
-        cargoPostulado:     config.cargoPostulado,
-        municipio:          config.municipio,
+        cargoPostulado,
+        municipio,
         topeGastos:         config.topeGastos,
         fechaInicioCampana: config.fechaInicioCampana,
         fechaFinCampana:    config.fechaFinCampana,

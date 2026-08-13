@@ -9,7 +9,7 @@
 
 import { requireModule, requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
-import { getTenantDb, Prisma, encrypt, decrypt } from '@vectra/db'
+import { getTenantDb, Prisma, encrypt } from '@vectra/db'
 import { revalidatePath }      from 'next/cache'
 
 // ── Helper ───────────────────────────────────────────────────────────────────
@@ -32,8 +32,6 @@ async function getDbAndSession(
 // ── Tipos exportados ─────────────────────────────────────────────────────────
 
 export interface FinanceConfigView {
-  cargoPostulado:     string | null
-  municipio:          string | null
   topeGastos:         number | null
   fechaInicioCampana: Date | null
   fechaFinCampana:    Date | null
@@ -114,8 +112,6 @@ export async function getFinanceConfig(): Promise<FinanceConfigView | null> {
   if (!config) return null
 
   return {
-    cargoPostulado:     config.cargoPostulado,
-    municipio:          config.municipio,
     topeGastos:         config.topeGastos,
     fechaInicioCampana: config.fechaInicioCampana,
     fechaFinCampana:    config.fechaFinCampana,
@@ -126,8 +122,6 @@ export async function getFinanceConfig(): Promise<FinanceConfigView | null> {
 }
 
 export async function updateFinanceConfig(data: {
-  cargoPostulado?:     string
-  municipio?:          string
   topeGastos?:         number
   fechaInicioCampana?: string
   fechaFinCampana?:    string
@@ -138,8 +132,6 @@ export async function updateFinanceConfig(data: {
   const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA'], 'FINANZAS_CONFIGURACION', 'edit')
 
   const payload: Record<string, unknown> = {
-    cargoPostulado:     data.cargoPostulado ?? null,
-    municipio:          data.municipio ?? null,
     topeGastos:         data.topeGastos ?? null,
     fechaInicioCampana: data.fechaInicioCampana ? new Date(data.fechaInicioCampana) : null,
     fechaFinCampana:    data.fechaFinCampana ? new Date(data.fechaFinCampana) : null,
@@ -586,81 +578,6 @@ export async function listReports(): Promise<ReportView[]> {
     presentedAt:    r.presentedAt,
     createdAt:      r.createdAt,
   }))
-}
-
-/**
- * Recopila datos financieros para generar el informe.
- * La generación del PDF se hace en la API route /api/finanzas/generar-informe.
- */
-export async function getReportData(type: 'PARCIAL' | 'FINAL' | 'CNE') {
-  const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA'], 'FINANZAS_INFORMES')
-
-  const [config, expenses, donations, expenseAgg, donationAgg] = await Promise.all([
-    db.financeConfig.findUnique({ where: { tenantId } }),
-    db.expense.findMany({
-      where:   { tenantId },
-      orderBy: { date: 'asc' },
-    }),
-    db.donation.findMany({
-      where:   { tenantId },
-      orderBy: { date: 'asc' },
-    }),
-    db.expense.aggregate({
-      where: { tenantId },
-      _sum:  { amount: true },
-    }),
-    db.donation.aggregate({
-      where: { tenantId },
-      _sum:  { amount: true },
-    }),
-  ])
-
-  const totalExpenses  = expenseAgg._sum.amount ?? 0
-  const totalDonations = donationAgg._sum.amount ?? 0
-
-  // Descifrar cédula del tesorero para el PDF
-  let cedulaTesoreroPlain: string | null = null
-  if (config?.cedulaTesorero) {
-    try {
-      cedulaTesoreroPlain = decrypt(config.cedulaTesorero)
-    } catch {
-      cedulaTesoreroPlain = '[Error al descifrar]'
-    }
-  }
-
-  // Agrupar gastos por categoría
-  const gastosPorCategoria: Record<string, number> = {}
-  for (const e of expenses) {
-    gastosPorCategoria[e.category] = (gastosPorCategoria[e.category] ?? 0) + e.amount
-  }
-
-  // Agrupar donaciones por tipo
-  const donacionesPorTipo: Record<string, number> = {}
-  for (const d of donations) {
-    donacionesPorTipo[d.donorType] = (donacionesPorTipo[d.donorType] ?? 0) + d.amount
-  }
-
-  return {
-    tenantId,
-    type,
-    config: config ? {
-      cargoPostulado:     config.cargoPostulado,
-      municipio:          config.municipio,
-      topeGastos:         config.topeGastos,
-      fechaInicioCampana: config.fechaInicioCampana,
-      fechaFinCampana:    config.fechaFinCampana,
-      nombreTesorero:     config.nombreTesorero,
-      cedulaTesorero:     cedulaTesoreroPlain,
-    } : null,
-    totalExpenses,
-    totalDonations,
-    balance:             totalDonations - totalExpenses,
-    porcentajeTope:      config?.topeGastos ? (totalExpenses / config.topeGastos) * 100 : null,
-    gastosPorCategoria,
-    donacionesPorTipo,
-    totalGastos:         expenses.length,
-    totalDonacionesCount: donations.length,
-  }
 }
 
 export async function saveReport(data: {

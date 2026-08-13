@@ -884,8 +884,11 @@ model AutomationRule {
 model FinanceConfig {
   id                 String    @id @default(cuid())
   tenantId           String    @unique
-  cargoPostulado     String? // Alcalde | Concejal | Diputado | Gobernador | Senador | Representante | Otro
-  municipio          String?
+  // ponytail: columnas muertas — cargo/municipio ahora salen de TenantConfig
+  // (config de campaña), única fuente. Se dejan sin dropear para no correr una
+  // migración por-tenant; quitar con un DROP COLUMN cuando toque otra migración.
+  cargoPostulado     String? // DEAD — no se escribe ni se lee
+  municipio          String? // DEAD — no se escribe ni se lee
   topeGastos         Float? // tope legal en pesos colombianos (COP)
   fechaInicioCampana DateTime?
   fechaFinCampana    DateTime?

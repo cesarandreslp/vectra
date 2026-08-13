@@ -5,16 +5,6 @@ import { useRouter } from 'next/navigation'
 import { updateFinanceConfig } from '../../actions'
 import type { FinanceConfigView } from '../../actions'
 
-const CARGOS = [
-  'Alcalde',
-  'Gobernador',
-  'Concejal',
-  'Diputado',
-  'Senador',
-  'Representante',
-  'Otro',
-]
-
 interface FinanceConfigFormProps {
   initialConfig: FinanceConfigView | null
 }
@@ -34,8 +24,6 @@ export function FinanceConfigForm({ initialConfig }: FinanceConfigFormProps) {
     const fd = new FormData(e.currentTarget)
     try {
       await updateFinanceConfig({
-        cargoPostulado:     (fd.get('cargoPostulado') as string) || undefined,
-        municipio:          (fd.get('municipio') as string) || undefined,
         topeGastos:         fd.get('topeGastos') ? Number(fd.get('topeGastos')) : undefined,
         fechaInicioCampana: (fd.get('fechaInicioCampana') as string) || undefined,
         fechaFinCampana:    (fd.get('fechaFinCampana') as string) || undefined,
@@ -64,28 +52,6 @@ export function FinanceConfigForm({ initialConfig }: FinanceConfigFormProps) {
           Configuración guardada correctamente.
         </div>
       )}
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-        <label style={labelStyle}>
-          Cargo postulado
-          <select name="cargoPostulado" defaultValue={initialConfig?.cargoPostulado ?? ''} style={inputStyle}>
-            <option value="">Seleccionar...</option>
-            {CARGOS.map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-        </label>
-
-        <label style={labelStyle}>
-          Municipio / Departamento
-          <input
-            name="municipio"
-            defaultValue={initialConfig?.municipio ?? ''}
-            style={inputStyle}
-            placeholder="Ej: Bogotá D.C."
-          />
-        </label>
-      </div>
 
       <label style={labelStyle}>
         Tope legal de gastos (COP)
