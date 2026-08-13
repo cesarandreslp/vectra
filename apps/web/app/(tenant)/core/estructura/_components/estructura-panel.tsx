@@ -47,6 +47,10 @@ export function EstructuraPanel({ data }: { data: EstructuraView }) {
       </Bloque>
 
       <Bloque titulo="Staff con acceso al panel" editar="/core/configuracion">
+        <p style={{ margin: '0 0 0.75rem', fontSize: '0.78rem', color: '#64748b' }}>
+          Quién entra al panel y con qué alcance. No es la cadena territorial: un líder de
+          zona no necesita cuenta.
+        </p>
         {staff.length === 0 ? (
           <p style={vacio}>Sin usuarios de staff.</p>
         ) : (
