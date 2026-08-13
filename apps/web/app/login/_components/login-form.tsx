@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
 import { textoSobre } from '@/lib/brand-contrast'
 
 interface LoginFormProps {
@@ -21,7 +20,6 @@ export function LoginForm({ callbackUrl, tenantName, logoUrl, primaryColor }: Lo
   const [error,         setError]         = useState<string | null>(null)
 
   const [isPending, startTransition] = useTransition()
-  const router = useRouter()
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -39,11 +37,11 @@ export function LoginForm({ callbackUrl, tenantName, logoUrl, primaryColor }: Lo
         return
       }
 
+      // Navegación REAL (no router.push): el gestor de contraseñas del navegador
+      // solo ofrece guardar usuario+contraseña si al submit le sigue una carga de
+      // página. Con router.push el prompt casi nunca aparece.
       // El destino se decide en /login mismo (página server) según la sesión.
-      // Si hay callbackUrl, vamos directo allá; si no, /login server-side
-      // redirige según el rol.
-      router.push(callbackUrl ?? '/login')
-      router.refresh()
+      window.location.assign(callbackUrl ?? '/login')
     })
   }
 
@@ -98,11 +96,14 @@ export function LoginForm({ callbackUrl, tenantName, logoUrl, primaryColor }: Lo
             </label>
             <input
               id="email"
+              name="email"
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
-              autoComplete="email"
+              // "username" (no "email"): es lo que el gestor de contraseñas
+              // asocia con el campo de contraseña para guardar el par.
+              autoComplete="username"
               placeholder="tu@correo.com"
               style={estiloInput}
             />
@@ -118,6 +119,7 @@ export function LoginForm({ callbackUrl, tenantName, logoUrl, primaryColor }: Lo
             <div style={{ position: 'relative' }}>
               <input
                 id="password"
+                name="password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={e => setPassword(e.target.value)}

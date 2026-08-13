@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
 
 export function SuperadminLoginForm() {
   const [email,    setEmail]    = useState('')
@@ -10,7 +9,6 @@ export function SuperadminLoginForm() {
   const [error,    setError]    = useState<string | null>(null)
 
   const [isPending, startTransition] = useTransition()
-  const router = useRouter()
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -24,8 +22,8 @@ export function SuperadminLoginForm() {
         return
       }
 
-      router.push('/superadmin')
-      router.refresh()
+      // Navegación real: sin ella el gestor de contraseñas no ofrece guardar.
+      window.location.assign('/superadmin')
     })
   }
 
@@ -42,15 +40,15 @@ export function SuperadminLoginForm() {
           <div>
             <label htmlFor="email" style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.25rem' }}>Correo electrónico</label>
             <input
-              id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-              required autoComplete="email" placeholder="tu@vectra.com" style={estiloInput}
+              id="email" name="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+              required autoComplete="username" placeholder="tu@vectra.com" style={estiloInput}
             />
           </div>
 
           <div>
             <label htmlFor="password" style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.25rem' }}>Contraseña</label>
             <input
-              id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+              id="password" name="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)}
               required autoComplete="current-password" style={estiloInput}
             />
           </div>
