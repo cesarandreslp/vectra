@@ -1,0 +1,56 @@
+'use client'
+
+import { useCallback, useEffect, useState } from 'react'
+import { getActividadDetalle, crearGrupo, type ActividadDetalle } from '../actions'
+import { GrupoCard } from './grupo-card'
+
+export type Elector = { id: string; name: string; esSimpatizante: boolean }
+
+const card = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1.25rem' }
+const input = { border: '1px solid #cbd5e1', borderRadius: '6px', padding: '0.45rem 0.65rem', fontSize: '0.85rem' }
+
+export function DetalleActividad({ actividadId, electores }: { actividadId: string; electores: Elector[] }) {
+  const [detalle, setDetalle] = useState<ActividadDetalle | null>(null)
+  const [nombre, setNombre] = useState('')
+  const [lugar, setLugar] = useState('')
+  const [responsableId, setResponsableId] = useState('')
+
+  const cargar = useCallback(() => { void getActividadDetalle(actividadId).then(setDetalle) }, [actividadId])
+  useEffect(() => { cargar() }, [cargar])
+
+  if (!detalle) return <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Cargando…</div>
+
+  async function addGrupo(e: React.FormEvent) {
+    e.preventDefault()
+    const r = await crearGrupo(actividadId, { nombre, lugar: lugar || undefined, responsableId: responsableId || undefined })
+    if (!r.success) { alert(r.error); return }
+    setNombre(''); setLugar(''); setResponsableId(''); cargar()
+  }
+
+  return (
+    <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{detalle.nombre} — grupos y logística</h2>
+
+      <form onSubmit={addGrupo} style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', alignItems: 'flex-end', background: '#f8fafc', borderRadius: '8px', padding: '0.75rem' }}>
+        <label style={lbl}>Grupo / lugar<input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Parque San José" required style={input} /></label>
+        <label style={lbl}>Referencia<input value={lugar} onChange={(e) => setLugar(e.target.value)} placeholder="dirección / punto" style={input} /></label>
+        <label style={lbl}>Responsable
+          <select value={responsableId} onChange={(e) => setResponsableId(e.target.value)} style={input}>
+            <option value="">(opcional)</option>
+            {electores.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+          </select>
+        </label>
+        <button type="submit" style={{ background: '#0f172a', color: '#fff', border: 'none', borderRadius: '6px', padding: '0.45rem 0.9rem', fontSize: '0.85rem', cursor: 'pointer' }}>+ Grupo</button>
+      </form>
+
+      {detalle.grupos.length === 0 && (
+        <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Sin grupos todavía. Agregá uno por cada lugar donde se ejecute la actividad.</div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        {detalle.grupos.map((g) => <GrupoCard key={g.id} grupo={g} electores={electores} onChange={cargar} />)}
+      </div>
+    </div>
+  )
+}
+
+const lbl = { display: 'flex', flexDirection: 'column' as const, gap: '0.2rem', fontSize: '0.75rem', color: '#64748b' }

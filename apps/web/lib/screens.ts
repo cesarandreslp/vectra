@@ -20,6 +20,7 @@ export const SCREENS: Record<string, ScreenDef> = {
   CORE_TERRITORIO:    { label: 'Territorio',        modulo: 'CORE', path: '/core/territorio' },
   CORE_AGENDA:        { label: 'Agenda',            modulo: 'CORE', path: '/core/agenda' },
   CORE_LOGISTICA:     { label: 'Logística',         modulo: 'CORE', path: '/core/logistica' },
+  CORE_ACTIVIDADES:   { label: 'Actividades',       modulo: 'CORE', path: '/core/actividades' },
   CORE_RUTAS:         { label: 'Rutas',             modulo: 'CORE', path: '/core/rutas' },
   CORE_ALERTAS:       { label: 'Alertas',           modulo: 'CORE', path: '/core/alertas' },
   CORE_CONFIGURACION: { label: 'Configuración',     modulo: 'CORE', path: '/core/configuracion' },
