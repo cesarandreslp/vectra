@@ -4,7 +4,7 @@ import { AppShell, type NavItem } from '@/app/_components/app-shell'
 import { BadgeNotificaciones } from './_components/badge-notificaciones'
 
 const SCREENS_CORE = [
-  'CORE_DASHBOARD', 'CORE_LIDERES', 'CORE_ELECTORES', 'CORE_IMPORTAR', 'CORE_QR',
+  'CORE_DASHBOARD', 'CORE_ESTRUCTURA', 'CORE_LIDERES', 'CORE_ELECTORES', 'CORE_IMPORTAR', 'CORE_QR',
   'CORE_TERRITORIO', 'CORE_AGENDA', 'CORE_LOGISTICA', 'CORE_ACTIVIDADES', 'CORE_PRESUPUESTOS',
   'CORE_PERFILES',
   'CORE_RUTAS', 'CORE_ALERTAS', 'CORE_CONFIGURACION',
@@ -30,6 +30,7 @@ export default async function CoreLayout({ children }: { children: React.ReactNo
 
   const nav: NavItem[] = [
     ...(puedeVer('CORE_DASHBOARD') ? [{ href: '/core', label: 'Dashboard' } as NavItem] : []),
+    ...(((esAdmin || personalizado) && puedeVer('CORE_ESTRUCTURA')) ? [{ href: '/core/estructura', label: 'Estructura' } as NavItem] : []),
     ...(puedeVer('CORE_LIDERES')   ? [{ href: '/core/lideres', label: 'Líderes' } as NavItem] : []),
     ...(puedeVer('CORE_ELECTORES') ? [{ href: '/core/electores', label: 'Electores' } as NavItem] : []),
     ...(((esAdmin || personalizado) && puedeVer('CORE_IMPORTAR'))   ? [{ href: '/core/importar', label: 'Importar' } as NavItem] : []),

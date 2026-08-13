@@ -13,6 +13,7 @@ export interface ScreenDef {
 
 export const SCREENS: Record<string, ScreenDef> = {
   CORE_DASHBOARD:     { label: 'Dashboard',        modulo: 'CORE', path: '/core' },
+  CORE_ESTRUCTURA:    { label: 'Estructura',        modulo: 'CORE', path: '/core/estructura' },
   CORE_LIDERES:       { label: 'Líderes',           modulo: 'CORE', path: '/core/lideres' },
   CORE_ELECTORES:     { label: 'Electores',         modulo: 'CORE', path: '/core/electores' },
   CORE_IMPORTAR:      { label: 'Importar',          modulo: 'CORE', path: '/core/importar' },
