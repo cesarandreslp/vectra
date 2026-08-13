@@ -116,6 +116,7 @@ async function invalidarPresupuesto(d: ReturnType<typeof getTenantDb>, actividad
 
 export interface GrupoDetalle {
   id: string; nombre: string; lugar: string | null; responsableName: string | null
+  inicio: string | null; duracionMin: number | null
   miembros: { id: string; voterId: string; name: string }[]
   insumos:  { id: string; descripcion: string; tipo: string; cantidad: number; costoEstimado: number | null; estado: string }[]
 }
@@ -146,19 +147,31 @@ export async function getActividadDetalle(id: string): Promise<ActividadDetalle 
     doliente: a.doliente.name, presupuestoAprobado: a.presupuestoAprobado, descripcion: a.descripcion,
     grupos: a.grupos.map((g) => ({
       id: g.id, nombre: g.nombre, lugar: g.lugar, responsableName: g.responsable?.name ?? null,
+      inicio: g.inicio?.toISOString() ?? null, duracionMin: g.duracionMin,
       miembros: g.miembros.map((m) => ({ id: m.id, voterId: m.voterId, name: m.voter.name })),
       insumos:  g.insumos.map((i) => ({ id: i.id, descripcion: i.descripcion, tipo: i.tipo, cantidad: i.cantidad, costoEstimado: i.costoEstimado, estado: i.estado })),
     })),
   }
 }
 
-export async function crearGrupo(actividadId: string, data: { nombre: string; lugar?: string; responsableId?: string }) {
+export async function crearGrupo(
+  actividadId: string,
+  data: { nombre: string; lugar?: string; responsableId?: string; inicio?: string; duracionMin?: number },
+) {
   const { db: d, tenantId } = await db(true)
   const act = await d.actividad.findFirst({ where: { id: actividadId, tenantId }, select: { id: true } })
   if (!act) return { success: false, error: 'Actividad no encontrada.' }
   if (!data.nombre.trim()) return { success: false, error: 'Falta el nombre del grupo.' }
+  if (data.duracionMin != null && data.duracionMin <= 0) return { success: false, error: 'La duración tiene que ser mayor que cero.' }
+
   await d.grupoActividad.create({
-    data: { tenantId, actividadId, nombre: data.nombre.trim(), lugar: data.lugar?.trim() || undefined, responsableId: data.responsableId || undefined },
+    data: {
+      tenantId, actividadId, nombre: data.nombre.trim(),
+      lugar: data.lugar?.trim() || undefined, responsableId: data.responsableId || undefined,
+      // datetime-local llega sin zona; el server lo interpreta en su hora local.
+      inicio: data.inicio ? new Date(data.inicio) : undefined,
+      duracionMin: data.duracionMin ?? undefined,
+    },
   })
   revalidatePath('/core/actividades')
   return { success: true }
@@ -175,16 +188,50 @@ export async function eliminarGrupo(id: string) {
 
 // ── Miembros (asignar simpatizante a un grupo) ─────────────────────────────────
 
-/** Agrega un elector a un grupo y lo marca simpatizante (todo miembro es simpatizante). */
+const hhmm = (d: Date) => d.toLocaleString('es-CO', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+
+/**
+ * Agrega un elector a un grupo y lo marca simpatizante (todo miembro es simpatizante).
+ *
+ * Nadie puede estar en dos lugares a la vez: si el grupo tiene franja horaria,
+ * se rechaza cuando se pisa con otra franja donde esa persona ya está anotada.
+ * Los grupos sin horario cargado no se pueden chequear y no bloquean.
+ */
 export async function agregarMiembro(grupoId: string, voterId: string) {
   const { db: d, tenantId } = await db(true)
-  const g = await d.grupoActividad.findFirst({ where: { id: grupoId, tenantId }, select: { id: true } })
+  const g = await d.grupoActividad.findFirst({
+    where: { id: grupoId, tenantId },
+    select: { id: true, inicio: true, duracionMin: true },
+  })
   if (!g) return { success: false, error: 'Grupo no encontrado.' }
   const v = await d.voter.findFirst({ where: { id: voterId, tenantId }, select: { id: true } })
   if (!v) return { success: false, error: 'Elector no válido.' }
 
   const ya = await d.miembroGrupo.findFirst({ where: { grupoId, voterId }, select: { id: true } })
   if (ya) return { success: false, error: 'Ya está en el grupo.' }
+
+  if (g.inicio && g.duracionMin) {
+    const inicio = g.inicio
+    const fin    = new Date(inicio.getTime() + g.duracionMin * 60_000)
+
+    const otros = await d.miembroGrupo.findMany({
+      where:  { tenantId, voterId, grupo: { inicio: { not: null }, duracionMin: { not: null } } },
+      select: { grupo: { select: { nombre: true, inicio: true, duracionMin: true, actividad: { select: { nombre: true } } } } },
+    })
+
+    const choque = otros.find(({ grupo }) => {
+      const oInicio = grupo.inicio!
+      const oFin    = new Date(oInicio.getTime() + grupo.duracionMin! * 60_000)
+      return inicio < oFin && oInicio < fin
+    })
+    if (choque) {
+      const o = choque.grupo
+      return {
+        success: false,
+        error: `Se cruza: ya está en "${o.nombre}" (${o.actividad.nombre}), ${hhmm(o.inicio!)} a ${hhmm(new Date(o.inicio!.getTime() + o.duracionMin! * 60_000))}.`,
+      }
+    }
+  }
 
   await d.$transaction([
     d.miembroGrupo.create({ data: { tenantId, grupoId, voterId } }),

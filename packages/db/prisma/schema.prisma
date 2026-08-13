@@ -1244,6 +1244,12 @@ model GrupoActividad {
   actividadId   String
   nombre        String // ej: "Parque San José" o "Brigada norte"
   lugar         String? // dirección o referencia del punto de ejecución
+  // Franja del grupo: cuándo arranca y cuánto dura. Es lo que define si un
+  // simpatizante está ocupado — no puede estar en dos grupos que se pisen.
+  // Cada grupo tiene la suya: el mismo día puede haber uno de mañana y otro
+  // de tarde, y la misma persona puede hacer los dos.
+  inicio        DateTime?
+  duracionMin   Int?
   responsableId String? // Voter que coordina el grupo
   createdAt     DateTime @default(now())
 

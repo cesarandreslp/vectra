@@ -18,6 +18,8 @@ export function DetalleActividad({ actividadId, electores }: { actividadId: stri
   const [nombre, setNombre] = useState('')
   const [lugar, setLugar] = useState('')
   const [responsableId, setResponsableId] = useState('')
+  const [inicio, setInicio] = useState('')
+  const [horas, setHoras] = useState('')
 
   // refresh() además del fetch: los contadores de la tarjeta y la marca ·simp de
   // la lista de electores vienen del render del servidor, y si no, quedan viejos.
@@ -31,9 +33,13 @@ export function DetalleActividad({ actividadId, electores }: { actividadId: stri
 
   async function addGrupo(e: React.FormEvent) {
     e.preventDefault()
-    const r = await crearGrupo(actividadId, { nombre, lugar: lugar || undefined, responsableId: responsableId || undefined })
+    const r = await crearGrupo(actividadId, {
+      nombre, lugar: lugar || undefined, responsableId: responsableId || undefined,
+      inicio: inicio || undefined,
+      duracionMin: horas ? Math.round(Number(horas) * 60) : undefined,
+    })
     if (!r.success) { alert(r.error); return }
-    setNombre(''); setLugar(''); setResponsableId(''); cargar()
+    setNombre(''); setLugar(''); setResponsableId(''); setInicio(''); setHoras(''); cargar()
   }
 
   return (
@@ -64,6 +70,8 @@ export function DetalleActividad({ actividadId, electores }: { actividadId: stri
       <form onSubmit={addGrupo} style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', alignItems: 'flex-end', background: '#f8fafc', borderRadius: '8px', padding: '0.75rem' }}>
         <label style={lbl}>Grupo / lugar<input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Parque San José" required style={input} /></label>
         <label style={lbl}>Referencia<input value={lugar} onChange={(e) => setLugar(e.target.value)} placeholder="dirección / punto" style={input} /></label>
+        <label style={lbl}>Arranca<input type="datetime-local" value={inicio} onChange={(e) => setInicio(e.target.value)} style={input} /></label>
+        <label style={lbl}>Duración (h)<input type="number" min={0.5} step={0.5} value={horas} onChange={(e) => setHoras(e.target.value)} placeholder="4" style={{ ...input, width: '4.5rem' }} /></label>
         <label style={lbl}>Responsable
           <select value={responsableId} onChange={(e) => setResponsableId(e.target.value)} style={input}>
             <option value="">(opcional)</option>

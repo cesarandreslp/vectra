@@ -44,6 +44,18 @@ async function main() {
     const marcado = await db.voter.findUnique({ where: { id: voter.id }, select: { esSimpatizante: true } })
     ok(marcado?.esSimpatizante === true, 'el miembro queda marcado como simpatizante')
 
+    // Cruce de horarios: la misma persona no puede estar en dos franjas que se pisen.
+    const t0 = new Date('2026-09-01T08:00:00')
+    const solapa = (aIni: Date, aMin: number, bIni: Date, bMin: number) =>
+      aIni < new Date(bIni.getTime() + bMin * 60_000) && bIni < new Date(aIni.getTime() + aMin * 60_000)
+
+    await db.grupoActividad.update({ where: { id: grupo.id }, data: { inicio: t0, duracionMin: 240 } })
+    const gPisa   = await db.grupoActividad.create({ data: { tenantId, actividadId: act.id, nombre: '__test se pisa',   inicio: new Date(t0.getTime() + 120 * 60_000), duracionMin: 120 } })
+    const gDespues= await db.grupoActividad.create({ data: { tenantId, actividadId: act.id, nombre: '__test más tarde', inicio: new Date(t0.getTime() + 300 * 60_000), duracionMin: 120 } })
+
+    ok(solapa(t0, 240, gPisa.inicio!, gPisa.duracionMin!) === true, 'una franja que empieza dentro de otra se detecta como cruce')
+    ok(solapa(t0, 240, gDespues.inicio!, gDespues.duracionMin!) === false, 'una franja posterior no se considera cruce')
+
     const insumo = await db.insumoGrupo.create({ data: { tenantId, grupoId: grupo.id, descripcion: '__test carpa', tipo: 'MATERIAL', cantidad: 2, costoEstimado: 150000 } })
     ok(insumo.estado === 'REQUERIDO', 'el insumo nace en REQUERIDO')
     const aprobado = await db.insumoGrupo.update({ where: { id: insumo.id }, data: { estado: 'APROBADO' } })
@@ -55,7 +67,7 @@ async function main() {
       include: { grupos: { select: { _count: { select: { miembros: true, insumos: true } } } } },
     })
     const a = listado[0]!
-    ok(a.grupos.length === 1, 'getActividades cuenta 1 grupo')
+    ok(a.grupos.length === 3, 'getActividades cuenta los 3 grupos creados')
     ok(a.grupos.reduce((n, g) => n + g._count.miembros, 0) === 1, 'getActividades cuenta 1 simpatizante')
     ok(a.grupos.reduce((n, g) => n + g._count.insumos, 0) === 1, 'getActividades cuenta 1 insumo')
 

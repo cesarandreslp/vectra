@@ -8,6 +8,7 @@ import type { Elector } from './detalle-actividad'
 
 type Grupo = {
   id: string; nombre: string; lugar: string | null; responsableName: string | null
+  inicio: string | null; duracionMin: number | null
   miembros: { id: string; voterId: string; name: string }[]
   insumos: { id: string; descripcion: string; tipo: string; cantidad: number; costoEstimado: number | null; estado: string }[]
 }
@@ -16,6 +17,16 @@ const TIPOS = ['ALIMENTACION', 'INSUMO', 'MATERIAL', 'HERRAMIENTA'] as const
 const COLOR_ESTADO: Record<string, string> = { REQUERIDO: '#d97706', APROBADO: '#2563eb', CONSEGUIDO: '#16a34a' }
 const SIGUIENTE: Record<string, 'REQUERIDO' | 'APROBADO' | 'CONSEGUIDO'> = { REQUERIDO: 'APROBADO', APROBADO: 'CONSEGUIDO', CONSEGUIDO: 'REQUERIDO' }
 const input = { border: '1px solid #cbd5e1', borderRadius: '6px', padding: '0.35rem 0.55rem', fontSize: '0.8rem' }
+
+const reloj = (d: Date) => d.toLocaleString('es-CO', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+
+/** Franja del grupo. Sin ella no se puede detectar que alguien esté en dos lados a la vez. */
+function franja(g: Grupo): string {
+  if (!g.inicio || !g.duracionMin) return 'sin horario — no se controlan cruces'
+  const desde = new Date(g.inicio)
+  const hasta = new Date(desde.getTime() + g.duracionMin * 60_000)
+  return `${reloj(desde)} → ${reloj(hasta)} (${g.duracionMin / 60} h)`
+}
 
 export function GrupoCard({ grupo, electores, onChange }: { grupo: Grupo; electores: Elector[]; onChange: () => void }) {
   const [voterId, setVoterId] = useState('')
@@ -33,6 +44,7 @@ export function GrupoCard({ grupo, electores, onChange }: { grupo: Grupo; electo
         <div>
           <strong>{grupo.nombre}</strong>
           <span style={{ color: '#94a3b8', fontSize: '0.78rem' }}>{grupo.lugar ? ` · ${grupo.lugar}` : ''}{grupo.responsableName ? ` · resp: ${grupo.responsableName}` : ''}</span>
+          <div style={{ fontSize: '0.75rem', color: grupo.inicio ? '#475569' : '#d97706', marginTop: '0.15rem' }}>{franja(grupo)}</div>
         </div>
         <button onClick={() => confirm('¿Borrar el grupo?') && wrap(eliminarGrupo(grupo.id))} style={{ border: 'none', background: 'none', color: '#ef4444', fontSize: '0.72rem', cursor: 'pointer' }}>Borrar grupo</button>
       </div>
