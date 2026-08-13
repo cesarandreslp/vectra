@@ -13,15 +13,20 @@ import { IconUsers, IconCalendar, IconClipboard, IconClock } from '@/app/_compon
 
 interface NavBarProps {
   mostrarEncuestas: boolean
+  /** Solo para el doliente de alguna actividad — el resto no tiene qué gestionar ahí. */
+  mostrarActividades: boolean
 }
 
-export function NavBar({ mostrarEncuestas }: NavBarProps) {
+export function NavBar({ mostrarEncuestas, mostrarActividades }: NavBarProps) {
   const pathname = usePathname()
 
   const tabs = [
     { href: '/pwa', label: 'Mis electores', icon: IconUsers, activo: pathname === '/pwa' },
     { href: '/pwa/reuniones', label: 'Reuniones', icon: IconCalendar, activo: pathname.startsWith('/pwa/reuniones') },
     { href: '/pwa/agenda', label: 'Agenda', icon: IconClock, activo: pathname.startsWith('/pwa/agenda') },
+    ...(mostrarActividades
+      ? [{ href: '/pwa/actividades', label: 'Actividades', icon: IconClipboard, activo: pathname.startsWith('/pwa/actividades') }]
+      : []),
     ...(mostrarEncuestas
       ? [{ href: '/pwa/encuestas', label: 'Encuesta', icon: IconClipboard, activo: pathname.startsWith('/pwa/encuestas') }]
       : []),

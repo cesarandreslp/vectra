@@ -3,6 +3,8 @@ import { requireAuthOrRedirect } from '@/lib/auth-helpers'
 import { getBranding } from '@/lib/branding'
 import { LogoutButton } from '@/app/_components/logout-button'
 import { NavBar } from './_components/nav-bar'
+import { getTenantDb } from '@campaignos/db'
+import { getTenantConnection } from '@/lib/tenant'
 
 /**
  * Antes /pwa no tenía guardia a nivel de página — dependía solo de que la API
@@ -25,6 +27,16 @@ export default async function PwaLayout({ children }: { children: React.ReactNod
 
   const esElector = session.user.role === 'ELECTOR'
   const { logoUrl, primaryColor } = await getBranding()
+
+  // La pestaña de actividades solo tiene sentido para quien responde por alguna:
+  // el doliente. Para el resto no existe.
+  let esDoliente = false
+  if (session.user.voterId) {
+    const db = getTenantDb(await getTenantConnection(session.user.tenantId))
+    esDoliente = (await db.actividad.count({
+      where: { tenantId: session.user.tenantId, dolienteId: session.user.voterId },
+    })) > 0
+  }
 
   return (
     // Sin este fondo explícito, el navegador aplica su oscurecimiento automático
@@ -52,7 +64,7 @@ export default async function PwaLayout({ children }: { children: React.ReactNod
         />
       </div>
       {children}
-      <NavBar mostrarEncuestas={session.user.activeModules.includes('ENCUESTAS')} />
+      <NavBar mostrarEncuestas={session.user.activeModules.includes('ENCUESTAS')} mostrarActividades={esDoliente} />
     </div>
   )
 }

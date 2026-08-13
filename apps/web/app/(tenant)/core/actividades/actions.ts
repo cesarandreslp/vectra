@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantDb } from '@campaignos/db'
 import { getTenantConnection } from '@/lib/tenant'
+import { agregarMiembroAGrupo, invalidarPresupuesto } from '@/lib/actividades'
 
 const ROLES_ADMIN = ['ADMIN_CAMPANA', 'COORDINADOR'] as const
 const SCREEN = 'CORE_ACTIVIDADES'
@@ -98,20 +99,6 @@ export async function cambiarEstadoActividad(id: string, estado: 'PLANEADA' | 'E
   return { success: true }
 }
 
-/**
- * Tumba la aprobación del presupuesto: se aprobó un monto y el monto cambió.
- * Aplica también si la actividad ya arrancó — no la frena a mitad de camino,
- * pero vuelve a la bandeja del tesorero para que apruebe el monto nuevo. Sin
- * esto se podrían cargar gastos después de aprobado sin que finanzas se entere.
- */
-async function invalidarPresupuesto(d: ReturnType<typeof getTenantDb>, actividadId: string) {
-  await d.actividad.updateMany({
-    where: { id: actividadId, presupuestoAprobado: true, estado: { in: ['PLANEADA', 'EN_CURSO'] } },
-    data:  { presupuestoAprobado: false, presupuestoAprobadoPor: null, presupuestoAprobadoEn: null },
-  })
-  revalidatePath('/core/presupuestos')
-}
-
 // ── Detalle: grupos, miembros, insumos ─────────────────────────────────────────
 
 export interface GrupoDetalle {
@@ -188,57 +175,13 @@ export async function eliminarGrupo(id: string) {
 
 // ── Miembros (asignar simpatizante a un grupo) ─────────────────────────────────
 
-const hhmm = (d: Date) => d.toLocaleString('es-CO', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-
-/**
- * Agrega un elector a un grupo y lo marca simpatizante (todo miembro es simpatizante).
- *
- * Nadie puede estar en dos lugares a la vez: si el grupo tiene franja horaria,
- * se rechaza cuando se pisa con otra franja donde esa persona ya está anotada.
- * Los grupos sin horario cargado no se pueden chequear y no bloquean.
- */
+/** Agrega un elector a un grupo. La regla (cruce de horarios + marca de
+ * simpatizante) vive en lib/actividades para que el PWA del doliente la aplique igual. */
 export async function agregarMiembro(grupoId: string, voterId: string) {
   const { db: d, tenantId } = await db(true)
-  const g = await d.grupoActividad.findFirst({
-    where: { id: grupoId, tenantId },
-    select: { id: true, inicio: true, duracionMin: true },
-  })
-  if (!g) return { success: false, error: 'Grupo no encontrado.' }
-  const v = await d.voter.findFirst({ where: { id: voterId, tenantId }, select: { id: true } })
-  if (!v) return { success: false, error: 'Elector no válido.' }
-
-  const ya = await d.miembroGrupo.findFirst({ where: { grupoId, voterId }, select: { id: true } })
-  if (ya) return { success: false, error: 'Ya está en el grupo.' }
-
-  if (g.inicio && g.duracionMin) {
-    const inicio = g.inicio
-    const fin    = new Date(inicio.getTime() + g.duracionMin * 60_000)
-
-    const otros = await d.miembroGrupo.findMany({
-      where:  { tenantId, voterId, grupo: { inicio: { not: null }, duracionMin: { not: null } } },
-      select: { grupo: { select: { nombre: true, inicio: true, duracionMin: true, actividad: { select: { nombre: true } } } } },
-    })
-
-    const choque = otros.find(({ grupo }) => {
-      const oInicio = grupo.inicio!
-      const oFin    = new Date(oInicio.getTime() + grupo.duracionMin! * 60_000)
-      return inicio < oFin && oInicio < fin
-    })
-    if (choque) {
-      const o = choque.grupo
-      return {
-        success: false,
-        error: `Se cruza: ya está en "${o.nombre}" (${o.actividad.nombre}), ${hhmm(o.inicio!)} a ${hhmm(new Date(o.inicio!.getTime() + o.duracionMin! * 60_000))}.`,
-      }
-    }
-  }
-
-  await d.$transaction([
-    d.miembroGrupo.create({ data: { tenantId, grupoId, voterId } }),
-    d.voter.update({ where: { id: voterId }, data: { esSimpatizante: true } }),
-  ])
-  revalidatePath('/core/actividades')
-  return { success: true }
+  const r = await agregarMiembroAGrupo(d, tenantId, grupoId, voterId)
+  if (r.success) revalidatePath('/core/actividades')
+  return r
 }
 
 export async function quitarMiembro(miembroId: string) {

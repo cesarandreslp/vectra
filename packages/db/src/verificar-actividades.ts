@@ -61,6 +61,15 @@ async function main() {
     const aprobado = await db.insumoGrupo.update({ where: { id: insumo.id }, data: { estado: 'APROBADO' } })
     ok(aprobado.estado === 'APROBADO', 'el tesorero puede pasarlo a APROBADO')
 
+    // Aislamiento por doliencia — es lo único que autoriza al doliente en el PWA.
+    const otro = await db.voter.findFirst({ where: { tenantId, id: { not: voter.id } }, select: { id: true } })
+    if (otro) {
+      const mio = await db.grupoActividad.findFirst({ where: { id: grupo.id, tenantId, actividad: { dolienteId: voter.id } }, select: { id: true } })
+      const ajeno = await db.grupoActividad.findFirst({ where: { id: grupo.id, tenantId, actividad: { dolienteId: otro.id } }, select: { id: true } })
+      ok(mio?.id === grupo.id, 'el doliente alcanza los grupos de SU actividad')
+      ok(ajeno === null, 'otro elector NO alcanza los grupos de esa actividad')
+    }
+
     // agregados de getActividades()
     const listado = await db.actividad.findMany({
       where: { tenantId, id: act.id },
