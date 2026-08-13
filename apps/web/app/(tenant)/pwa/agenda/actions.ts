@@ -6,6 +6,7 @@ import { type UserRole } from '@campaignos/auth'
 import { getTenantDb } from '@campaignos/db'
 import { getTenantConnection } from '@/lib/tenant'
 import { idsLideres } from '@/app/(tenant)/core/actions'
+import { ambitoDeAnfitrion, puedeGestionar, type AgendaAmbito } from '@/lib/agenda'
 
 // Mismos roles que puede tener cualquier sesión dentro de /pwa (pwa/layout.tsx)
 // — el control real de acceso es tener voterId, no el rol.
@@ -310,4 +311,142 @@ export async function getMisConvocatorias(): Promise<ConvocatoriaListado[]> {
     lugar: d.convocatoria.lugar, convocanteName: d.convocatoria.convocante.name,
     totalDestinatarios: d.convocatoria._count.destinatarios,
   }))
+}
+
+// ── Gestión delegada: el gestor administra la agenda de un anfitrión ────────────
+// El gestor es un Voter con gestionaAgenda; administra la agenda de los
+// anfitriones de su ámbito. Autorización vía puedeGestionar (admin o gestor).
+// ponytail: repite el create/delete del anfitrión con anfitrionId variable; se
+// podría extraer a lib/agenda si aparece un tercer llamador.
+
+const ROLES_ADMIN_PWA: UserRole[] = ['ADMIN_CAMPANA', 'COORDINADOR']
+
+export interface AnfitrionGestionado {
+  id: string; name: string; isCandidate: boolean; agendaAbierta: boolean
+}
+
+/** El ámbito que administra el elector logueado y los anfitriones de ese ámbito. Null si no gestiona. */
+export async function getMiGestion(): Promise<{ ambito: AgendaAmbito; anfitriones: AnfitrionGestionado[] } | null> {
+  const session = await requireAuth(ROLES_PWA)
+  if (!session.user.voterId) return null
+  const db = getTenantDb(await getTenantConnection(session.user.tenantId))
+
+  const yo = await db.voter.findFirst({
+    where:  { id: session.user.voterId, tenantId: session.user.tenantId },
+    select: { gestionaAgenda: true },
+  })
+  const ambito = (yo?.gestionaAgenda as AgendaAmbito | null) ?? null
+  if (!ambito) return null
+
+  const esCandidato = ambito === 'CANDIDATO'
+  const anfitriones = await db.voter.findMany({
+    where:   { tenantId: session.user.tenantId, ...(esCandidato ? { isCandidate: true } : { isCandidate: false, tieneAgenda: true }) },
+    select:  { id: true, name: true, isCandidate: true, agendaAbierta: true },
+    orderBy: { name: 'asc' },
+  })
+  return { ambito, anfitriones }
+}
+
+async function autorizarSobreAnfitrion(
+  anfitrionId: string,
+  session: Awaited<ReturnType<typeof requireAuth>>,
+  db: ReturnType<typeof getTenantDb>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const anfitrion = await db.voter.findFirst({
+    where:  { id: anfitrionId, tenantId: session.user.tenantId, OR: [{ isCandidate: true }, { tieneAgenda: true }] },
+    select: { isCandidate: true },
+  })
+  if (!anfitrion) return { ok: false, error: 'Anfitrión no válido.' }
+  const puede = await puedeGestionar(ambitoDeAnfitrion(anfitrion), {
+    tenantId: session.user.tenantId, voterId: session.user.voterId,
+    esAdmin: ROLES_ADMIN_PWA.includes(session.user.role), db,
+  })
+  return puede ? { ok: true } : { ok: false, error: 'No administrás esta agenda.' }
+}
+
+/** Agenda de un anfitrión que administro (huecos + compromisos). */
+export async function getAgendaGestionada(anfitrionId: string): Promise<EntradaAgenda[]> {
+  const session = await requireAuth(ROLES_PWA)
+  const db = getTenantDb(await getTenantConnection(session.user.tenantId))
+  if (!(await autorizarSobreAnfitrion(anfitrionId, session, db)).ok) return []
+
+  const entradas = await db.agendaEntrada.findMany({
+    where:   { tenantId: session.user.tenantId, anfitrionId },
+    include: { reservante: { select: { name: true } } },
+    orderBy: { startsAt: 'asc' },
+  })
+  return entradas.map((e) => ({
+    id: e.id, startsAt: e.startsAt.toISOString(), endsAt: e.endsAt.toISOString(),
+    disponible: e.disponible, titulo: e.titulo, reservadoPor: e.reservadoPor,
+    reservanteName: e.reservante?.name ?? null, motivo: e.motivo,
+  }))
+}
+
+/** Publica un hueco o compromiso en la agenda de un anfitrión que administro. */
+export async function crearEntradaGestionada(anfitrionId: string, data: {
+  startsAt: string; endsAt: string; disponible: boolean; titulo?: string
+}) {
+  const session = await requireAuth(ROLES_PWA)
+  const db = getTenantDb(await getTenantConnection(session.user.tenantId))
+  const auth = await autorizarSobreAnfitrion(anfitrionId, session, db)
+  if (!auth.ok) return { success: false, error: auth.error }
+
+  const startsAt = new Date(data.startsAt)
+  const endsAt   = new Date(data.endsAt)
+  if (!(endsAt > startsAt)) return { success: false, error: 'La hora de fin debe ser después de la de inicio.' }
+  if (!data.disponible && !data.titulo?.trim()) return { success: false, error: 'Falta el título del compromiso.' }
+
+  await db.agendaEntrada.create({
+    data: {
+      tenantId: session.user.tenantId, anfitrionId, startsAt, endsAt,
+      disponible: data.disponible, titulo: data.disponible ? undefined : data.titulo!.trim(),
+    },
+  })
+  revalidatePath('/pwa/agenda')
+  return { success: true }
+}
+
+/** Borra una entrada de una agenda que administro (bloqueado si fue reservada). */
+export async function eliminarEntradaGestionada(entradaId: string) {
+  const session = await requireAuth(ROLES_PWA)
+  const db = getTenantDb(await getTenantConnection(session.user.tenantId))
+
+  const entrada = await db.agendaEntrada.findFirst({
+    where:  { id: entradaId, tenantId: session.user.tenantId },
+    select: { anfitrionId: true, reservadoPor: true },
+  })
+  if (!entrada) return { success: false, error: 'Entrada no encontrada.' }
+  if (entrada.reservadoPor) return { success: false, error: 'Ya fue reservada — avisá al elector antes de borrarla.' }
+  const auth = await autorizarSobreAnfitrion(entrada.anfitrionId, session, db)
+  if (!auth.ok) return { success: false, error: auth.error }
+
+  await db.agendaEntrada.delete({ where: { id: entradaId } })
+  revalidatePath('/pwa/agenda')
+  return { success: true }
+}
+
+/** Abre/cierra la agenda del candidato (si administro CANDIDATO) y lo registra en la bitácora. */
+export async function toggleAbiertaGestionada(anfitrionId: string, abierta: boolean, motivo?: string) {
+  const session = await requireAuth(ROLES_PWA)
+  if (!session.user.voterId) return { success: false, error: 'Cuenta sin elector enlazado.' }
+  const db = getTenantDb(await getTenantConnection(session.user.tenantId))
+
+  const anfitrion = await db.voter.findFirst({
+    where: { id: anfitrionId, tenantId: session.user.tenantId }, select: { isCandidate: true },
+  })
+  if (!anfitrion?.isCandidate) return { success: false, error: 'Solo la agenda del candidato se abre/cierra.' }
+  const auth = await autorizarSobreAnfitrion(anfitrionId, session, db)
+  if (!auth.ok) return { success: false, error: auth.error }
+
+  await db.$transaction([
+    db.voter.update({ where: { id: anfitrionId }, data: { agendaAbierta: abierta } }),
+    db.agendaApertura.create({
+      data: {
+        tenantId: session.user.tenantId, anfitrionId, abierta,
+        gestorId: session.user.voterId, motivo: motivo?.trim() || undefined,
+      },
+    }),
+  ])
+  revalidatePath('/pwa/agenda')
+  return { success: true }
 }
