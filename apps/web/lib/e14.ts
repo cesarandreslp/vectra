@@ -66,3 +66,51 @@ export function validarNivelacion(sumaDigitada: number, n: Nivelacion): ChequeoN
 
   return { ok: errores.length === 0, errores, avisos }
 }
+
+// ── Llaves de candidato en las tres fuentes ──────────────────────────────────
+
+/** Para comparar nombres: minúsculas, sin tildes, sin espacios repetidos. */
+function clave(valor: string): string {
+  return valor
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Filas del acta que no son un candidato del tarjetón. */
+export const VOTOS_BLANCO = 'VOTOS_BLANCO'
+export const VOTOS_NULOS  = 'VOTOS_NULOS'
+
+/**
+ * Lleva los votos de una fuente a la MISMA llave que usan las otras dos.
+ *
+ * El testigo y la carga de la Registraduría mandan `Candidate.id`; la IA que lee
+ * la foto solo puede devolver el NOMBRE impreso en el acta. Sin traducir eso a
+ * id, la verificación cruzada compara cuids contra nombres, no cruza ninguno y
+ * declara DISCREPANCIA aunque las tres fuentes traigan exactamente lo mismo.
+ *
+ * Un renglón que no corresponda a ningún candidato conocido se deja tal cual:
+ * es preferible que salga como discrepancia a revisar que desaparecer un voto.
+ */
+export function normalizarClavesE14(
+  datos:      { candidateId: string; votes: number }[],
+  candidatos: { id: string; name: string }[],
+): { candidateId: string; votes: number }[] {
+  const ids       = new Set(candidatos.map(c => c.id))
+  const porNombre = new Map(candidatos.map(c => [clave(c.name), c.id]))
+
+  return datos.map(d => {
+    if (ids.has(d.candidateId)) return d // ya viene con Candidate.id
+
+    const k  = clave(d.candidateId)
+    const id = porNombre.get(k)
+    if (id) return { candidateId: id, votes: d.votes }
+
+    if (k.includes('blanco')) return { candidateId: VOTOS_BLANCO, votes: d.votes }
+    if (k.includes('nulo'))   return { candidateId: VOTOS_NULOS,  votes: d.votes }
+
+    return d
+  })
+}

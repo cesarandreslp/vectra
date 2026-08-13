@@ -11,6 +11,7 @@ import { getTenantConnection } from '@/lib/tenant'
 import { getTenantDb, Prisma, superadminDb, decrypt } from '@vectra/db'
 import * as XLSX                from 'xlsx'
 import { calcularCedulaHash }   from '@/lib/cedula-hash'
+import { normalizarClavesE14 }  from '@/lib/e14'
 import {
   compararListados,
   type TestigoPropuesto,
@@ -807,6 +808,15 @@ export async function submitPhotoE14(
       discrepanciesArr = []
     }
 
+    // La IA devuelve el NOMBRE leído del acta; el testigo y la Registraduría
+    // mandan Candidate.id. Se traduce ACÁ, al escribir, para que las tres
+    // fuentes queden con la misma llave y la verificación pueda cruzarlas.
+    const candidatosTenant = await db.candidate.findMany({
+      where:  { tenantId },
+      select: { id: true, name: true },
+    })
+    extractedData = normalizarClavesE14(extractedData, candidatosTenant)
+
     const extractedTotal = extractedData.reduce((sum, v) => sum + v.votes, 0)
 
     // Guardar en DB
@@ -1047,9 +1057,9 @@ export async function listTransmissions(filters?: {
 
   const tableMap = new Map(tables.map((t: { id: string; number: number; station: { name: string } }) => [t.id, t]))
   const userMap  = new Map(users.map((u: { id: string; email: string }) => [u.id, u]))
-  // El testigo transmite candidateId = Candidate.id; la IA, en cambio, devuelve
-  // el NOMBRE leído de la foto. Hay que reconocer las dos formas o los votos
-  // propios salen en blanco en la sala de situación.
+  // ponytail: desde normalizarClavesE14 (ver submitPhotoE14) la foto ya se
+  // guarda con Candidate.id, así que aceptar el nombre solo sirve para las
+  // transmisiones escritas ANTES de esa corrección. Quitar cuando no queden.
   const clavesPropias = new Set<string>()
   for (const c of candidates as { id: string; name: string }[]) {
     clavesPropias.add(c.id.toLowerCase())
@@ -1207,8 +1217,8 @@ async function agregarResultados(db: any, tenantId: string): Promise<ElectionRes
   }
 
   return candidates.map((c: { id: string; name: string; party: string | null; isOwn: boolean }) => {
-    // El acta se transmite con Candidate.id; la IA puede devolver el nombre.
-    // Se suman las dos formas para no perder votos según la vía de captura.
+    // ponytail: igual que en listTransmissions — sumar también por nombre solo
+    // cubre transmisiones anteriores a normalizarClavesE14. Quitar cuando no queden.
     const votes = (votesByCand.get(c.id.toLowerCase()) ?? 0)
                 + (votesByCand.get(c.name.toLowerCase()) ?? 0)
     return {
