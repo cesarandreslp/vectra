@@ -35,8 +35,8 @@ export interface FinanceConfigView {
   topeGastos:         number | null
   fechaInicioCampana: Date | null
   fechaFinCampana:    Date | null
-  nombreTesorero:     string | null
-  hasCedulaTesorero:  boolean // indica si existe, nunca expone el valor
+  tesoreroId:         string | null
+  tesoreroNombre:     string | null // del Voter — para mostrar el actual
   hasCuentaBancaria:  boolean
 }
 
@@ -83,6 +83,7 @@ export interface DashboardData {
   balance:            number
   porcentajeTope:     number | null // null si no hay tope configurado
   topeGastos:         number | null
+  tesorero:           string | null // nombre del Voter tesorero, o null si sin asignar
   gastosPorCategoria: { category: string; total: number; count: number }[]
   alertas:            { tipo: string; mensaje: string }[]
   ultimos5Gastos:     ExpenseView[]
@@ -108,25 +109,33 @@ export interface ReportView {
 export async function getFinanceConfig(): Promise<FinanceConfigView | null> {
   const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA','COORDINADOR'], 'FINANZAS_CONFIGURACION')
 
-  const config = await db.financeConfig.findUnique({ where: { tenantId } })
+  const config = await db.financeConfig.findUnique({
+    where:   { tenantId },
+    include: { tesorero: { select: { name: true } } },
+  })
   if (!config) return null
 
   return {
     topeGastos:         config.topeGastos,
     fechaInicioCampana: config.fechaInicioCampana,
     fechaFinCampana:    config.fechaFinCampana,
-    nombreTesorero:     config.nombreTesorero,
-    hasCedulaTesorero:  !!config.cedulaTesorero,
+    tesoreroId:         config.tesoreroId,
+    tesoreroNombre:     config.tesorero?.name ?? null,
     hasCuentaBancaria:  !!config.cuentaBancaria,
   }
+}
+
+/** Electores del padrón para elegir al tesorero (como el líder de sede). */
+export async function listVotersForTesorero(): Promise<{ id: string; name: string }[]> {
+  const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA'], 'FINANZAS_CONFIGURACION')
+  return db.voter.findMany({ where: { tenantId }, select: { id: true, name: true }, orderBy: { name: 'asc' } })
 }
 
 export async function updateFinanceConfig(data: {
   topeGastos?:         number
   fechaInicioCampana?: string
   fechaFinCampana?:    string
-  nombreTesorero?:     string
-  cedulaTesorero?:     string // se cifra antes de guardar
+  tesoreroId?:         string | null // Voter.id — '' o null lo desasigna
   cuentaBancaria?:     string // se cifra antes de guardar
 }) {
   const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA'], 'FINANZAS_CONFIGURACION', 'edit')
@@ -135,13 +144,9 @@ export async function updateFinanceConfig(data: {
     topeGastos:         data.topeGastos ?? null,
     fechaInicioCampana: data.fechaInicioCampana ? new Date(data.fechaInicioCampana) : null,
     fechaFinCampana:    data.fechaFinCampana ? new Date(data.fechaFinCampana) : null,
-    nombreTesorero:     data.nombreTesorero ?? null,
+    tesoreroId:         data.tesoreroId || null,
   }
 
-  // Cifrar campos sensibles solo si se proporcionan
-  if (data.cedulaTesorero) {
-    payload.cedulaTesorero = encrypt(data.cedulaTesorero)
-  }
   if (data.cuentaBancaria) {
     payload.cuentaBancaria = encrypt(data.cuentaBancaria)
   }
@@ -471,7 +476,7 @@ export async function getFinanceDashboard(): Promise<DashboardData> {
       _sum:  { amount: true },
       _count: true,
     }),
-    db.financeConfig.findUnique({ where: { tenantId } }),
+    db.financeConfig.findUnique({ where: { tenantId }, include: { tesorero: { select: { name: true } } } }),
     db.expense.findMany({
       where:   { tenantId },
       orderBy: { date: 'desc' },
@@ -518,6 +523,7 @@ export async function getFinanceDashboard(): Promise<DashboardData> {
     balance,
     porcentajeTope,
     topeGastos,
+    tesorero: config?.tesorero?.name ?? null,
     gastosPorCategoria: byCategory.map(g => ({
       category: g.category,
       total:    g._sum.amount ?? 0,

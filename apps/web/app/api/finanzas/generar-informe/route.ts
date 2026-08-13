@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     // Recopilar todos los datos financieros
     const [tenantCfg, config, expenses, donations, expenseAgg, donationAgg] = await Promise.all([
       db.tenantConfig.findUnique({ where: { tenantId } }),
-      db.financeConfig.findUnique({ where: { tenantId } }),
+      db.financeConfig.findUnique({ where: { tenantId }, include: { tesorero: { select: { name: true, cedula: true } } } }),
       db.expense.findMany({
         where:   { tenantId },
         orderBy: { date: 'asc' },
@@ -53,11 +53,12 @@ export async function POST(req: NextRequest) {
     const totalExpenses  = expenseAgg._sum.amount ?? 0
     const totalDonations = donationAgg._sum.amount ?? 0
 
-    // Descifrar cédula del tesorero para el PDF — nunca pasar cifrada
+    // Nombre y cédula del tesorero salen de su ficha de elector (Voter). La cédula
+    // está cifrada allí; se descifra solo acá para el PDF, nunca se pasa cifrada.
     let cedulaTesoreroPlain: string | null = null
-    if (config?.cedulaTesorero) {
+    if (config?.tesorero?.cedula) {
       try {
-        cedulaTesoreroPlain = decrypt(config.cedulaTesorero)
+        cedulaTesoreroPlain = decrypt(config.tesorero.cedula)
       } catch {
         cedulaTesoreroPlain = '[Error al descifrar]'
       }
@@ -102,7 +103,7 @@ export async function POST(req: NextRequest) {
         topeGastos:         config.topeGastos,
         fechaInicioCampana: config.fechaInicioCampana,
         fechaFinCampana:    config.fechaFinCampana,
-        nombreTesorero:     config.nombreTesorero,
+        nombreTesorero:     config.tesorero?.name ?? null,
         cedulaTesorero:     cedulaTesoreroPlain,
       } : null,
       totalExpenses,

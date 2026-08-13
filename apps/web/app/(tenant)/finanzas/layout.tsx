@@ -26,6 +26,10 @@ export default async function FinanzasLayout({ children }: { children: React.Rea
     ...(puedeVer('FINANZAS_DASHBOARD')   ? [{ href: '/finanzas', label: 'Dashboard' } as NavItem] : []),
     ...(puedeVer('FINANZAS_GASTOS')      ? [{ href: '/finanzas/gastos', label: 'Gastos' } as NavItem] : []),
     ...(puedeVer('FINANZAS_DONACIONES')  ? [{ href: '/finanzas/donaciones', label: 'Donaciones' } as NavItem] : []),
+    // Presupuestos vive en CORE (no cruza el paywall), pero quien opera la plata lo
+    // necesita a mano acá. Su propia pantalla vuelve a validar el acceso.
+    ...((isAdmin || (personalizado && puedeVer('CORE_PRESUPUESTOS')))
+      ? [{ href: '/core/presupuestos', label: 'Presupuestos' } as NavItem] : []),
     ...((isAdmin || (personalizado && puedeVer('FINANZAS_INFORMES')))
       ? [{ href: '/finanzas/informes', label: 'Informes' } as NavItem] : []),
     ...((isAdmin || (personalizado && puedeVer('FINANZAS_CONFIGURACION')))

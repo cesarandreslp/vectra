@@ -33,7 +33,7 @@ export async function getTesoreria(): Promise<TesoreriaView> {
     db.actividad.count({ where: { tenantId, presupuestoAprobado: true } }),
     db.expense.aggregate({ where: { tenantId }, _sum: { amount: true } }),
     db.donation.aggregate({ where: { tenantId }, _sum: { amount: true } }),
-    db.financeConfig.findUnique({ where: { tenantId } }),
+    db.financeConfig.findUnique({ where: { tenantId }, include: { tesorero: { select: { name: true } } } }),
     db.financeReport.count({ where: { tenantId } }),
   ])
 
@@ -48,6 +48,6 @@ export async function getTesoreria(): Promise<TesoreriaView> {
     tope:           cfg?.topeGastos ?? null,
     porcentajeTope: cfg?.topeGastos ? (gastado / cfg.topeGastos) * 100 : null,
     informes,
-    tesorero:       cfg?.nombreTesorero ?? null,
+    tesorero:       cfg?.tesorero?.name ?? null,
   }
 }

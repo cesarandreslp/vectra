@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { getFinanceDashboard } from './actions'
 import { requireModule } from '@/lib/auth-helpers'
 import { BarraTope } from './_components/barra-tope'
@@ -15,9 +16,16 @@ export default async function FinanzasDashboardPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '900px' }}>
-      <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#0f172a' }}>
-        Dashboard Financiero
-      </h1>
+      <div>
+        <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#0f172a' }}>
+          Dashboard Financiero
+        </h1>
+        <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem', color: data.tesorero ? '#475569' : '#b45309' }}>
+          {data.tesorero
+            ? <>Tesorero: <strong style={{ fontWeight: 600 }}>{data.tesorero}</strong> · <Link href="/finanzas/configuracion" style={{ color: '#1e40af' }}>cambiar</Link></>
+            : <>Sin tesorero asignado · <Link href="/finanzas/configuracion" style={{ color: '#1e40af' }}>asignar</Link></>}
+        </p>
+      </div>
 
       {/* Métricas principales */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem' }}>

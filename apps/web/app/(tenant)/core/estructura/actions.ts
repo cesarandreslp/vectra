@@ -44,7 +44,7 @@ export async function getEstructura(): Promise<EstructuraView> {
   const [cfg, financeCfg, comunas, comunasConLider, barrios, barriosConLider, usuarios] = await Promise.all([
     db.tenantConfig.findUnique({ where: { tenantId } }),
     session.user.activeModules.includes('FINANZAS')
-      ? db.financeConfig.findUnique({ where: { tenantId } })
+      ? db.financeConfig.findUnique({ where: { tenantId }, include: { tesorero: { select: { name: true } } } })
       : Promise.resolve(null),
     db.commune.count(),
     db.commune.count({ where: { liderId: { not: null } } }),
@@ -72,7 +72,7 @@ export async function getEstructura(): Promise<EstructuraView> {
       nombre: session.user.tenantName ?? 'Campaña',
       cargo:  cfg?.electionOffice ? CARGO_LABEL[cfg.electionOffice] ?? cfg.electionOffice : null,
     },
-    tesorero:       session.user.activeModules.includes('FINANZAS') ? { nombre: financeCfg?.nombreTesorero ?? null } : null,
+    tesorero:       session.user.activeModules.includes('FINANZAS') ? { nombre: financeCfg?.tesorero?.name ?? null } : null,
     asesorJuridico: jur ? (jur.name ?? jur.email) : null,
     sede:       { nombre: cfg?.sedeNombre ?? null, direccion: cfg?.sedeDireccion ?? null, lider: sedeLider },
     territorio: { comunas, comunasConLider, barrios, barriosConLider },

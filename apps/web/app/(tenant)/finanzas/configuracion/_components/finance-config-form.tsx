@@ -7,9 +7,10 @@ import type { FinanceConfigView } from '../../actions'
 
 interface FinanceConfigFormProps {
   initialConfig: FinanceConfigView | null
+  electores:     { id: string; name: string }[]
 }
 
-export function FinanceConfigForm({ initialConfig }: FinanceConfigFormProps) {
+export function FinanceConfigForm({ initialConfig, electores }: FinanceConfigFormProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -27,8 +28,7 @@ export function FinanceConfigForm({ initialConfig }: FinanceConfigFormProps) {
         topeGastos:         fd.get('topeGastos') ? Number(fd.get('topeGastos')) : undefined,
         fechaInicioCampana: (fd.get('fechaInicioCampana') as string) || undefined,
         fechaFinCampana:    (fd.get('fechaFinCampana') as string) || undefined,
-        nombreTesorero:     (fd.get('nombreTesorero') as string) || undefined,
-        cedulaTesorero:     (fd.get('cedulaTesorero') as string) || undefined,
+        tesoreroId:         (fd.get('tesoreroId') as string) || null,
         cuentaBancaria:     (fd.get('cuentaBancaria') as string) || undefined,
       })
       setSuccess(true)
@@ -101,40 +101,30 @@ export function FinanceConfigForm({ initialConfig }: FinanceConfigFormProps) {
       <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: '0.5rem 0' }} />
 
       <label style={labelStyle}>
-        Nombre del tesorero
-        <input
-          name="nombreTesorero"
-          defaultValue={initialConfig?.nombreTesorero ?? ''}
-          style={inputStyle}
-          placeholder="Nombre completo del tesorero de campaña"
-        />
+        Tesorero
+        <select name="tesoreroId" defaultValue={initialConfig?.tesoreroId ?? ''} style={inputStyle}>
+          <option value="">Sin asignar</option>
+          {electores.map((e) => (
+            <option key={e.id} value={e.id}>{e.name}</option>
+          ))}
+        </select>
+        <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+          El tesorero es una persona del padrón. Su nombre y cédula para el informe salen
+          de su ficha de elector. Si no está en la lista, agrégalo primero en Electores.
+        </span>
       </label>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-        <label style={labelStyle}>
-          Cédula del tesorero
-          <input
-            name="cedulaTesorero"
-            style={inputStyle}
-            placeholder={initialConfig?.hasCedulaTesorero ? '••••••••• (ya registrada)' : 'Número de cédula'}
-          />
-          <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
-            Se cifra al guardar. Deje en blanco para no modificar.
-          </span>
-        </label>
-
-        <label style={labelStyle}>
-          Cuenta bancaria
-          <input
-            name="cuentaBancaria"
-            style={inputStyle}
-            placeholder={initialConfig?.hasCuentaBancaria ? '••••••••• (ya registrada)' : 'Número de cuenta'}
-          />
-          <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
-            Se cifra al guardar. Deje en blanco para no modificar.
-          </span>
-        </label>
-      </div>
+      <label style={labelStyle}>
+        Cuenta bancaria
+        <input
+          name="cuentaBancaria"
+          style={inputStyle}
+          placeholder={initialConfig?.hasCuentaBancaria ? '••••••••• (ya registrada)' : 'Número de cuenta'}
+        />
+        <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+          Se cifra al guardar. Deje en blanco para no modificar.
+        </span>
+      </label>
 
       <button
         type="submit"

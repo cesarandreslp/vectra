@@ -274,6 +274,9 @@ model Voter {
   barriosACargo Neighborhood[] @relation("BarrioLider")
   comunasACargo Commune[]      @relation("ComunaLider")
 
+  // Config financiera donde esta persona figura como tesorero (0..1 por tenant).
+  tesoreriaDe   FinanceConfig[] @relation("Tesorero")
+
   leader       Voter?        @relation("VoterHierarchy", fields: [leaderId], references: [id])
   followers    Voter[]       @relation("VoterHierarchy")
   neighborhood Neighborhood? @relation("VoterBarrio", fields: [neighborhoodId], references: [id])
@@ -884,18 +887,16 @@ model AutomationRule {
 model FinanceConfig {
   id                 String    @id @default(cuid())
   tenantId           String    @unique
-  // ponytail: columnas muertas — cargo/municipio ahora salen de TenantConfig
-  // (config de campaña), única fuente. Se dejan sin dropear para no correr una
-  // migración por-tenant; quitar con un DROP COLUMN cuando toque otra migración.
-  cargoPostulado     String? // DEAD — no se escribe ni se lee
-  municipio          String? // DEAD — no se escribe ni se lee
   topeGastos         Float? // tope legal en pesos colombianos (COP)
   fechaInicioCampana DateTime?
   fechaFinCampana    DateTime?
-  nombreTesorero     String?
-  cedulaTesorero     String? // CIFRADO con encrypt() — nunca en texto plano
+  // El tesorero es una persona del padrón (como el líder de sede), no texto suelto.
+  // Su nombre y cédula (ya cifrada en el Voter) para el informe salen de ahí.
+  tesoreroId         String?
   cuentaBancaria     String? // CIFRADO con encrypt() — nunca en texto plano
   updatedAt          DateTime  @updatedAt
+
+  tesorero Voter? @relation("Tesorero", fields: [tesoreroId], references: [id])
 }
 
 /// Gasto de campaña registrado por un usuario.
