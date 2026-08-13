@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getActividadDetalle, crearGrupo, type ActividadDetalle } from '../actions'
+import { getActividadDetalle, crearGrupo, cambiarEstadoActividad, type ActividadDetalle } from '../actions'
+
+type EstadoActividad = 'PLANEADA' | 'EN_CURSO' | 'REALIZADA' | 'CANCELADA'
 import { GrupoCard } from './grupo-card'
 
 export type Elector = { id: string; name: string; esSimpatizante: boolean }
@@ -38,6 +40,26 @@ export function DetalleActividad({ actividadId, electores }: { actividadId: stri
     <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>{detalle.nombre} — grupos y logística</h2>
       <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '-0.6rem' }}>Doliente: {detalle.doliente}</div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Estado:</span>
+        <select
+          value={detalle.estado}
+          onChange={async (e) => {
+            const r = await cambiarEstadoActividad(actividadId, e.target.value as EstadoActividad)
+            if (!r.success) alert(r.error)
+            cargar()
+          }}
+          style={{ ...input, padding: '0.3rem 0.5rem' }}
+        >
+          {(['PLANEADA', 'EN_CURSO', 'REALIZADA', 'CANCELADA'] as const).map((s) => <option key={s} value={s}>{s.replace('_', ' ').toLowerCase()}</option>)}
+        </select>
+        {!detalle.presupuestoAprobado && (
+          <span style={{ fontSize: '0.75rem', color: '#d97706' }}>
+            No puede ejecutarse: el presupuesto todavía no lo aprobó el área financiera.
+          </span>
+        )}
+      </div>
 
       <form onSubmit={addGrupo} style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', alignItems: 'flex-end', background: '#f8fafc', borderRadius: '8px', padding: '0.75rem' }}>
         <label style={lbl}>Grupo / lugar<input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Parque San José" required style={input} /></label>

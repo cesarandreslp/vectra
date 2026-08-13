@@ -20,7 +20,7 @@ async function db(edit = false) {
 
 export interface ActividadResumen {
   id: string; nombre: string; categoria: string | null; fecha: string | null; estado: string
-  doliente: string
+  doliente: string; presupuestoAprobado: boolean; presupuesto: number
   grupos: number; simpatizantes: number; insumos: number
 }
 
@@ -31,12 +31,19 @@ export async function getActividades(): Promise<ActividadResumen[]> {
     orderBy: [{ fecha: 'desc' }, { createdAt: 'desc' }],
     include: {
       doliente: { select: { name: true } },
-      grupos:   { select: { _count: { select: { miembros: true, insumos: true } } } },
+      grupos:   {
+        select: {
+          _count:  { select: { miembros: true, insumos: true } },
+          insumos: { select: { cantidad: true, costoEstimado: true } },
+        },
+      },
     },
   })
   return acts.map((a) => ({
     id: a.id, nombre: a.nombre, categoria: a.categoria, fecha: a.fecha?.toISOString() ?? null, estado: a.estado,
     doliente: a.doliente.name,
+    presupuestoAprobado: a.presupuestoAprobado,
+    presupuesto: a.grupos.reduce((n, g) => n + g.insumos.reduce((m, i) => m + (i.costoEstimado ?? 0) * i.cantidad, 0), 0),
     grupos: a.grupos.length,
     simpatizantes: a.grupos.reduce((n, g) => n + g._count.miembros, 0),
     insumos: a.grupos.reduce((n, g) => n + g._count.insumos, 0),
@@ -73,6 +80,38 @@ export async function eliminarActividad(id: string) {
   return { success: true }
 }
 
+/**
+ * Cambia el estado de la actividad. Arrancar (o dar por realizada) exige que el
+ * área financiera haya aprobado el presupuesto — ver /core/presupuestos.
+ */
+export async function cambiarEstadoActividad(id: string, estado: 'PLANEADA' | 'EN_CURSO' | 'REALIZADA' | 'CANCELADA') {
+  const { db: d, tenantId } = await db(true)
+  const a = await d.actividad.findFirst({ where: { id, tenantId }, select: { id: true, presupuestoAprobado: true } })
+  if (!a) return { success: false, error: 'Actividad no encontrada.' }
+
+  if ((estado === 'EN_CURSO' || estado === 'REALIZADA') && !a.presupuestoAprobado) {
+    return { success: false, error: 'El presupuesto todavía no está aprobado por el área financiera: la actividad no se puede ejecutar.' }
+  }
+
+  await d.actividad.update({ where: { id }, data: { estado } })
+  revalidatePath('/core/actividades')
+  return { success: true }
+}
+
+/**
+ * Tumba la aprobación del presupuesto: se aprobó un monto y el monto cambió.
+ * Aplica también si la actividad ya arrancó — no la frena a mitad de camino,
+ * pero vuelve a la bandeja del tesorero para que apruebe el monto nuevo. Sin
+ * esto se podrían cargar gastos después de aprobado sin que finanzas se entere.
+ */
+async function invalidarPresupuesto(d: ReturnType<typeof getTenantDb>, actividadId: string) {
+  await d.actividad.updateMany({
+    where: { id: actividadId, presupuestoAprobado: true, estado: { in: ['PLANEADA', 'EN_CURSO'] } },
+    data:  { presupuestoAprobado: false, presupuestoAprobadoPor: null, presupuestoAprobadoEn: null },
+  })
+  revalidatePath('/core/presupuestos')
+}
+
 // ── Detalle: grupos, miembros, insumos ─────────────────────────────────────────
 
 export interface GrupoDetalle {
@@ -82,7 +121,7 @@ export interface GrupoDetalle {
 }
 export interface ActividadDetalle {
   id: string; nombre: string; categoria: string | null; fecha: string | null; estado: string
-  doliente: string; descripcion: string | null; grupos: GrupoDetalle[]
+  doliente: string; presupuestoAprobado: boolean; descripcion: string | null; grupos: GrupoDetalle[]
 }
 
 export async function getActividadDetalle(id: string): Promise<ActividadDetalle | null> {
@@ -104,7 +143,7 @@ export async function getActividadDetalle(id: string): Promise<ActividadDetalle 
   if (!a) return null
   return {
     id: a.id, nombre: a.nombre, categoria: a.categoria, fecha: a.fecha?.toISOString() ?? null, estado: a.estado,
-    doliente: a.doliente.name, descripcion: a.descripcion,
+    doliente: a.doliente.name, presupuestoAprobado: a.presupuestoAprobado, descripcion: a.descripcion,
     grupos: a.grupos.map((g) => ({
       id: g.id, nombre: g.nombre, lugar: g.lugar, responsableName: g.responsable?.name ?? null,
       miembros: g.miembros.map((m) => ({ id: m.id, voterId: m.voterId, name: m.voter.name })),
@@ -168,21 +207,23 @@ export async function quitarMiembro(miembroId: string) {
 
 export async function agregarInsumo(grupoId: string, data: { descripcion: string; tipo: InsumoTipo; cantidad: number; costoEstimado?: number }) {
   const { db: d, tenantId } = await db(true)
-  const g = await d.grupoActividad.findFirst({ where: { id: grupoId, tenantId }, select: { id: true } })
+  const g = await d.grupoActividad.findFirst({ where: { id: grupoId, tenantId }, select: { id: true, actividadId: true } })
   if (!g) return { success: false, error: 'Grupo no encontrado.' }
   if (!data.descripcion.trim()) return { success: false, error: 'Falta la descripción.' }
   await d.insumoGrupo.create({
     data: { tenantId, grupoId, descripcion: data.descripcion.trim(), tipo: data.tipo, cantidad: Math.max(1, data.cantidad || 1), costoEstimado: data.costoEstimado },
   })
+  await invalidarPresupuesto(d, g.actividadId)
   revalidatePath('/core/actividades')
   return { success: true }
 }
 
 export async function eliminarInsumo(id: string) {
   const { db: d, tenantId } = await db(true)
-  const i = await d.insumoGrupo.findFirst({ where: { id, tenantId }, select: { id: true } })
+  const i = await d.insumoGrupo.findFirst({ where: { id, tenantId }, select: { id: true, grupo: { select: { actividadId: true } } } })
   if (!i) return { success: false, error: 'Insumo no encontrado.' }
   await d.insumoGrupo.delete({ where: { id } })
+  await invalidarPresupuesto(d, i.grupo.actividadId)
   revalidatePath('/core/actividades')
   return { success: true }
 }

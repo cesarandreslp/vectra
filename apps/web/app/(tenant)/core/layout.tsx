@@ -5,7 +5,8 @@ import { BadgeNotificaciones } from './_components/badge-notificaciones'
 
 const SCREENS_CORE = [
   'CORE_DASHBOARD', 'CORE_LIDERES', 'CORE_ELECTORES', 'CORE_IMPORTAR', 'CORE_QR',
-  'CORE_TERRITORIO', 'CORE_AGENDA', 'CORE_LOGISTICA', 'CORE_ACTIVIDADES', 'CORE_RUTAS', 'CORE_ALERTAS', 'CORE_CONFIGURACION',
+  'CORE_TERRITORIO', 'CORE_AGENDA', 'CORE_LOGISTICA', 'CORE_ACTIVIDADES', 'CORE_PRESUPUESTOS',
+  'CORE_RUTAS', 'CORE_ALERTAS', 'CORE_CONFIGURACION',
 ]
 
 export default async function CoreLayout({ children }: { children: React.ReactNode }) {
@@ -36,6 +37,7 @@ export default async function CoreLayout({ children }: { children: React.ReactNo
     ...(((esAdmin || personalizado) && puedeVer('CORE_AGENDA'))     ? [{ href: '/core/agenda', label: 'Agenda' } as NavItem] : []),
     ...(((esAdmin || personalizado) && puedeVer('CORE_LOGISTICA'))  ? [{ href: '/core/logistica', label: 'Logística' } as NavItem] : []),
     ...(((esAdmin || personalizado) && puedeVer('CORE_ACTIVIDADES')) ? [{ href: '/core/actividades', label: 'Actividades' } as NavItem] : []),
+    ...(((esAdmin || personalizado) && puedeVer('CORE_PRESUPUESTOS')) ? [{ href: '/core/presupuestos', label: 'Presupuestos' } as NavItem] : []),
     ...(((esAdmin || personalizado) && puedeVer('CORE_RUTAS'))      ? [{ href: '/core/rutas', label: 'Rutas' } as NavItem] : []),
     ...(puedeVer('CORE_ALERTAS')    ? [{ href: '/core/alertas', label: 'Alertas', badge: <BadgeNotificaciones /> } as NavItem] : []),
     ...((session.user.role === 'ADMIN_CAMPANA' || (personalizado && puedeVer('CORE_CONFIGURACION')))

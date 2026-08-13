@@ -1220,6 +1220,12 @@ model Actividad {
   // actividad sin alguien que responda por ella. Restrict: no se puede borrar
   // al elector mientras tenga actividades a cargo (primero se reasignan).
   dolienteId  String
+  // Aprobación del presupuesto: la hace el área financiera (tesorero) sobre el
+  // total de insumos. Sin ella la actividad no pasa de PLANEADA — no se ejecuta.
+  // Si cambian los insumos, la aprobación se cae y hay que rehacerla.
+  presupuestoAprobado    Boolean   @default(false)
+  presupuestoAprobadoPor String? // email del usuario que aprobó (User vive en la DB del superadmin)
+  presupuestoAprobadoEn  DateTime?
   createdAt   DateTime        @default(now())
 
   doliente Voter            @relation("ActividadDoliente", fields: [dolienteId], references: [id])

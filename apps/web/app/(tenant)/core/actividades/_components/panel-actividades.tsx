@@ -60,6 +60,16 @@ export function PanelActividades({ actividades, electores }: { actividades: Acti
             <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '0.4rem' }}>
               Doliente: <strong>{a.doliente}</strong>
             </div>
+            <div style={{ fontSize: '0.75rem', marginTop: '0.3rem' }}>
+              <span style={{
+                border: `1px solid ${a.presupuestoAprobado ? '#16a34a' : '#d97706'}`,
+                color: a.presupuestoAprobado ? '#16a34a' : '#d97706',
+                borderRadius: 999, padding: '0.05rem 0.5rem',
+              }}>
+                {a.presupuestoAprobado ? 'presupuesto aprobado' : 'presupuesto pendiente'}
+              </span>
+              <span style={{ color: '#94a3b8', marginLeft: '0.4rem' }}>${a.presupuesto.toLocaleString('es-CO')}</span>
+            </div>
             <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '0.15rem' }}>
               {a.grupos} grupo(s) · {a.simpatizantes} simpatizante(s) · {a.insumos} insumo(s)
             </div>
