@@ -19,8 +19,10 @@ export default async function AsignacionesPage() {
     }),
   ])
 
-  const sinTestigo  = assignments.filter(a => !a.userId)
-  const conTestigo  = assignments.filter(a => a.userId)
+  // Una mesa con testigo RECHAZADO por la Registraduría está descubierta: cuenta
+  // en "sin testigo" para que se vea que hay que reemplazarlo (ver cubreLaMesa).
+  const conTestigo  = assignments.filter(a => a.cubierta)
+  const sinTestigo  = assignments.filter(a => !a.cubierta)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

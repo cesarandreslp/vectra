@@ -14,6 +14,7 @@ import { calcularCedulaHash }   from '@/lib/cedula-hash'
 import { normalizarClavesE14 }  from '@/lib/e14'
 import {
   compararListados,
+  cubreLaMesa,
   type TestigoPropuesto,
   type FilaAprobada,
   type ResultadoComparacion,
@@ -76,6 +77,8 @@ export interface WitnessAssignmentView {
   /** Trámite ante la Registraduría: PROPUESTO | APROBADO | RECHAZADO. */
   estado:        string | null
   observacion:   string | null
+  /** false = hay un testigo asignado pero la mesa quedó descubierta (rechazado). */
+  cubierta:      boolean
 }
 
 export interface MyAssignment {
@@ -341,9 +344,19 @@ export async function assignWitness(
       return { success: false, error: 'El usuario no tiene rol TESTIGO.' }
     }
 
+    // Reasignar una mesa arranca el trámite de cero: si la fila venía RECHAZADA
+    // o APROBADA para otra persona, arrastrar ese estado dejaría la mesa
+    // contada como descubierta (o como ya aprobada) con un testigo nuevo.
     await db.witnessAssignment.upsert({
       where: { tenantId_votingTableId_isPrimary: { tenantId, votingTableId, isPrimary } },
-      update: { userId: witnessUserId, confirmedAt: null },
+      update: {
+        userId:                 witnessUserId,
+        confirmedAt:            null,
+        estado:                 'PROPUESTO',
+        observacion:            null,
+        resueltoAt:             null,
+        votingTableIdPropuesto: null,
+      },
       create: { tenantId, userId: witnessUserId, votingTableId, isPrimary },
     })
 
@@ -405,6 +418,7 @@ export async function listWitnessAssignments(filters?: {
       confirmedAt:   assignment?.confirmedAt ?? null,
       estado:        assignment?.estado ?? null,
       observacion:   assignment?.observacion ?? null,
+      cubierta:      Boolean(assignment) && cubreLaMesa(assignment?.estado),
     })
   }
 
@@ -679,34 +693,21 @@ export async function submitManualE14(
         }
       : {}
 
-    // Upsert la transmisión
-    const existing = await db.e14Transmission.findUnique({
-      where: { votingTableId },
-    })
-
-    if (existing) {
-      await db.e14Transmission.update({
-        where: { votingTableId },
-        data: {
-          manualData:        votes,
-          manualTotal:       actaTotal,
-          manualSubmittedAt: new Date(),
-          ...datosNivelacion,
-        },
-      })
-    } else {
-      await db.e14Transmission.create({
-        data: {
-          tenantId,
-          votingTableId,
-          witnessUserId: userId,
-          manualData:        votes,
-          manualTotal:       actaTotal,
-          manualSubmittedAt: new Date(),
-          ...datosNivelacion,
-        },
-      })
+    // Upsert atómico, no findUnique+create: el testigo manda foto y manual casi
+    // a la vez y las dos escrituras compiten por la misma fila. Con el chequeo
+    // previo, ambas ven "no existe" y la segunda choca contra el índice único
+    // de votingTableId — justo cuando el acta ya no se puede volver a digitar.
+    const datosManual = {
+      manualData:        votes,
+      manualTotal:       actaTotal,
+      manualSubmittedAt: new Date(),
+      ...datosNivelacion,
     }
+    await db.e14Transmission.upsert({
+      where:  { votingTableId },
+      update: datosManual,
+      create: { tenantId, votingTableId, witnessUserId: userId, ...datosManual },
+    })
 
     await runVerification(votingTableId, db)
 
@@ -772,18 +773,13 @@ export async function submitPhotoE14(
 
     // Si ninguna IA respondió
     if (!groqResult && !zhipuResult) {
-      // Guardar solo la foto
-      const existing = await db.e14Transmission.findUnique({ where: { votingTableId } })
-      if (existing) {
-        await db.e14Transmission.update({
-          where: { votingTableId },
-          data:  { photoUrl, photoSubmittedAt: new Date() },
-        })
-      } else {
-        await db.e14Transmission.create({
-          data: { tenantId, votingTableId, witnessUserId: userId, photoUrl, photoSubmittedAt: new Date() },
-        })
-      }
+      // Guardar solo la foto — la imagen del acta no se pierde aunque la IA falle.
+      const soloFoto = { photoUrl, photoSubmittedAt: new Date() }
+      await db.e14Transmission.upsert({
+        where:  { votingTableId },
+        update: soloFoto,
+        create: { tenantId, votingTableId, witnessUserId: userId, ...soloFoto },
+      })
       return { success: false, error: 'No se pudo procesar la imagen. Digita los datos manualmente.' }
     }
 
@@ -820,7 +816,6 @@ export async function submitPhotoE14(
     const extractedTotal = extractedData.reduce((sum, v) => sum + v.votes, 0)
 
     // Guardar en DB
-    const existing = await db.e14Transmission.findUnique({ where: { votingTableId } })
     const photoData = {
       photoUrl,
       extractedData,
@@ -832,13 +827,11 @@ export async function submitPhotoE14(
       photoSubmittedAt:     new Date(),
     }
 
-    if (existing) {
-      await db.e14Transmission.update({ where: { votingTableId }, data: photoData })
-    } else {
-      await db.e14Transmission.create({
-        data: { tenantId, votingTableId, witnessUserId: userId, ...photoData },
-      })
-    }
+    await db.e14Transmission.upsert({
+      where:  { votingTableId },
+      update: photoData,
+      create: { tenantId, votingTableId, witnessUserId: userId, ...photoData },
+    })
 
     await runVerification(votingTableId, db)
 
@@ -1257,7 +1250,8 @@ export async function getDashboardDiaE(): Promise<DashboardDiaE> {
     incidentesBaja,
   ] = await Promise.all([
     db.votingTable.count(),
-    db.witnessAssignment.count({ where: { tenantId, isPrimary: true } }),
+    // Equivalente en consulta de cubreLaMesa() — ver _lib/registraduria.ts.
+    db.witnessAssignment.count({ where: { tenantId, isPrimary: true, estado: { not: 'RECHAZADO' } } }),
     db.e14Transmission.findMany({
       where:  { tenantId },
       select: { verificationStatus: true },

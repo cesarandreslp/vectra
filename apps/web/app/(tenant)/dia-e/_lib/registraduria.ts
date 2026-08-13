@@ -60,6 +60,21 @@ export interface ResultadoComparacion {
   sinCedula:     string[]
 }
 
+/**
+ * ¿Esta asignación cuenta como mesa cubierta?
+ *
+ * Un testigo RECHAZADO por la Registraduría no puede entrar al puesto: la fila
+ * se conserva para saber a quién hay que reemplazar, pero la mesa está
+ * descubierta. Contarla como cubierta le hace creer a la campaña que tiene
+ * puestos vigilados que en realidad va a perder.
+ *
+ * El equivalente en consulta es `estado: { not: 'RECHAZADO' }` — si acá se
+ * agrega otro estado sin cobertura, hay que reflejarlo allá (getDashboardDiaE).
+ */
+export function cubreLaMesa(estado: string | null | undefined): boolean {
+  return estado !== 'RECHAZADO'
+}
+
 /** Deja la cédula en solo dígitos — los archivos suelen traer puntos o espacios. */
 export function normalizarCedula(valor: string): string {
   return valor.replace(/\D/g, '')
