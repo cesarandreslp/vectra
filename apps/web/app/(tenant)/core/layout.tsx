@@ -6,7 +6,7 @@ import { BadgeNotificaciones } from './_components/badge-notificaciones'
 const SCREENS_CORE = [
   'CORE_DASHBOARD', 'CORE_ESTRUCTURA', 'CORE_LIDERES', 'CORE_ELECTORES', 'CORE_IMPORTAR', 'CORE_QR',
   'CORE_TERRITORIO', 'CORE_AGENDA', 'CORE_LOGISTICA', 'CORE_ACTIVIDADES', 'CORE_PRESUPUESTOS',
-  'CORE_PERFILES',
+  'CORE_TESORERIA', 'CORE_PERFILES',
   'CORE_RUTAS', 'CORE_ALERTAS', 'CORE_CONFIGURACION',
 ]
 
@@ -40,6 +40,11 @@ export default async function CoreLayout({ children }: { children: React.ReactNo
     ...(((esAdmin || personalizado) && puedeVer('CORE_LOGISTICA'))  ? [{ href: '/core/logistica', label: 'Logística' } as NavItem] : []),
     ...(((esAdmin || personalizado) && puedeVer('CORE_ACTIVIDADES')) ? [{ href: '/core/actividades', label: 'Actividades' } as NavItem] : []),
     ...(((esAdmin || personalizado) && puedeVer('CORE_PRESUPUESTOS')) ? [{ href: '/core/presupuestos', label: 'Presupuestos' } as NavItem] : []),
+    // El hub de plata solo tiene sentido con FINANZAS activo: reúne presupuestos (CORE)
+    // con gastos/donaciones/tope/informes (FINANZAS). Sin el módulo, presupuestos se
+    // queda solo en su ítem de arriba.
+    ...(((session.user.role === 'ADMIN_CAMPANA' || (personalizado && puedeVer('CORE_TESORERIA'))) && session.user.activeModules.includes('FINANZAS'))
+      ? [{ href: '/core/tesoreria', label: 'Tesorería' } as NavItem] : []),
     ...(((esAdmin || personalizado) && puedeVer('CORE_PERFILES')) ? [{ href: '/core/perfiles', label: 'Perfiles' } as NavItem] : []),
     ...(((esAdmin || personalizado) && puedeVer('CORE_RUTAS'))      ? [{ href: '/core/rutas', label: 'Rutas' } as NavItem] : []),
     ...(puedeVer('CORE_ALERTAS')    ? [{ href: '/core/alertas', label: 'Alertas', badge: <BadgeNotificaciones /> } as NavItem] : []),
