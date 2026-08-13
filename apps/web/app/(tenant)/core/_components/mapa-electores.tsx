@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import 'leaflet/dist/leaflet.css'
 import { geocodificarPendientes, type VoterGeo, type GeoStats, type StationGeo, type ComunaGeo, type CentroMunicipio } from '../actions'
@@ -89,9 +89,25 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, centro }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const heatCapaRef = useRef<any>(null)
   const [vista, setVista] = useState<Vista>('residencia')
+  const [barrio, setBarrio] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
+
+  // Los barrios salen de los propios puntos: los que no tienen a nadie ubicado
+  // no sirven de filtro acá, solo alargan la lista.
+  const barrios = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const p of puntos) if (p.neighborhoodId) m.set(p.neighborhoodId, p.neighborhoodName ?? p.neighborhoodId)
+    return [...m].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+  }, [puntos])
+
+  // Filtrar en el cliente: los puntos ya están todos acá, así que acotar no
+  // cuesta una consulta más y el mapa reencuadra solo sobre lo que queda.
+  const visibles = useMemo(
+    () => (barrio ? puntos.filter((p) => p.neighborhoodId === barrio) : puntos),
+    [puntos, barrio],
+  )
 
   useEffect(() => {
     let cancelado = false
@@ -138,7 +154,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, centro }: {
       }
 
       if (vista === 'calor') {
-        const puntosHeat: [number, number, number][] = puntos.map((p) => [p.lat, p.lng, intensidadDeEstado(p.commitmentStatus)])
+        const puntosHeat: [number, number, number][] = visibles.map((p) => [p.lat, p.lng, intensidadDeEstado(p.commitmentStatus)])
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const heat = (L as any).heatLayer(puntosHeat, {
           radius: 35, blur: 25, maxZoom: 16, max: 1.0, gradient: GRADIENTE_CALOR,
@@ -146,13 +162,13 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, centro }: {
         heat.addTo(mapa)
         heatCapaRef.current = heat
 
-        if (puntos.length > 0) mapa.fitBounds(L.latLngBounds(puntos.map((p): [number, number] => [p.lat, p.lng])).pad(0.2))
+        if (visibles.length > 0) mapa.fitBounds(L.latLngBounds(visibles.map((p): [number, number] => [p.lat, p.lng])).pad(0.2))
         else centrarEnMunicipioSiVacio()
       } else {
         const capa = L.featureGroup()
-        if (vista === 'residencia')    dibujarCapaResidencia(L, capa, puntos)
+        if (vista === 'residencia')    dibujarCapaResidencia(L, capa, visibles)
         else if (vista === 'puesto')   dibujarCapaPuestos(L, capa, puestos)
-        else                           dibujarCapaComunas(L, capa, comunas, puntos)
+        else                           dibujarCapaComunas(L, capa, comunas, visibles)
         capa.addTo(mapa)
         capaRef.current = capa
 
@@ -164,7 +180,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, centro }: {
     return () => {
       cancelado = true
     }
-  }, [vista, puntos, puestos, comunas, centro])
+  }, [vista, visibles, puestos, comunas, centro])
 
   useEffect(() => () => {
     if (mapaRef.current) { mapaRef.current.remove(); mapaRef.current = null }
@@ -181,7 +197,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, centro }: {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
         {(['residencia', 'puesto', 'comuna', 'calor'] as const).map((v) => (
           <button
             key={v}
@@ -196,12 +212,29 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, centro }: {
             {ETIQUETA_VISTA[v]}
           </button>
         ))}
+
+        {/* El filtro no aplica a "por puesto": esa vista dibuja puestos, no electores. */}
+        {vista !== 'puesto' && barrios.length > 0 && (
+          <select
+            value={barrio}
+            onChange={(e) => setBarrio(e.target.value)}
+            title="Mostrar solo los electores de un barrio"
+            style={{
+              marginLeft: 'auto', border: '1px solid #cbd5e1', borderRadius: 999,
+              padding: '0.3rem 0.7rem', fontSize: '0.8rem', background: '#fff',
+              color: barrio ? '#0f172a' : '#64748b', maxWidth: 220,
+            }}
+          >
+            <option value="">Todos los barrios</option>
+            {barrios.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+        )}
       </div>
 
-      {vista === 'residencia' && <ControlesResidencia puntos={puntos} geoStats={geoStats} msg={msg} isPending={isPending} onUbicar={ubicar} />}
+      {vista === 'residencia' && <ControlesResidencia puntos={visibles} geoStats={geoStats} msg={msg} isPending={isPending} onUbicar={ubicar} />}
       {vista === 'puesto'     && <ControlesPuesto puestos={puestos} />}
       {vista === 'comuna'     && <ControlesComuna comunas={comunas} />}
-      {vista === 'calor'      && <ControlesCalor puntos={puntos} />}
+      {vista === 'calor'      && <ControlesCalor puntos={visibles} />}
 
       <div
         ref={contenedor}

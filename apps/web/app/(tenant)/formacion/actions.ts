@@ -10,7 +10,7 @@
 
 import { requireModule, requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
-import { getTenantDb, superadminDb } from '@campaignos/db'
+import { getTenantDb, superadminDb } from '@vectra/db'
 import { put }                 from '@vercel/blob'
 import { revalidatePath }      from 'next/cache'
 

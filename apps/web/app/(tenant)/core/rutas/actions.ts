@@ -1,7 +1,7 @@
 'use server'
 
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
-import { getTenantDb } from '@campaignos/db'
+import { getTenantDb } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
 import { geocodeAddress } from '@/lib/geocode'
 import { sugerirOrdenPorCercania } from '@/lib/geometry'

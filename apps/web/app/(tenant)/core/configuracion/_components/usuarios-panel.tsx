@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { crearUsuario, alternarUsuarioActivo, type UsuarioView, type CrearUsuarioInput } from '../actions-roles'
+import { crearUsuario, alternarUsuarioActivo, vincularUsuarioAElector, type UsuarioView, type CrearUsuarioInput } from '../actions-roles'
 import { type CustomRoleView } from '../actions-roles'
 
 interface VoterOption { id: string; name: string; zone: string | null }
@@ -42,6 +42,12 @@ export function UsuariosPanel({ usuarios: usuariosIniciales, roles, electores }:
     setUsuarios((prev) => prev.map((u) => (u.id === id ? { ...u, isActive: !activo } : u)))
   }
 
+  async function onVincular(id: string, voterId: string | null) {
+    const res = await vincularUsuarioAElector(id, voterId)
+    if (!res.success) { alert(res.error); return }
+    setUsuarios((prev) => prev.map((u) => (u.id === id ? { ...u, voterId } : u)))
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
       {usuarios.map((u) => (
@@ -52,6 +58,18 @@ export function UsuariosPanel({ usuarios: usuariosIniciales, roles, electores }:
               {u.email} · {u.role === 'PERSONALIZADO' ? u.customRoleName : u.role}
               {!u.isActive && ' · Inactivo'}
             </div>
+            {/* Sin elector no aparece en los desplegables de líder ni entra al PWA. */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.35rem', fontSize: '0.72rem', color: '#64748b' }}>
+              Elector:
+              <select
+                value={u.voterId ?? ''}
+                onChange={(e) => onVincular(u.id, e.target.value || null)}
+                style={{ border: '1px solid #cbd5e1', borderRadius: 4, padding: '0.15rem 0.3rem', fontSize: '0.72rem', maxWidth: 220 }}
+              >
+                <option value="">— sin vincular —</option>
+                {electores.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+            </label>
           </div>
           <button
             onClick={() => onAlternar(u.id, u.isActive)}

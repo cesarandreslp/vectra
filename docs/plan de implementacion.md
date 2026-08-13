@@ -1,6 +1,6 @@
-# Integración Electoss → CampaignOS
+# Integración Electoss → Vectra
 
-Migrar el motor de encuestas por WhatsApp de Electoss como un nuevo módulo opcional (`ENCUESTAS`) dentro del monorepo de CampaignOS, siguiendo la arquitectura multi-tenant existente.
+Migrar el motor de encuestas por WhatsApp de Electoss como un nuevo módulo opcional (`ENCUESTAS`) dentro del monorepo de Vectra, siguiendo la arquitectura multi-tenant existente.
 
 ## Resumen del cambio
 
@@ -74,7 +74,7 @@ Implementación real de Meta Cloud API (portado de `electoss/src/services/whatsa
 Actualizar el case `'WHATSAPP'` para usar `WhatsAppMetaProvider` en lugar del abstracto.
 
 #### [NEW] `apps/web/lib/encuestas/conversation-engine.ts`
-Motor de estados de conversación adaptado al schema multi-tenant de CampaignOS (usa `getTenantDb()` y `tenantId`).
+Motor de estados de conversación adaptado al schema multi-tenant de Vectra (usa `getTenantDb()` y `tenantId`).
 
 #### [NEW] `apps/web/lib/encuestas/candidate-matcher.ts`
 Clasificador de respuestas libres con Groq (portado de Electoss).
@@ -149,7 +149,7 @@ pnpm build            # Verificar compilación completa
 ## Open Questions
 
 > [!IMPORTANT]
-> **Voter vs Elector**: En Electoss los electores están en su propia tabla `Elector`. En CampaignOS los electores son `Voter`. La integración añade los campos de conversación directamente al modelo `Voter` existente, sin crear una tabla nueva. ¿Estás de acuerdo con este enfoque?
+> **Voter vs Elector**: En Electoss los electores están en su propia tabla `Elector`. En Vectra los electores son `Voter`. La integración añade los campos de conversación directamente al modelo `Voter` existente, sin crear una tabla nueva. ¿Estás de acuerdo con este enfoque?
 
 > [!NOTE]
 > **Migración vs `db:push`**: El schema ya tiene migraciones. Se puede usar `pnpm db:push` para desarrollo rápido, pero en producción se requerirá `db:migrate` para no perder datos. La integración añade campos con `@default` que son retrocompatibles.

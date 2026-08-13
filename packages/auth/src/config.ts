@@ -2,7 +2,7 @@ import NextAuth, { type DefaultSession, type NextAuthResult } from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { createHash } from 'crypto'
-import { superadminDb, getTenantDb, decrypt } from '@campaignos/db'
+import { superadminDb, getTenantDb, decrypt } from '@vectra/db'
 
 // ── Tipos de sesión ───────────────────────────────────────────────────────────
 // Extender las interfaces de NextAuth para incluir los campos del dominio.

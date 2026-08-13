@@ -1,7 +1,7 @@
 import { NextResponse }     from 'next/server'
-import { auth }              from '@campaignos/auth'
+import { auth }              from '@vectra/auth'
 import { getTenantConnection } from '@/lib/tenant'
-import { getTenantDb }       from '@campaignos/db'
+import { getTenantDb }       from '@vectra/db'
 
 /**
  * GET /api/core/qr
@@ -46,7 +46,7 @@ export async function GET() {
     ])
 
     // Obtener el slug del tenant desde superadminDb para construir la URL del QR
-    const { superadminDb } = await import('@campaignos/db')
+    const { superadminDb } = await import('@vectra/db')
     const tenant = await superadminDb.tenant.findUnique({
       where:  { id: session.user.tenantId },
       select: { slug: true },

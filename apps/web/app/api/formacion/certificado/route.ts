@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { requireModule } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
-import { getTenantDb } from '@campaignos/db'
+import { getTenantDb } from '@vectra/db'
 import { put } from '@vercel/blob'
 import { CertificatePDF } from './_certificate-pdf'
 

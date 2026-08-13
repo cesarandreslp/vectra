@@ -10,7 +10,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
-import { getTenantDb } from '@campaignos/db'
+import { getTenantDb } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
 
 const SCREEN = 'CORE_PRESUPUESTOS'

@@ -9,9 +9,9 @@
 
 import { requireModule, requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
-import { getTenantDb, Prisma, encrypt, decrypt } from '@campaignos/db'
-import { sendMessage, sendBatch } from '@campaignos/messaging'
-import type { SmtpConfig, MessagePayload } from '@campaignos/messaging'
+import { getTenantDb, Prisma, encrypt, decrypt } from '@vectra/db'
+import { sendMessage, sendBatch } from '@vectra/messaging'
+import type { SmtpConfig, MessagePayload } from '@vectra/messaging'
 import { revalidatePath }      from 'next/cache'
 
 // ── Helper ───────────────────────────────────────────────────────────────────

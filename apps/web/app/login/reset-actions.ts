@@ -12,8 +12,8 @@
 
 import { headers } from 'next/headers'
 import bcrypt from 'bcryptjs'
-import { superadminDb, getTenantDb, decrypt } from '@campaignos/db'
-import { SmtpEmailProvider, type SmtpConfig } from '@campaignos/messaging'
+import { superadminDb, getTenantDb, decrypt } from '@vectra/db'
+import { SmtpEmailProvider, type SmtpConfig } from '@vectra/messaging'
 import { crearResetToken, leerResetToken, userIdDelToken } from '@/lib/reset-token'
 
 const RESPUESTA_GENERICA = {

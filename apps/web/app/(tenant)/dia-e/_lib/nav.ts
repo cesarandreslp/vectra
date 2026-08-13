@@ -1,5 +1,5 @@
 import type { NavItem } from '@/app/_components/app-shell'
-import type { CustomPermissions, UserRole } from '@campaignos/auth'
+import type { CustomPermissions, UserRole } from '@vectra/auth'
 
 export const SCREENS_DIA_E = [
   'DIA_E_TESTIGO', 'DIA_E_SALA', 'DIA_E_RESULTADOS',

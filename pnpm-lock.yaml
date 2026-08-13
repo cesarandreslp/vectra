@@ -17,19 +17,19 @@ importers:
 
   apps/web:
     dependencies:
-      '@campaignos/ai':
+      '@vectra/ai':
         specifier: workspace:*
         version: link:../../packages/ai
-      '@campaignos/auth':
+      '@vectra/auth':
         specifier: workspace:*
         version: link:../../packages/auth
-      '@campaignos/db':
+      '@vectra/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@campaignos/messaging':
+      '@vectra/messaging':
         specifier: workspace:*
         version: link:../../packages/messaging
-      '@campaignos/ui':
+      '@vectra/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@react-pdf/renderer':
@@ -132,7 +132,7 @@ importers:
 
   packages/auth:
     dependencies:
-      '@campaignos/db':
+      '@vectra/db':
         specifier: workspace:*
         version: link:../db
       bcryptjs:
@@ -191,7 +191,7 @@ importers:
 
   packages/messaging:
     dependencies:
-      '@campaignos/db':
+      '@vectra/db':
         specifier: workspace:*
         version: link:../db
       nodemailer:

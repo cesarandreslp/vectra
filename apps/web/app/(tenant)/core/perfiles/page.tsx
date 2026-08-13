@@ -1,10 +1,10 @@
-import { buscarPerfiles } from './actions'
+import { buscarPerfiles, listarBarriosConPerfiles } from './actions'
 import { BuscadorPerfiles } from './_components/buscador-perfiles'
 
 export const metadata = { title: 'Perfiles' }
 
 export default async function PerfilesPage() {
-  const iniciales = await buscarPerfiles({})
+  const [iniciales, barrios] = await Promise.all([buscarPerfiles({}), listarBarriosConPerfiles()])
 
   return (
     <div style={{ maxWidth: '1000px' }}>
@@ -13,7 +13,7 @@ export default async function PerfilesPage() {
         Lo que cada persona cargó de sí misma desde su PWA: qué sabe hacer, qué puede poner y cuándo puede.
         Buscá acá la gente que necesita cada actividad. Es información personal: usala solo para eso.
       </p>
-      <BuscadorPerfiles iniciales={iniciales} />
+      <BuscadorPerfiles iniciales={iniciales} barrios={barrios} />
     </div>
   )
 }

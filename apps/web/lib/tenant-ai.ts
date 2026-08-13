@@ -1,5 +1,5 @@
 import { getTenantConnection } from '@/lib/tenant'
-import { getTenantDb, decrypt } from '@campaignos/db'
+import { getTenantDb, decrypt } from '@vectra/db'
 
 /**
  * Claves de IA propias del tenant (descifradas), si las configuró en

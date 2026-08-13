@@ -9,10 +9,10 @@
 
 import { createHash }         from 'crypto'
 import * as XLSX              from 'xlsx'
-import { encrypt }            from '@campaignos/db'
+import { encrypt }            from '@vectra/db'
 import { crearAlertaDuplicado } from '../../actions'
 import { crearQrPropio }      from '@/lib/qr'
-import type { PrismaClient }  from '@campaignos/db'
+import type { PrismaClient }  from '@vectra/db'
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-import { signOut } from '@campaignos/auth'
+import { signOut } from '@vectra/auth'
 
 /**
  * Botón de cierre de sesión del shell.

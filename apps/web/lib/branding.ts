@@ -1,5 +1,5 @@
-import { auth } from '@campaignos/auth'
-import { getTenantDb, superadminDb } from '@campaignos/db'
+import { auth } from '@vectra/auth'
+import { getTenantDb, superadminDb } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
 
 const SUPERADMIN_TENANT_ID = '__superadmin__'

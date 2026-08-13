@@ -11,7 +11,7 @@
  */
 
 import * as XLSX from 'xlsx'
-import type { PrismaClient } from '@campaignos/db'
+import type { PrismaClient } from '@vectra/db'
 
 export interface ImportTerritorioResult {
   comunas: { created: number; skipped: number }

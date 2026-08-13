@@ -7,10 +7,11 @@
  */
 
 import { requireAuth } from '@/lib/auth-helpers'
-import { superadminDb } from '@campaignos/db'
+import { superadminDb, getTenantDb } from '@vectra/db'
+import { getTenantConnection } from '@/lib/tenant'
 import { revalidatePath } from 'next/cache'
 import bcrypt from 'bcryptjs'
-import { type UserRole } from '@campaignos/auth'
+import { type UserRole } from '@vectra/auth'
 import { SCREENS } from '@/lib/screens'
 
 /** ELECTOR nunca tiene fila en User (solo de sesión) — un staff no puede tener ese rol. */
@@ -168,6 +169,40 @@ export async function crearUsuario(input: CrearUsuarioInput) {
     return { success: false, error: 'Ya existe una cuenta con ese correo.' }
   }
 
+  revalidatePath('/core/configuracion')
+  return { success: true }
+}
+
+/**
+ * Vincula (o desvincula, con null) un usuario del panel a su elector.
+ *
+ * Quien administra la campaña también es una persona de la campaña: sin este
+ * vínculo no aparece en los desplegables de líder ni puede usar el PWA. Las
+ * campañas nuevas ya nacen con el admin vinculado (ver superadmin/actions.ts);
+ * esto es para los usuarios que se crearon antes o sin elegir elector.
+ */
+export async function vincularUsuarioAElector(userId: string, voterId: string | null) {
+  const session  = await requireAuth(['ADMIN_CAMPANA'])
+  const tenantId = session.user.tenantId
+
+  const usuario = await superadminDb.user.findFirst({ where: { id: userId, tenantId }, select: { id: true } })
+  if (!usuario) return { success: false, error: 'Usuario no encontrado.' }
+
+  if (voterId) {
+    const db = getTenantDb(await getTenantConnection(tenantId))
+    const elector = await db.voter.findFirst({ where: { id: voterId, tenantId }, select: { id: true } })
+    if (!elector) return { success: false, error: 'Ese elector no existe en esta campaña.' }
+
+    // Un elector no puede ser dos usuarios: si no, dos cuentas escribirían el
+    // mismo perfil y responderían por las mismas actividades.
+    const ocupado = await superadminDb.user.findFirst({
+      where:  { tenantId, voterId, id: { not: userId } },
+      select: { email: true },
+    })
+    if (ocupado) return { success: false, error: `Ese elector ya está vinculado a ${ocupado.email}.` }
+  }
+
+  await superadminDb.user.update({ where: { id: userId }, data: { voterId } })
   revalidatePath('/core/configuracion')
   return { success: true }
 }

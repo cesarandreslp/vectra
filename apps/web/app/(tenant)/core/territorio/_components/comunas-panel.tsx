@@ -4,13 +4,17 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   createCommune, updateCommune, listNeighborhoods, createNeighborhood, updateNeighborhood,
+  asignarLiderComuna, asignarLiderBarrio, resolverBarriosPendientes,
   type CommuneSummary, type NeighborhoodSummary, type CommuneKind,
 } from '../actions'
 import { EditableTexto } from './editable-texto'
+import { SelectorLider } from './selector-lider'
 
-export function ComunasPanel({ municipalityId, comunasIniciales }: {
+export function ComunasPanel({ municipalityId, comunasIniciales, electores }: {
   municipalityId: string
   comunasIniciales: CommuneSummary[]
+  /** Candidatos a líder de comuna o de barrio: cualquier elector de la campaña. */
+  electores: { id: string; name: string }[]
 }) {
   const [expandidoId, setExpandidoId] = useState<string | null>(null)
   const [barrios, setBarrios] = useState<Record<string, NeighborhoodSummary[]>>({})
@@ -62,7 +66,10 @@ export function ComunasPanel({ municipalityId, comunasIniciales }: {
 
   return (
     <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '1.25rem' }}>
-      <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem' }}>Comunas y corregimientos</h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <h2 style={{ fontSize: '1rem', fontWeight: 700 }}>Comunas y corregimientos</h2>
+        <BotonUbicar />
+      </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         {comunasIniciales.map((c) => (
@@ -84,13 +91,22 @@ export function ComunasPanel({ municipalityId, comunasIniciales }: {
                 {c.type === 'COMUNA' ? 'Comuna' : 'Corregimiento'} · {c.neighborhoodCount} barrio(s)
                 {!c.tieneLimites && ' · sin límites'}
               </span>
+              <SelectorLider
+                liderActual={c.lider} electores={electores}
+                onAsignar={(liderId) => asignarLiderComuna(c.id, liderId)}
+              />
             </div>
 
             {expandidoId === c.id && (
               <div style={{ padding: '0.5rem 0.75rem 0.75rem 2rem', borderTop: '1px solid #f8fafc' }}>
                 {(barrios[c.id] ?? []).map((b) => (
-                  <div key={b.id} style={{ padding: '0.2rem 0' }}>
+                  <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.2rem 0', flexWrap: 'wrap' }}>
                     <EditableTexto valor={b.name} onGuardar={(v) => renombrarBarrio(b.id, c.id, v)} />
+                    <span style={{ fontSize: '0.72rem', color: '#64748b' }}>{b.habitantes} elector(es)</span>
+                    <SelectorLider
+                      liderActual={b.lider} electores={electores}
+                      onAsignar={(liderId) => asignarLiderBarrio(b.id, liderId)}
+                    />
                   </div>
                 ))}
                 <FormNuevoBarrio onAgregar={(nombre) => agregarBarrio(c.id, nombre)} />
@@ -118,6 +134,36 @@ export function ComunasPanel({ municipalityId, comunasIniciales }: {
       </div>
       {error && <p style={{ color: '#991b1b', fontSize: '0.8rem', marginTop: '0.5rem' }}>{error}</p>}
     </div>
+  )
+}
+
+/** Cruza las coordenadas de los electores contra los polígonos para ubicarlos en su barrio. */
+function BotonUbicar() {
+  const [resultado, setResultado] = useState<string | null>(null)
+  const [isPending, start] = useTransition()
+  const router = useRouter()
+
+  const ubicar = () => start(async () => {
+    const { resueltos, fueraDePoligono } = await resolverBarriosPendientes()
+    setResultado(
+      resueltos === 0 && fueraDePoligono === 0
+        ? 'Todos los electores geocodificados ya tienen barrio.'
+        : `${resueltos} ubicado(s)` + (fueraDePoligono ? ` · ${fueraDePoligono} fuera de todo polígono` : ''),
+    )
+    router.refresh()
+  })
+
+  return (
+    <>
+      <button
+        onClick={ubicar} disabled={isPending}
+        title="Asigna el barrio a los electores geocodificados que todavía no lo tienen"
+        style={{ ...estiloBoton, padding: '0.3rem 0.7rem', fontSize: '0.75rem', background: '#f1f5f9', color: '#0f172a' }}
+      >
+        {isPending ? 'Ubicando…' : '📍 Ubicar electores en su barrio'}
+      </button>
+      {resultado && <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{resultado}</span>}
+    </>
   )
 }
 

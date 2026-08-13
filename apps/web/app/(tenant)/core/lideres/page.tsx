@@ -1,5 +1,5 @@
 import Link                      from 'next/link'
-import { auth }                  from '@campaignos/auth'
+import { auth }                  from '@vectra/auth'
 import { listLeaders }           from '../actions'
 import { BarraProgreso }         from './_components/barra-progreso'
 import { TitulosLider }          from './_components/titulos-lider'

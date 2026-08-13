@@ -1,4 +1,4 @@
-# Estado de desarrollo — CampaignOS
+# Estado de desarrollo — Vectra
 
 > Snapshot: 2026-04-27
 > Branch: `main` · Último commit: `8ff80c5 feat: módulo Finanzas`
@@ -138,7 +138,7 @@ El backend, el modelo de datos y todas las UIs por módulo están implementados.
 
 1. **NEON_API_KEY real** — actualmente `mockProvisionTenantDatabase` está activo. Sin esto, crear un cliente NO crea base de datos real.
 2. **NEXTAUTH_SECRET de producción** — placeholder, debe rotarse.
-3. **Dominio + DNS** — `*.campaignos.co` o el dominio definitivo. Hoy solo funciona en `*.localhost:3000`.
+3. **Dominio + DNS** — `*.vectra.com.co` o el dominio definitivo. Hoy solo funciona en `*.localhost:3000`.
 4. **Seed DIVIPOLA completo** — verificar que `packages/db/prisma/seed.ts` cargue los 32 departamentos y 1.103 municipios reales (no solo muestra).
 
 ### Calidad y QA pendientes
@@ -250,9 +250,9 @@ Combinadas, garantizan que en producción **es imposible** crear un tenant en mo
 ## Inventario de funcionalidades (2026-08-06)
 
 > Snapshot: 2026-08-06 · Branch `main` · Último commit `dfbf677`
-> El producto se renombró a **Vectra**. La cabecera de este documento y las
-> secciones anteriores dicen «CampaignOS» porque son anteriores al rebrand; se
-> dejan intactas por la regla de no reescribir entradas previas.
+> El producto se renombró a **Vectra**. Las secciones anteriores fueron escritas
+> con el nombre viejo; el 2026-08-13 se hizo el reemplazo en todo el repo, así
+> que hoy también dicen «Vectra» aunque sean anteriores al rebrand.
 
 ### Conteo de artefactos (verificado, no estimado)
 
@@ -317,8 +317,8 @@ configurados. El plan de abajo NO asume suite automatizada previa.
    (cuenta `ceanlozanopu-9130`, team `team_BWwyWl5wYDp8DvggmGcGQ7Z6`), en
    Production y Preview. Por tanto
    [superadmin/actions.ts:75](apps/web/app/superadmin/actions.ts#L75) toma la rama
-   real y no el mock, y cada cliente crea un proyecto Neon nuevo llamado
-   `campaignos-<slug>`. Estado: **ABIERTO**.
+   real y no el mock, y cada cliente crea un proyecto Neon nuevo (llamado
+   `campaignos-<slug>` entonces; hoy `vectra-<slug>`). Estado: **ABIERTO**.
 
    *Corrección (2026-08-06):* una versión anterior de este hallazgo afirmaba que
    «la cuenta ya tiene 9 proyectos». Ese conteo salió de la `NEON_API_KEY` del
@@ -346,13 +346,14 @@ configurados. El plan de abajo NO asume suite automatizada previa.
    aplicar cambios de schema de forma reproducible ni de revertirlos.
    Estado: **ABIERTO**.
 
-3. **El nombre del proyecto Neon sigue siendo `campaignos-<slug>`**
-   ([neon-provisioner.ts:110](packages/db/src/neon-provisioner.ts#L110)). Cosmético,
-   pero queda impreso en infraestructura real y no se puede renombrar sin tocar
-   Neon. Estado: **ABIERTO**.
+3. ~~**El nombre del proyecto Neon seguía siendo `campaignos-<slug>`**~~
+   ([neon-provisioner.ts:110](packages/db/src/neon-provisioner.ts#L110)).
+   **CERRADO (2026-08-13)**: ahora crea `vectra-<slug>`. Los dos proyectos que ya
+   existían en Neon se habían renombrado a mano antes, así que no quedó ninguno
+   con el nombre viejo.
 
 4. **Referencias obsoletas en este documento**: `/superadmin/login` (hoy el login
-   es universal en `/login`) y `*.campaignos.co` (hoy `NEXT_PUBLIC_TENANT_BASE_DOMAIN`,
+   es universal en `/login`) y `*.vectra.com.co` (hoy `NEXT_PUBLIC_TENANT_BASE_DOMAIN`,
    con `vectra.com.co` por defecto). Se registran aquí en vez de editar las
    secciones de abril. Estado: **ABIERTO**.
 

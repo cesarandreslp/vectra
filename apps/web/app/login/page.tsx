@@ -1,4 +1,4 @@
-import { auth } from '@campaignos/auth'
+import { auth } from '@vectra/auth'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { getBrandingBySlug, getBrandingFromHost } from '@/lib/branding'

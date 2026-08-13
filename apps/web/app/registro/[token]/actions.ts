@@ -13,7 +13,7 @@
 
 import { createHash, randomUUID } from 'crypto'
 import { headers }                from 'next/headers'
-import { superadminDb, getTenantDb, encrypt } from '@campaignos/db'
+import { superadminDb, getTenantDb, encrypt } from '@vectra/db'
 import { getTenantConnection }    from '@/lib/tenant'
 import { crearAlertaDuplicado }   from '@/app/(tenant)/core/actions'
 import { crearQrPropio }          from '@/lib/qr'

@@ -6,9 +6,9 @@
  */
 
 import { useState, useTransition, useEffect } from 'react'
-import { auth }           from '@campaignos/auth'
 import { QrImage }        from './_components/qr-image'
 import { generarQR, toggleQR } from '../../../registro/[token]/actions'
+import { generarQrFaltantes }  from '../actions'
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -33,6 +33,7 @@ export default function QrPage() {
   const [liderSel,     setLiderSel]     = useState('')
   const [qrActivo,     setQrActivo]     = useState<QrRow | null>(null)
   const [error,        setError]        = useState<string | null>(null)
+  const [aviso,        setAviso]        = useState<string | null>(null)
 
   const [isPending, startTransition] = useTransition()
 
@@ -82,6 +83,21 @@ export default function QrPage() {
     })
   }
 
+  // Los electores que entraron por fuera de la app (una siembra, una carga
+  // directa) no tienen su QR. Esto se los crea sin tocar a los que ya lo tienen.
+  function handleGenerarFaltantes() {
+    startTransition(async () => {
+      const { creados, total } = await generarQrFaltantes()
+      setAviso(creados === 0
+        ? `Los ${total} electores ya tienen su QR.`
+        : `${creados} QR creados. Ahora los ${total} electores tienen el suyo.`)
+      if (creados > 0) {
+        const d = await fetch('/api/core/qr').then((r) => r.json())
+        setQrs(d.qrs ?? [])
+      }
+    })
+  }
+
   function handleToggle(qrId: string) {
     startTransition(async () => {
       const res = await toggleQR(qrId, tenantId)
@@ -98,16 +114,36 @@ export default function QrPage() {
     <div style={{ maxWidth: '900px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>QR de captación</h1>
-        <button
-          onClick={() => setModalAbierto(true)}
-          style={{
-            background: '#0f172a', color: '#fff', padding: '0.5rem 1rem',
-            borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600,
-          }}
-        >
-          + Generar QR
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            onClick={handleGenerarFaltantes}
+            disabled={isPending}
+            title="Cada elector tiene su propio QR desde que se crea. Esto se lo genera a los que entraron por fuera de la app."
+            style={{
+              background: '#f1f5f9', color: '#0f172a', padding: '0.5rem 1rem',
+              borderRadius: '6px', border: '1px solid #e2e8f0', cursor: isPending ? 'wait' : 'pointer',
+              fontSize: '0.875rem', fontWeight: 600,
+            }}
+          >
+            {isPending ? 'Generando…' : 'Generar los que faltan'}
+          </button>
+          <button
+            onClick={() => setModalAbierto(true)}
+            style={{
+              background: '#0f172a', color: '#fff', padding: '0.5rem 1rem',
+              borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600,
+            }}
+          >
+            + Generar QR
+          </button>
+        </div>
       </div>
+
+      {aviso && (
+        <div style={{ padding: '0.75rem', background: '#dcfce7', color: '#166534', borderRadius: '6px', marginBottom: '1rem', fontSize: '0.875rem' }}>
+          {aviso}
+        </div>
+      )}
 
       {error && (
         <div style={{ padding: '0.75rem', background: '#fee2e2', color: '#991b1b', borderRadius: '6px', marginBottom: '1rem', fontSize: '0.875rem' }}>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth }                      from '@campaignos/auth'
+import { auth }                      from '@vectra/auth'
 import { getTenantConnection }        from '@/lib/tenant'
-import { getTenantDb }               from '@campaignos/db'
+import { getTenantDb }               from '@vectra/db'
 import { idsSubarbol }               from '@/app/(tenant)/core/actions'
 
 type CommitmentStatus =

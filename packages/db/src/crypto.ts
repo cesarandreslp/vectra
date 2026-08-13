@@ -3,7 +3,7 @@
  * Es la ÚNICA forma de cifrar/descifrar datos en todo el proyecto.
  *
  * Uso:
- *   import { encrypt, decrypt } from '@campaignos/db'
+ *   import { encrypt, decrypt } from '@vectra/db'
  *   const cifrado  = encrypt('postgresql://...')  // antes de persistir
  *   const original = decrypt(cifrado)              // después de leer de DB
  */

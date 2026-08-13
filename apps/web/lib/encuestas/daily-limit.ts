@@ -1,4 +1,4 @@
-import { getTenantDb } from '@campaignos/db'
+import { getTenantDb } from '@vectra/db'
 
 export class DailyLimitService {
   /**

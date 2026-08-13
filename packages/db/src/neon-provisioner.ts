@@ -107,7 +107,7 @@ async function crearProyectoNeon(slug: string): Promise<NeonProyecto> {
       'Content-Type':  'application/json',
     },
     body: JSON.stringify({
-      project: { name: `campaignos-${slug}` },
+      project: { name: `vectra-${slug}` },
     }),
   })
 

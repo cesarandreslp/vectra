@@ -1,4 +1,4 @@
-import { handlers } from '@campaignos/auth'
+import { handlers } from '@vectra/auth'
 
 // Forzar Node.js runtime: el authorize usa bcryptjs y @neondatabase/serverless
 // con WebSocket (vía PrismaNeon), incompatibles con Edge runtime.

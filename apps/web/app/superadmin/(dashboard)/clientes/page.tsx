@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { DataTable } from '@campaignos/ui'
+import { DataTable } from '@vectra/ui'
 import { listTenants, toggleTenantStatus, type TenantSummary } from '../../actions'
 
 export const metadata = { title: 'Clientes — Superadmin' }

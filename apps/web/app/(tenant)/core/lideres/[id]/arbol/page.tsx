@@ -2,7 +2,7 @@ import Link       from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
-import { getTenantDb }   from '@campaignos/db'
+import { getTenantDb }   from '@vectra/db'
 
 export const metadata = { title: 'Árbol de captación' }
 

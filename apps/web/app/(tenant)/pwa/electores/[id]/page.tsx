@@ -9,8 +9,9 @@
 import { useState, useTransition } from 'react'
 import { useRouter, useParams }    from 'next/navigation'
 import useSWR                      from 'swr'
-import { IconPhone, IconWhatsapp, IconCopy, IconCheck } from '@/app/_components/icons'
+import { IconPhone, IconCheck } from '@/app/_components/icons'
 import { VeredictoCompromiso } from '@/app/(tenant)/_components/veredicto-compromiso'
+import { Invitar } from '../../_components/invitar'
 
 type CommitmentStatus =
   | 'SIN_CONTACTAR'
@@ -51,7 +52,6 @@ export default function FichaElectorPwaPage() {
 
   const [notas,     setNotas]     = useState('')
   const [feedback,  setFeedback]  = useState<{ tipo: 'ok' | 'error'; msg: string } | null>(null)
-  const [copiado,   setCopiado]   = useState(false)
 
   const [isPending, startTransition] = useTransition()
 
@@ -147,65 +147,18 @@ export default function FichaElectorPwaPage() {
           </a>
         )}
 
-        {/* Compartir mi propio QR — quien se registre con él queda bajo mí. Mensaje
-            personalizado con el apodo (o nombre) para que se sienta cercano, no un link pelado. */}
-        {elector.myQrToken && (() => {
-          const link = `${window.location.origin}/registro/${elector.myQrToken}?c=${data?.tenantSlug ?? ''}`
-          const comoLoLlaman = elector.apodo?.trim() || elector.name
-          const mensaje = `¡Hola! Soy ${comoLoLlaman} 👋 Te invito a que te registres, es rápido: ${link}`
-
-          function copiarMensaje() {
-            navigator.clipboard.writeText(mensaje).then(() => {
-              setCopiado(true)
-              setTimeout(() => setCopiado(false), 2500)
-            }).catch(() => {
-              const el = document.createElement('input')
-              el.value = mensaje
-              document.body.appendChild(el)
-              el.select()
-              document.execCommand('copy')
-              document.body.removeChild(el)
-              setCopiado(true)
-              setTimeout(() => setCopiado(false), 2500)
-            })
-          }
-
-          return (
-            <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <a
-                href={`https://wa.me/?text=${encodeURIComponent(mensaje)}`}
-                target="_blank" rel="noopener noreferrer"
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                  background: '#25D366', color: '#fff',
-                  padding: '0.5rem 1rem', borderRadius: '8px', textDecoration: 'none',
-                  fontSize: '0.875rem', fontWeight: 600,
-                }}
-              >
-                <IconWhatsapp size={16} /> Compartir por WhatsApp
-              </a>
-              <button
-                onClick={copiarMensaje}
-                style={{
-                  display:      'inline-flex',
-                  alignItems:   'center',
-                  gap:          '0.4rem',
-                  background:   copiado ? '#dcfce7' : '#f1f5f9',
-                  color:        copiado ? '#166534' : '#475569',
-                  border:       'none',
-                  padding:      '0.5rem 1rem',
-                  borderRadius: '8px',
-                  fontSize:     '0.875rem',
-                  fontWeight:   600,
-                  cursor:       'pointer',
-                }}
-              >
-                {copiado ? <IconCheck size={14} /> : <IconCopy size={14} />}
-                {copiado ? 'Copiado' : 'Copiar mensaje'}
-              </button>
-            </div>
-          )
-        })()}
+        {/* Su propio QR: quien se registre con él queda bajo él. El link y el
+            QR ya existen desde que se creó el elector — acá solo se arman. */}
+        {elector.myQrToken && (
+          <div style={{ marginTop: '0.75rem' }}>
+            <Invitar
+              qrToken={elector.myQrToken}
+              tenantSlug={data?.tenantSlug ?? ''}
+              nombre={elector.apodo?.trim() || elector.name}
+              compacto
+            />
+          </div>
+        )}
       </div>
 
       <VeredictoCompromiso voterId={voterId} />
@@ -282,9 +235,20 @@ export default function FichaElectorPwaPage() {
   )
 }
 
+const CLAVE = 'vectra_sync_pendiente'
+/** Clave anterior al rebrand. Un celular que quedó sin sincronizar todavía la tiene. */
+const CLAVE_VIEJA = 'campaignos_sync_pendiente'
+
 /** Guarda un cambio pendiente en localStorage para sincronizar después */
 function guardarOffline(voterId: string, status: CommitmentStatus, notes: string) {
-  const CLAVE = 'campaignos_sync_pendiente'
+  // Arrastrar lo que quedó en la clave vieja antes de escribir, si no esos
+  // cambios se pierden en el celular de quien no había sincronizado.
+  const viejos = JSON.parse(localStorage.getItem(CLAVE_VIEJA) ?? '[]')
+  if (viejos.length > 0) {
+    localStorage.setItem(CLAVE, JSON.stringify([...JSON.parse(localStorage.getItem(CLAVE) ?? '[]'), ...viejos]))
+    localStorage.removeItem(CLAVE_VIEJA)
+  }
+
   const pendientes = JSON.parse(localStorage.getItem(CLAVE) ?? '[]')
   pendientes.push({
     type:      'UPDATE_COMMITMENT',

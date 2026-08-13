@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
-// Runtime Node.js: middleware no toca @campaignos/db (la resolución de tenant
+// Runtime Node.js: middleware no toca @vectra/db (la resolución de tenant
 // vive en /api/resolve-tenant), pero NextAuth getToken() funciona en ambos.
 // Mantenemos nodejs por consistencia con el resto del runtime de la app.
 export const runtime = 'nodejs'

@@ -1,5 +1,5 @@
-import type { getTenantDb } from '@campaignos/db'
-import { decrypt } from '@campaignos/db'
+import type { getTenantDb } from '@vectra/db'
+import { decrypt } from '@vectra/db'
 import { conversationEngine } from './conversation-engine'
 import { dailyLimitService } from './daily-limit'
 

@@ -1,5 +1,5 @@
 /**
- * Punto de entrada del paquete @campaignos/messaging.
+ * Punto de entrada del paquete @vectra/messaging.
  * Re-exporta tipos, proveedores y dispatcher.
  */
 

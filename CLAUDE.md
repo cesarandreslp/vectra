@@ -1,4 +1,4 @@
-# Sistema de Inteligencia Electoral — CampaignOS
+# Sistema de Inteligencia Electoral — Vectra
 
 ## Descripción del proyecto
 Plataforma SaaS multi-tenant para gestión integral de campañas

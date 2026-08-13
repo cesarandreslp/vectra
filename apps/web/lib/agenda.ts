@@ -1,4 +1,4 @@
-import { getTenantDb } from '@campaignos/db'
+import { getTenantDb } from '@vectra/db'
 
 /**
  * Reglas de gestión de agenda. Hay dos ámbitos con gestores ("dolientes")

@@ -11,14 +11,15 @@
 import { requireAuth, requireModule, requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantConnection }        from '@/lib/tenant'
 import { calcularCedulaHash }         from '@/lib/cedula-hash'
-import { getTenantDb, encrypt, decrypt, Prisma } from '@campaignos/db'
+import { getTenantDb, encrypt, decrypt, Prisma } from '@vectra/db'
 import { geocodeAddress }             from '@/lib/geocode'
+import { resolverBarrios }            from '@/lib/barrios'
 import { puntoEnPoligono }            from '@/lib/geometry'
 import { coloresPorZona }             from '@/lib/colores-comuna'
 import { crearQrPropio }              from '@/lib/qr'
 import { calcularIndiceCompromiso }   from '@/lib/compromiso'
 import { titulosDe, type TituloLider } from '@/lib/lideres'
-import { chatGroq }                   from '@campaignos/ai'
+import { chatGroq }                   from '@vectra/ai'
 import { getTenantAiKeys }            from '@/lib/tenant-ai'
 import { revalidatePath }             from 'next/cache'
 import type { Cargo }                 from './configuracion/actions'
@@ -522,7 +523,9 @@ export async function listLeaders(filters?: LeaderFilters): Promise<LeaderSummar
  * el momento en que se le asigna el primer follower.
  */
 export async function listVoterOptions(): Promise<VoterOption[]> {
-  const session = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR'], 'CORE_ELECTORES')
+  // También la usa Territorio para elegir líder de comuna/barrio, así que un
+  // PERSONALIZADO con esa pantalla alcanza aunque no tenga la de electores.
+  const session = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR'], ['CORE_ELECTORES', 'CORE_TERRITORIO'])
   const db      = await obtenerDbTenant(session.user.tenantId)
 
   return db.voter.findMany({
@@ -1219,6 +1222,9 @@ export interface VoterGeo {
   lng:              number
   commitmentStatus: string
   leaderName:       string | null
+  /** Barrio donde vive, para poder acotar el mapa a uno solo. null si cayó fuera de todo polígono. */
+  neighborhoodId:   string | null
+  neighborhoodName: string | null
 }
 
 /** Electores ya geocodificados (con lat/lng), para plotear en el mapa. */
@@ -1228,13 +1234,48 @@ export async function getVotersGeo(): Promise<VoterGeo[]> {
 
   const rows = await db.voter.findMany({
     where:  { tenantId: session.user.tenantId, lat: { not: null }, lng: { not: null } },
-    select: { id: true, name: true, lat: true, lng: true, commitmentStatus: true, leader: { select: { name: true } } },
+    select: {
+      id: true, name: true, lat: true, lng: true, commitmentStatus: true,
+      leader: { select: { name: true } },
+      neighborhood: { select: { id: true, name: true } },
+    },
   })
 
   return rows.map((r) => ({
     id: r.id, name: r.name, lat: r.lat!, lng: r.lng!, commitmentStatus: r.commitmentStatus,
     leaderName: r.leader?.name ?? null,
+    neighborhoodId: r.neighborhood?.id ?? null,
+    neighborhoodName: r.neighborhood?.name ?? null,
   }))
+}
+
+/**
+ * Crea el QR propio de los electores que no lo tengan. Toda alta ya lo genera
+ * sola (createVoter, registro por QR, import de Excel, admin del tenant); esto
+ * es para los que entraron por fuera de la app — una siembra o una carga
+ * directa a la DB. Idempotente: correrla dos veces no crea nada la segunda.
+ */
+export async function generarQrFaltantes(): Promise<{ creados: number; total: number }> {
+  const session  = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR'], 'CORE_QR', 'edit')
+  const tenantId = session.user.tenantId
+  const db       = await obtenerDbTenant(tenantId)
+
+  const electores = await db.voter.findMany({ where: { tenantId }, select: { id: true } })
+  const conQr     = await db.qrRegistration.findMany({
+    where:  { tenantId, isActive: true, leaderId: { in: electores.map((e) => e.id) } },
+    select: { leaderId: true },
+  })
+  const yaTienen = new Set(conQr.map((q) => q.leaderId))
+
+  let creados = 0
+  for (const e of electores) {
+    if (yaTienen.has(e.id)) continue
+    await crearQrPropio(e.id, tenantId, db)
+    creados++
+  }
+
+  revalidatePath('/core/qr')
+  return { creados, total: electores.length }
 }
 
 export interface GeoStats { conCoords: number; pendientes: number }
@@ -1278,6 +1319,10 @@ export async function geocodificarPendientes(): Promise<{ geocodificados: number
     }
     await new Promise((r) => setTimeout(r, 1000)) // 1 req/s (política de Nominatim)
   }
+
+  // Ya tienen coordenadas: ubicarlos en su barrio en la misma pasada, así nadie
+  // tiene que acordarse de correrlo aparte.
+  if (geocodificados > 0) await resolverBarrios(db, tenantId)
 
   const restantes = await db.voter.count({ where: { tenantId, lat: null, address: { not: null } } })
   revalidatePath('/core')

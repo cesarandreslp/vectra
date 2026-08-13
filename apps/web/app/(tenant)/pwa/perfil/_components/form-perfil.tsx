@@ -1,21 +1,22 @@
 'use client'
 
-import { useState } from 'react'
-import { guardarMiPerfil, type MiPerfil } from '../actions'
+import { useId, useState } from 'react'
+import { guardarMiPerfil, type MiPerfil, type Vocabulario } from '../actions'
 import {
-  DIAS, FRANJAS, slot, ETIQUETA_DIA, ETIQUETA_FRANJA, VEHICULOS, NIVELES, aEtiquetas,
-  type Vehiculo, type Nivel,
+  DIAS, FRANJAS, slot, ETIQUETA_DIA, ETIQUETA_FRANJA, VEHICULOS,
+  type Vehiculo,
 } from '@/lib/perfil'
+import { SelectorEtiquetas } from './selector-etiquetas'
+import { BloqueEstudios } from './bloque-estudios'
 
 const input = { border: '1px solid #cbd5e1', borderRadius: '6px', padding: '0.45rem 0.6rem', fontSize: '0.85rem', width: '100%', boxSizing: 'border-box' as const }
 const lbl = { display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: '0.2rem' }
 
-export function FormPerfil({ inicial }: { inicial: MiPerfil }) {
+export function FormPerfil({ inicial, vocabulario }: { inicial: MiPerfil; vocabulario: Vocabulario }) {
   const [p, setP] = useState(inicial)
-  const [habilidadesTexto, setHabilidades] = useState(inicial.habilidades.join(', '))
-  const [herramientasTexto, setHerramientas] = useState(inicial.herramientas.join(', '))
   const [guardando, setGuardando] = useState(false)
   const [ok, setOk] = useState(false)
+  const listaOficios = useId()
 
   const set = <K extends keyof MiPerfil>(k: K, v: MiPerfil[K]) => { setP((prev) => ({ ...prev, [k]: v })); setOk(false) }
 
@@ -28,11 +29,7 @@ export function FormPerfil({ inicial }: { inicial: MiPerfil }) {
   async function guardar(e: React.FormEvent) {
     e.preventDefault()
     setGuardando(true)
-    const r = await guardarMiPerfil({
-      ...p,
-      habilidades:  aEtiquetas(habilidadesTexto),
-      herramientas: aEtiquetas(herramientasTexto),
-    })
+    const r = await guardarMiPerfil(p)
     setGuardando(false)
     if (!r.success) { alert(r.error); return }
     setOk(true)
@@ -42,17 +39,32 @@ export function FormPerfil({ inicial }: { inicial: MiPerfil }) {
     <form onSubmit={guardar} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
       <div>
         <label style={lbl}>¿A qué te dedicás?</label>
-        <input value={p.oficio ?? ''} onChange={(e) => set('oficio', e.target.value)} placeholder="Ej: electricista, docente, comerciante" style={input} />
+        {/* Desplegable que además deja escribir: si el oficio no está en la
+            lista, lo que digite queda de opción para el que llene después. */}
+        <input
+          list={listaOficios} value={p.oficio ?? ''}
+          onChange={(e) => set('oficio', e.target.value)}
+          placeholder="Elegí de la lista o escribí el tuyo" style={input}
+        />
+        <datalist id={listaOficios}>
+          {vocabulario.oficios.map((o) => <option key={o} value={o} />)}
+        </datalist>
       </div>
 
       <div>
-        <label style={lbl}>¿Qué sabés hacer? (separá con comas)</label>
-        <input value={habilidadesTexto} onChange={(e) => { setHabilidades(e.target.value); setOk(false) }} placeholder="conducir, cocinar, primeros auxilios, sonido" style={input} />
+        <label style={lbl}>¿Qué sabés hacer?</label>
+        <SelectorEtiquetas
+          valor={p.habilidades} opciones={vocabulario.habilidades}
+          onChange={(v) => set('habilidades', v)} placeholder="Ej: conducir"
+        />
       </div>
 
       <div>
-        <label style={lbl}>¿Qué podés poner vos? (separá con comas)</label>
-        <input value={herramientasTexto} onChange={(e) => { setHerramientas(e.target.value); setOk(false) }} placeholder="carpa, megáfono, olla comunitaria, herramienta" style={input} />
+        <label style={lbl}>¿Qué podés poner vos?</label>
+        <SelectorEtiquetas
+          valor={p.herramientas} opciones={vocabulario.herramientas}
+          onChange={(v) => set('herramientas', v)} placeholder="Ej: carpa"
+        />
       </div>
 
       <div>
@@ -88,21 +100,20 @@ export function FormPerfil({ inicial }: { inicial: MiPerfil }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '0.5rem' }}>
-        <div style={{ flex: 1 }}>
-          <label style={lbl}>¿Tenés vehículo?</label>
-          <select value={p.vehiculo} onChange={(e) => set('vehiculo', e.target.value as Vehiculo)} style={input}>
-            {VEHICULOS.map((v) => <option key={v} value={v}>{v.toLowerCase()}</option>)}
-          </select>
-        </div>
-        <div style={{ flex: 1 }}>
-          <label style={lbl}>Estudios</label>
-          <select value={p.nivelEducativo ?? ''} onChange={(e) => set('nivelEducativo', (e.target.value || null) as Nivel | null)} style={input}>
-            <option value="">sin especificar</option>
-            {NIVELES.map((n) => <option key={n} value={n}>{n.toLowerCase()}</option>)}
-          </select>
-        </div>
+      <div>
+        <label style={lbl}>¿Tenés vehículo?</label>
+        <select value={p.vehiculo} onChange={(e) => set('vehiculo', e.target.value as Vehiculo)} style={input}>
+          {VEHICULOS.map((v) => <option key={v} value={v}>{v.toLowerCase()}</option>)}
+        </select>
       </div>
+
+      <BloqueEstudios
+        nivel={p.nivelEducativo} tituloEn={p.tituloEn}
+        posgrado={p.posgrado} posgradoEn={p.posgradoEn}
+        certificaciones={p.certificaciones}
+        titulos={vocabulario.titulos} opcionesCertificaciones={vocabulario.certificaciones}
+        onChange={(campo, valor) => set(campo, valor as MiPerfil[typeof campo])}
+      />
 
       <div>
         <label style={lbl}>Experiencia previa</label>

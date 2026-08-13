@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { auth } from '@campaignos/auth'
+import { auth } from '@vectra/auth'
 import { destinoPostLogin } from '@/lib/screens'
 import { DemoButton } from './_components/demo-modal'
 

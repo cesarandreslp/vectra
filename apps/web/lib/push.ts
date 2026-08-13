@@ -1,5 +1,5 @@
 import webpush from 'web-push'
-import type { getTenantDb } from '@campaignos/db'
+import type { getTenantDb } from '@vectra/db'
 
 /** Clave pública VAPID — se sirve al cliente vía Server Action, nunca embebida en el bundle. */
 export function getVapidPublicKey(): string | null {

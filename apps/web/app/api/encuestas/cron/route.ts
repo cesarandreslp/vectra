@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getTenantDb, superadminDb } from '@campaignos/db'
+import { getTenantDb, superadminDb } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
 import { enviarPendientesTenant } from '@/lib/encuestas/enviar-pendientes'
 import { formatInTimeZone } from 'date-fns-tz'

@@ -1,6 +1,6 @@
 import Link             from 'next/link'
 import { notFound }    from 'next/navigation'
-import { auth }        from '@campaignos/auth'
+import { auth }        from '@vectra/auth'
 import { listLeaders, listVoters, getArbolOrganizacion } from '../../actions'
 import { getCoberturaPropiaEncuesta } from '@/app/(tenant)/encuestas/actions'
 import { BarraProgreso } from '../_components/barra-progreso'

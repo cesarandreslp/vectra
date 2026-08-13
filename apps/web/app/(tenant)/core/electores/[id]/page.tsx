@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { auth } from '@campaignos/auth'
+import { auth } from '@vectra/auth'
 import { getVoterDetalle } from '../../actions'
 import { getCoberturaPropiaEncuesta } from '@/app/(tenant)/encuestas/actions'
 import { SelectorEstado } from '../_components/selector-estado'

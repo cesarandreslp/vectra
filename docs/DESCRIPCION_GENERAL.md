@@ -1,6 +1,6 @@
-# CampaignOS — Sistema de Inteligencia Electoral
+# Vectra — Sistema de Inteligencia Electoral
 
-**CampaignOS** es una plataforma SaaS (Software as a Service) multi-tenant diseñada para la gestión integral, estratégica y operativa de campañas políticas en Colombia. Su arquitectura aísla los datos de cada campaña en bases de datos independientes (Database-per-Tenant), garantizando la máxima seguridad de la información confidencial y el cumplimiento estricto de la Ley 1581 de 2012 sobre protección de datos personales.
+**Vectra** es una plataforma SaaS (Software as a Service) multi-tenant diseñada para la gestión integral, estratégica y operativa de campañas políticas en Colombia. Su arquitectura aísla los datos de cada campaña en bases de datos independientes (Database-per-Tenant), garantizando la máxima seguridad de la información confidencial y el cumplimiento estricto de la Ley 1581 de 2012 sobre protección de datos personales.
 
 La plataforma transforma la gestión tradicional de una campaña —basada en planillas físicas, hojas de cálculo inconexas y comunicación fragmentada— en un ecosistema digital centralizado. Combina la logística en terreno con capacidades avanzadas de Inteligencia Artificial para optimizar el recurso humano, financiero y comunicacional del candidato.
 

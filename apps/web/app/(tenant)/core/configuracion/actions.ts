@@ -8,7 +8,7 @@
 
 import { requireAuth }           from '@/lib/auth-helpers'
 import { getTenantConnection }   from '@/lib/tenant'
-import { getTenantDb, superadminDb, encrypt } from '@campaignos/db'
+import { getTenantDb, superadminDb, encrypt } from '@vectra/db'
 import { revalidatePath }        from 'next/cache'
 
 const CARGOS = ['ALCALDE', 'CONCEJAL', 'GOBERNADOR', 'DIPUTADO', 'REPRESENTANTE', 'SENADOR', 'PRESIDENTE'] as const

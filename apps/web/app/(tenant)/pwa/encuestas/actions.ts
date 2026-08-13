@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireAuth } from '@/lib/auth-helpers'
-import { getTenantDb } from '@campaignos/db'
+import { getTenantDb } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
 import { getTenantAiKeys } from '@/lib/tenant-ai'
 import { candidateMatcher } from '@/lib/encuestas/candidate-matcher'

@@ -3,7 +3,7 @@ import { requireAuthOrRedirect } from '@/lib/auth-helpers'
 import { getBranding } from '@/lib/branding'
 import { LogoutButton } from '@/app/_components/logout-button'
 import { NavBar } from './_components/nav-bar'
-import { getTenantDb } from '@campaignos/db'
+import { getTenantDb } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
 
 /**

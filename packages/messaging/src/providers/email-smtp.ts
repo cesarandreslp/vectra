@@ -4,7 +4,7 @@
  */
 
 import { createTransport } from 'nodemailer'
-import { decrypt } from '@campaignos/db'
+import { decrypt } from '@vectra/db'
 import type { MessagingProvider, MessagePayload, SendResult, SmtpConfig } from '../types'
 
 export class SmtpEmailProvider implements MessagingProvider {

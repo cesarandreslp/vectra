@@ -10,8 +10,10 @@ import {
   superadminDb,
   provisionTenantDatabase,
   mockProvisionTenantDatabase,
+  getTenantDb,
   SlugTakenError,
-} from '@campaignos/db'
+} from '@vectra/db'
+import { obtenerOCrearVoterDeUsuario } from '@/lib/voter-de-usuario'
 import { put, del } from '@vercel/blob'
 import bcrypt from 'bcryptjs'
 import { revalidatePath } from 'next/cache'
@@ -35,6 +37,10 @@ export interface CreateTenantInput {
   slug:          string
   adminEmail:    string
   adminPassword: string
+  /** Nombre real del admin: también queda como elector de la campaña. */
+  adminName:     string
+  /** Cédula del admin. Obligatoria: sin ella no se puede crear su elector sin inventar el dato. */
+  adminCedula:   string
   modules:       ModuleKey[]
 }
 
@@ -89,15 +95,32 @@ export async function createTenant(
       skipDuplicates: true,
     })
 
+    // El admin también es elector: sin su Voter no aparece en los desplegables
+    // de líder (sede, comuna, barrio) ni puede usar el PWA. Se crea en la DB del
+    // tenant y el User queda apuntando a él.
+    const tenantDb = getTenantDb(connectionStringPlana)
+    let adminVoterId: string
+    try {
+      const r = await obtenerOCrearVoterDeUsuario(tenantDb, tenant.id, {
+        name: data.adminName, cedula: data.adminCedula,
+      })
+      if (!r.success) return { success: false, error: r.error }
+      adminVoterId = r.voterId
+    } finally {
+      await tenantDb.$disconnect()
+    }
+
     // Crear usuario administrador en la DB del SUPERADMIN (control plane).
     // Ya no se replica User en cada tenant DB — la autenticación es global.
     const passwordHash = await bcrypt.hash(data.adminPassword, 12)
     await superadminDb.user.create({
       data: {
         tenantId: tenant.id,
+        name:     data.adminName.trim(),
         email:    data.adminEmail,
         passwordHash,
         role:     'ADMIN_CAMPANA',
+        voterId:  adminVoterId,
         isActive: true,
       },
     })

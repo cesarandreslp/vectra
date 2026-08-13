@@ -26,6 +26,8 @@ export default function NuevoClientePage() {
   const [slug,       setSlug]       = useState('')
   const [email,      setEmail]      = useState('')
   const [password,   setPassword]   = useState('')
+  const [adminName,  setAdminName]  = useState('')
+  const [adminCedula, setAdminCedula] = useState('')
   const [modulos,    setModulos]    = useState<ModuleKey[]>(['CORE'])
   const [resultado,  setResultado]  = useState<string | null>(null)
   const [esError,    setEsError]    = useState(false)
@@ -49,6 +51,8 @@ export default function NuevoClientePage() {
         slug,
         adminEmail:    email,
         adminPassword: password,
+        adminName,
+        adminCedula,
         modules:       modulos,
       })
 
@@ -57,6 +61,7 @@ export default function NuevoClientePage() {
         setEsError(false)
         // Limpiar formulario
         setNombre(''); setSlug(''); setEmail(''); setPassword('')
+        setAdminName(''); setAdminCedula('')
         setModulos(['CORE'])
       } else {
         setResultado(res.error)
@@ -96,6 +101,33 @@ export default function NuevoClientePage() {
 
           {/* Slug — componente cliente con validación en tiempo real */}
           <SlugInput value={slug} onChange={setSlug} />
+
+          {/* El admin también es elector de la campaña: con estos dos datos se
+              le crea su Voter al provisionar. Si su cédula ya está en el padrón,
+              se vincula al elector existente en vez de duplicarlo. */}
+          <Campo label="Nombre del administrador *">
+            <input
+              type="text"
+              value={adminName}
+              onChange={e => setAdminName(e.target.value)}
+              required
+              placeholder="Nombre y apellidos"
+              className={CLASE_INPUT}
+            />
+          </Campo>
+
+          <Campo label="Cédula del administrador *">
+            <input
+              type="text"
+              inputMode="numeric"
+              value={adminCedula}
+              onChange={e => setAdminCedula(e.target.value.replace(/\D/g, ''))}
+              required
+              pattern="\d{5,15}"
+              placeholder="Solo números — queda como su elector en la campaña"
+              className={CLASE_INPUT}
+            />
+          </Campo>
 
           <Campo label="Email del administrador *">
             <input

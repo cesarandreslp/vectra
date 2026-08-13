@@ -10,7 +10,7 @@
  * Esto es aceptable para el MVP — las invalidaciones se propagan en máximo 5 min.
  */
 
-import { superadminDb, decrypt } from '@campaignos/db'
+import { superadminDb, decrypt } from '@vectra/db'
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -60,7 +60,7 @@ function escribirCache(host: string, data: TenantContext): void {
  * Flujo:
  *   1. Revisar caché (TTL 5 min) — evita consultas repetidas a superadminDB
  *   2. Consultar superadminDb.tenant por slug o domain
- *   3. Descifrar la connectionString con decrypt() de @campaignos/db
+ *   3. Descifrar la connectionString con decrypt() de @vectra/db
  *   4. Cachear el resultado y retornar TenantContext
  *
  * @param host - Slug del subdominio (ej: "campana-demo") o dominio propio

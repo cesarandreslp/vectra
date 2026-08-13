@@ -6,8 +6,8 @@
  *   // Si llega aquí, session.user.role es uno de los roles permitidos
  */
 
-import { auth } from '@campaignos/auth'
-import { type UserRole } from '@campaignos/auth'
+import { auth } from '@vectra/auth'
+import { type UserRole } from '@vectra/auth'
 import { type Session } from 'next-auth'
 import { redirect } from 'next/navigation'
 

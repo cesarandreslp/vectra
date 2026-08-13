@@ -1,6 +1,6 @@
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
-import { getTenantDb }         from '@campaignos/db'
+import { getTenantDb }         from '@vectra/db'
 import { FichaAnalisis }       from './_components/ficha-analisis'
 import type { LeaderAnalysisResult, RadarDimension } from '../../../actions'
 

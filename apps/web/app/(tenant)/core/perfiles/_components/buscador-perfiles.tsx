@@ -1,22 +1,36 @@
 'use client'
 
 import { useState } from 'react'
-import { buscarPerfiles, type PerfilEncontrado } from '../actions'
-import { DIAS, FRANJAS, slot, ETIQUETA_DIA, ETIQUETA_FRANJA, VEHICULOS, type Vehiculo } from '@/lib/perfil'
+import { buscarPerfiles, type PerfilEncontrado, type BarrioOpcion } from '../actions'
+import {
+  DIAS, FRANJAS, slot, ETIQUETA_DIA, ETIQUETA_FRANJA, VEHICULOS,
+  ETIQUETA_NIVEL, ETIQUETA_POSGRADO, type Vehiculo, type Nivel, type Posgrado,
+} from '@/lib/perfil'
 
 const input = { border: '1px solid #cbd5e1', borderRadius: '6px', padding: '0.45rem 0.65rem', fontSize: '0.85rem' }
 const card = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.9rem' }
+
+/** "profesional en derecho · magíster en derecho público" — vacío si no cargó nada. */
+const estudios = (p: PerfilEncontrado): string => {
+  const nivel = p.nivelEducativo ? ETIQUETA_NIVEL[p.nivelEducativo as Nivel] ?? p.nivelEducativo.toLowerCase() : null
+  const base  = nivel ? nivel + (p.tituloEn ? ` en ${p.tituloEn}` : '') : null
+  const post  = p.posgrado ? (ETIQUETA_POSGRADO[p.posgrado as Posgrado] ?? p.posgrado.toLowerCase()) + (p.posgradoEn ? ` en ${p.posgradoEn}` : '') : null
+  return [base, post].filter(Boolean).join(' · ')
+}
 
 const legible = (token: string) => {
   const [d, f] = token.split('_')
   return `${ETIQUETA_DIA[d as keyof typeof ETIQUETA_DIA] ?? d} ${(ETIQUETA_FRANJA[f as keyof typeof ETIQUETA_FRANJA] ?? f).toLowerCase()}`
 }
 
-export function BuscadorPerfiles({ iniciales }: { iniciales: PerfilEncontrado[] }) {
+export function BuscadorPerfiles({ iniciales, barrios }: {
+  iniciales: PerfilEncontrado[]
+  barrios: BarrioOpcion[]
+}) {
   const [resultados, setResultados] = useState(iniciales)
   const [busqueda, setBusqueda] = useState('')
   const [vehiculo, setVehiculo] = useState<'' | Vehiculo>('')
-  const [zona, setZona] = useState('')
+  const [barrio, setBarrio] = useState('')
   const [franjas, setFranjas] = useState<string[]>([])
   const [buscando, setBuscando] = useState(false)
 
@@ -26,7 +40,7 @@ export function BuscadorPerfiles({ iniciales }: { iniciales: PerfilEncontrado[] 
     setResultados(await buscarPerfiles({
       busqueda: busqueda || undefined,
       vehiculo: vehiculo || undefined,
-      zona: zona || undefined,
+      neighborhoodId: barrio || undefined,
       disponibilidad: franjas.length ? franjas : undefined,
     }))
     setBuscando(false)
@@ -47,8 +61,11 @@ export function BuscadorPerfiles({ iniciales }: { iniciales: PerfilEncontrado[] 
               {VEHICULOS.map((v) => <option key={v} value={v}>{v.toLowerCase()}</option>)}
             </select>
           </label>
-          <label style={lbl}>Zona
-            <input value={zona} onChange={(e) => setZona(e.target.value)} placeholder="comuna o barrio" style={input} />
+          <label style={lbl}>Barrio
+            <select value={barrio} onChange={(e) => setBarrio(e.target.value)} style={input} disabled={barrios.length === 0}>
+              <option value="">cualquiera</option>
+              {barrios.map((b) => <option key={b.id} value={b.id}>{b.name} ({b.comuna})</option>)}
+            </select>
           </label>
           <button type="submit" disabled={buscando} style={{ background: buscando ? '#94a3b8' : '#0f172a', color: '#fff', border: 'none', borderRadius: '6px', padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer' }}>
             {buscando ? 'Buscando…' : 'Buscar'}
@@ -81,8 +98,11 @@ export function BuscadorPerfiles({ iniciales }: { iniciales: PerfilEncontrado[] 
           {resultados.map((p) => (
             <div key={p.voterId} style={card}>
               <strong style={{ fontSize: '0.95rem' }}>{p.name}</strong>
+              {/* El barrio es el dato duro (sale de sus coordenadas); zonaAccion es lo
+                  que la persona escribió, y sirve cuando todavía no está geocodificada. */}
               <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
-                {p.oficio ?? 'sin oficio cargado'}{p.zonaAccion ? ` · ${p.zonaAccion}` : ''}
+                {p.oficio ?? 'sin oficio cargado'}
+                {p.barrio ? ` · 📍 ${p.barrio}` : p.zonaAccion ? ` · ${p.zonaAccion}` : ''}
               </div>
               {p.habilidades.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.4rem' }}>
@@ -91,6 +111,12 @@ export function BuscadorPerfiles({ iniciales }: { iniciales: PerfilEncontrado[] 
               )}
               {p.herramientas.length > 0 && (
                 <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: '0.35rem' }}>Puede poner: {p.herramientas.join(', ')}</div>
+              )}
+              {estudios(p) && (
+                <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: '0.35rem' }}>🎓 {estudios(p)}</div>
+              )}
+              {p.certificaciones.length > 0 && (
+                <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: '0.35rem' }}>Certificado en: {p.certificaciones.join(', ')}</div>
               )}
               <div style={{ fontSize: '0.75rem', color: '#475569', marginTop: '0.35rem' }}>
                 {p.vehiculo !== 'NINGUNO' ? `${p.vehiculo.toLowerCase()} · ` : ''}{p.actividades} actividad(es) hechas

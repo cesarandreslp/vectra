@@ -5,7 +5,7 @@
  * se pueda saltar una regla entrando por la otra pantalla.
  */
 
-import { getTenantDb } from '@campaignos/db'
+import { getTenantDb } from '@vectra/db'
 
 type Db = ReturnType<typeof getTenantDb>
 

@@ -1,4 +1,4 @@
-import { auth } from '@campaignos/auth'
+import { auth } from '@vectra/auth'
 import { redirect } from 'next/navigation'
 import { SuperadminLoginForm } from './_components/login-form'
 

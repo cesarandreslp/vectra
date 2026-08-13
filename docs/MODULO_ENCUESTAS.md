@@ -1,6 +1,6 @@
 # Módulo ENCUESTAS
 
-El módulo de Encuestas es una integración en CampaignOS del motor de encuestas automatizado vía WhatsApp (`Electoss`).
+El módulo de Encuestas es una integración en Vectra del motor de encuestas automatizado vía WhatsApp (`Electoss`).
 
 Permite a una campaña realizar sondeos de opinión directamente al teléfono de los electores registrados (`Voter`), usando un bot conversacional que pide consentimiento, realiza las preguntas configuradas para los cargos electorales activos, y utiliza la IA (Groq) para procesar las respuestas de texto libre y asociarlas a los candidatos oficiales.
 

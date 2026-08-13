@@ -19,7 +19,7 @@ apps/web/public/workbox-*.js
 *.exe
 Receipt-*.pdf
 
-# Proyecto legacy completo (no es parte del monorepo CampaignOS)
+# Proyecto legacy completo (no es parte del monorepo Vectra)
 electoss/
 
 # Dependencias

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireModule, requireAuth, requireModuleOrScreen } from '@/lib/auth-helpers'
-import { getTenantDb, encrypt } from '@campaignos/db'
+import { getTenantDb, encrypt } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
 import { enviarPendientesTenant, type ResultadoEnvio } from '@/lib/encuestas/enviar-pendientes'
 import { enviarPushATenant } from '@/lib/push'

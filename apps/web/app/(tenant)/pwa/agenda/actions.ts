@@ -2,8 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireAuth } from '@/lib/auth-helpers'
-import { type UserRole } from '@campaignos/auth'
-import { getTenantDb } from '@campaignos/db'
+import { type UserRole } from '@vectra/auth'
+import { getTenantDb } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
 import { idsLideres } from '@/app/(tenant)/core/actions'
 import { ambitoDeAnfitrion, puedeGestionar, type AgendaAmbito } from '@/lib/agenda'

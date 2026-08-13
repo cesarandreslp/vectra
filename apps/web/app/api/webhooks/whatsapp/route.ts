@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { waitUntil } from '@vercel/functions'
 import { conversationEngine } from '@/lib/encuestas/conversation-engine'
 import { getTenantConnection } from '@/lib/tenant'
-import { getTenantDb, superadminDb, decrypt } from '@campaignos/db'
+import { getTenantDb, superadminDb, decrypt } from '@vectra/db'
 
 /**
  * Webhook Verification (GET) - Meta API

@@ -1,7 +1,7 @@
 import { listWitnessAssignments, assignWitness } from '../../actions'
 import { requireModule } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
-import { getTenantDb } from '@campaignos/db'
+import { getTenantDb } from '@vectra/db'
 import { TramiteRegistraduria } from './_components/tramite-registraduria'
 
 export default async function AsignacionesPage() {

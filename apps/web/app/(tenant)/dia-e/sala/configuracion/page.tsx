@@ -3,7 +3,7 @@ import { listCandidates, createCandidate, deleteCandidate, actualizarDatosTarjet
 import { requireModule } from '@/lib/auth-helpers'
 import { requiereFotoYAgrupacion } from '@/lib/e14'
 import { getTenantConnection } from '@/lib/tenant'
-import { getTenantDb } from '@campaignos/db'
+import { getTenantDb } from '@vectra/db'
 
 export default async function ConfiguracionDiaEPage() {
   const session = await requireModule('DIA_E', ['ADMIN_CAMPANA'])

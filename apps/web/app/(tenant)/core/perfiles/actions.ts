@@ -10,7 +10,7 @@
  */
 
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
-import { getTenantDb } from '@campaignos/db'
+import { getTenantDb } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
 import { type Vehiculo } from '@/lib/perfil'
 
@@ -27,7 +27,8 @@ export interface FiltroPerfiles {
   /** Tokens de disponibilidad (ej. "SAB_MANANA"): tiene que poder en TODOS los pedidos. */
   disponibilidad?: string[]
   vehiculo?: Vehiculo
-  zona?: string
+  /** Barrio donde vive, resuelto desde sus coordenadas (ver lib/barrios.ts). */
+  neighborhoodId?: string
 }
 
 export interface PerfilEncontrado {
@@ -36,6 +37,29 @@ export interface PerfilEncontrado {
   disponibilidad: string[]; vehiculo: string; nivelEducativo: string | null
   experiencia: string | null; zonaAccion: string | null; aceptaWhatsapp: boolean
   actividades: number
+  /** Dónde vive de verdad. null si todavía no se geocodificó su dirección. */
+  barrio: string | null
+  tituloEn: string | null
+  posgrado: string | null
+  posgradoEn: string | null
+  certificaciones: string[]
+}
+
+export interface BarrioOpcion { id: string; name: string; comuna: string }
+
+/**
+ * Barrios en los que vive al menos un simpatizante con perfil cargado — son los
+ * únicos que sirven de filtro: el resto siempre daría cero.
+ */
+export async function listarBarriosConPerfiles(): Promise<BarrioOpcion[]> {
+  const { db: d, tenantId } = await db()
+
+  const barrios = await d.neighborhood.findMany({
+    where:   { habitantes: { some: { tenantId, perfil: { isNot: null } } } },
+    select:  { id: true, name: true, commune: { select: { name: true } } },
+    orderBy: { name: 'asc' },
+  })
+  return barrios.map((b) => ({ id: b.id, name: b.name, comuna: b.commune.name }))
 }
 
 export async function buscarPerfiles(filtro: FiltroPerfiles): Promise<PerfilEncontrado[]> {
@@ -46,22 +70,31 @@ export async function buscarPerfiles(filtro: FiltroPerfiles): Promise<PerfilEnco
     where: {
       tenantId,
       ...(filtro.vehiculo ? { vehiculo: filtro.vehiculo } : {}),
-      ...(filtro.zona?.trim() ? { zonaAccion: { contains: filtro.zona.trim(), mode: 'insensitive' as const } } : {}),
+      ...(filtro.neighborhoodId ? { voter: { neighborhoodId: filtro.neighborhoodId } } : {}),
       // hasEvery: tiene que estar libre en TODAS las franjas pedidas, no en alguna.
       ...(filtro.disponibilidad?.length ? { disponibilidad: { hasEvery: filtro.disponibilidad } } : {}),
       ...(texto
         ? {
             OR: [
-              { oficio:       { contains: texto, mode: 'insensitive' as const } },
-              { experiencia:  { contains: texto, mode: 'insensitive' as const } },
-              { habilidades:  { has: texto } },
-              { herramientas: { has: texto } },
+              { oficio:          { contains: texto, mode: 'insensitive' as const } },
+              { experiencia:     { contains: texto, mode: 'insensitive' as const } },
+              { tituloEn:        { contains: texto, mode: 'insensitive' as const } },
+              { posgradoEn:      { contains: texto, mode: 'insensitive' as const } },
+              { habilidades:     { has: texto } },
+              { herramientas:    { has: texto } },
+              { certificaciones: { has: texto } },
             ],
           }
         : {}),
     },
     include: {
-      voter: { select: { id: true, name: true, _count: { select: { membresiasGrupo: true } } } },
+      voter: {
+        select: {
+          id: true, name: true,
+          neighborhood: { select: { name: true } },
+          _count: { select: { membresiasGrupo: true } },
+        },
+      },
     },
     orderBy: { actualizadoEn: 'desc' },
     take: 100,
@@ -74,5 +107,8 @@ export async function buscarPerfiles(filtro: FiltroPerfiles): Promise<PerfilEnco
     nivelEducativo: p.nivelEducativo, experiencia: p.experiencia,
     zonaAccion: p.zonaAccion, aceptaWhatsapp: p.aceptaWhatsapp,
     actividades: p.voter._count.membresiasGrupo,
+    barrio: p.voter.neighborhood?.name ?? null,
+    tituloEn: p.tituloEn, posgrado: p.posgrado, posgradoEn: p.posgradoEn,
+    certificaciones: p.certificaciones,
   }))
 }

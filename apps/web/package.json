@@ -1,5 +1,5 @@
 {
-  "name": "@campaignos/web",
+  "name": "@vectra/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,11 +9,11 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@campaignos/ai": "workspace:*",
-    "@campaignos/auth": "workspace:*",
-    "@campaignos/db": "workspace:*",
-    "@campaignos/messaging": "workspace:*",
-    "@campaignos/ui": "workspace:*",
+    "@vectra/ai": "workspace:*",
+    "@vectra/auth": "workspace:*",
+    "@vectra/db": "workspace:*",
+    "@vectra/messaging": "workspace:*",
+    "@vectra/ui": "workspace:*",
     "@react-pdf/renderer": "^4.3.3",
     "@serwist/next": "^9",
     "@vercel/blob": "^2.3.3",

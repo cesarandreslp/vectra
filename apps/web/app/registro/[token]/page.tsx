@@ -1,5 +1,5 @@
 import { getTenantConnection } from '@/lib/tenant'
-import { superadminDb, getTenantDb } from '@campaignos/db'
+import { superadminDb, getTenantDb } from '@vectra/db'
 import { FormularioRegistro } from './_components/formulario-registro'
 import { IconLinkOff } from '@/app/_components/icons'
 

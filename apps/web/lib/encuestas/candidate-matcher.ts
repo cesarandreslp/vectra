@@ -1,4 +1,4 @@
-import { chatGroq } from '@campaignos/ai'
+import { chatGroq } from '@vectra/ai'
 
 export interface Candidate {
   id: string

@@ -8,7 +8,7 @@
 
 import { requireModule, requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
-import { getTenantDb, Prisma, superadminDb, decrypt } from '@campaignos/db'
+import { getTenantDb, Prisma, superadminDb, decrypt } from '@vectra/db'
 import * as XLSX                from 'xlsx'
 import { calcularCedulaHash }   from '@/lib/cedula-hash'
 import {
@@ -26,7 +26,7 @@ import {
   extractE14WithGroq,
   extractE14WithZhipu,
   consensoE14,
-}                              from '@campaignos/ai'
+}                              from '@vectra/ai'
 import { getTenantAiKeys }     from '@/lib/tenant-ai'
 import { put }                 from '@vercel/blob'
 import { revalidatePath }      from 'next/cache'

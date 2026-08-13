@@ -1,5 +1,5 @@
 {
-  "name": "campaignos",
+  "name": "vectra",
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@10.30.1",
@@ -11,7 +11,7 @@
     "db:migrate": "turbo db:migrate",
     "db:studio": "turbo db:studio",
     "db:seed": "turbo db:seed",
-    "db:create-superadmin": "pnpm --filter @campaignos/db run db:create-superadmin"
+    "db:create-superadmin": "pnpm --filter @vectra/db run db:create-superadmin"
   },
   "devDependencies": {
     "turbo": "^2",

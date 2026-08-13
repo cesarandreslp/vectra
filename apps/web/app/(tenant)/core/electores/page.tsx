@@ -1,5 +1,5 @@
 import Link                        from 'next/link'
-import { auth }                    from '@campaignos/auth'
+import { auth }                    from '@vectra/auth'
 import { listVoters, listLeaders } from '../actions'
 import { SelectorEstado }          from './_components/selector-estado'
 

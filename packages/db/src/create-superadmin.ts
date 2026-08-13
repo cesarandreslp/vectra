@@ -109,7 +109,7 @@ async function main() {
 
     console.log(' ✓')
     console.log(`\n✓ Superadmin creado exitosamente: ${usuario.email}`)
-    console.log('\nAhora puedes iniciar sesión en admin.campaignos.co/login\n')
+    console.log('\nAhora puedes iniciar sesión en admin.vectra.com.co/login\n')
 
   } finally {
     await db.$disconnect()

@@ -10,8 +10,8 @@
 
 import { requireModule, requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
-import { getTenantDb }         from '@campaignos/db'
-import { chatZhipu }           from '@campaignos/ai'
+import { getTenantDb }         from '@vectra/db'
+import { chatZhipu }           from '@vectra/ai'
 import { getTenantAiKeys }     from '@/lib/tenant-ai'
 import { idsLideres }          from '@/app/(tenant)/core/actions'
 import { revalidatePath }      from 'next/cache'

@@ -9,7 +9,7 @@
 
 import { requireModule, requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
-import { getTenantDb, Prisma, encrypt, decrypt } from '@campaignos/db'
+import { getTenantDb, Prisma, encrypt, decrypt } from '@vectra/db'
 import { revalidatePath }      from 'next/cache'
 
 // ── Helper ───────────────────────────────────────────────────────────────────

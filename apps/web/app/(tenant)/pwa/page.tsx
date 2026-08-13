@@ -14,6 +14,7 @@ import dynamic             from 'next/dynamic'
 import { useRouter }       from 'next/navigation'
 import { IconPhone }       from '@/app/_components/icons'
 import { SuscripcionPush } from './_components/suscripcion-push'
+import { Invitar }         from './_components/invitar'
 import { BannerEncuesta }  from './encuestas/_components/banner-encuesta'
 
 // Leaflet toca `window` — debe cargar solo en cliente, nunca en el render del servidor.
@@ -59,7 +60,12 @@ async function fetcher(url: string) {
 
 export default function PwaHomePage() {
   const router = useRouter()
-  const { data, error, isLoading, mutate } = useSWR<{ electores: Elector[] }>(
+  const { data, error, isLoading, mutate } = useSWR<{
+    electores: Elector[]
+    tenantSlug?: string
+    /** Quien inició sesión, con su QR propio — para invitar desde su pantalla. */
+    yo?: { nombre: string; qrToken: string | null } | null
+  }>(
     '/api/core/mis-electores',
     fetcher,
     {
@@ -108,6 +114,17 @@ export default function PwaHomePage() {
 
       <SuscripcionPush />
       <BannerEncuesta />
+
+      {data?.yo?.qrToken && (
+        <div style={{ marginBottom: '1rem' }}>
+          <Invitar
+            qrToken={data.yo.qrToken}
+            tenantSlug={data.tenantSlug ?? ''}
+            nombre={data.yo.nombre}
+            compacto
+          />
+        </div>
+      )}
 
       {/* Estado de carga / error */}
       {isLoading && (

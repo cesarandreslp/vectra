@@ -1,4 +1,4 @@
-# Guía de despliegue — CampaignOS en Vercel
+# Guía de despliegue — Vectra en Vercel
 
 Procedimiento end-to-end para llevar el monorepo de `localhost` a producción.
 Asume que ya tenés:
@@ -10,7 +10,7 @@ Asume que ya tenés:
 
 ## 1. Dominio y DNS
 
-CampaignOS necesita **dos subdominios fijos + wildcard**:
+Vectra necesita **dos subdominios fijos + wildcard**:
 
 | Host | Para |
 |---|---|
@@ -34,7 +34,7 @@ Vercel también acepta records `A 76.76.21.21` si el registrar no soporta CNAME 
 1. **Importar el repo** desde GitHub/GitLab/Bitbucket.
 2. **Framework Preset:** Next.js (auto-detectado).
 3. **Root Directory:** `apps/web` — IMPORTANTE: el monorepo Turborepo necesita esto.
-4. **Build & Output:** dejar los defaults; `vercel.json` en la raíz ya define el `buildCommand` con `pnpm turbo run build --filter=@campaignos/web...`.
+4. **Build & Output:** dejar los defaults; `vercel.json` en la raíz ya define el `buildCommand` con `pnpm turbo run build --filter=@vectra/web...`.
 5. **Install Command:** `pnpm install --frozen-lockfile` (ya en `vercel.json`).
 6. **Node version:** 20 o superior (Vercel default actual).
 
@@ -94,7 +94,7 @@ Antes del primer tenant real, hay que preparar la **DB del superadmin**:
 
 ```bash
 # Desde la raíz del monorepo, con .env apuntando a la DB de superadmin productiva:
-pnpm --filter @campaignos/db exec prisma migrate deploy
+pnpm --filter @vectra/db exec prisma migrate deploy
 pnpm db:seed                          # carga DIVIPOLA + 1 material de formación de muestra
 pnpm db:create-superadmin             # CLI interactivo: pide email + password ≥ 12 chars
 ```
@@ -110,7 +110,7 @@ Desde `admin.tu-dominio.co/clientes/nuevo`:
 1. Llenar el formulario (nombre, slug, email del admin del tenant, módulos activos).
 2. Enviar.
 3. El [provisionTenantDatabase](../packages/db/src/neon-provisioner.ts) real:
-   - Crea un proyecto Neon nuevo `campaignos-<slug>`.
+   - Crea un proyecto Neon nuevo `vectra-<slug>`.
    - Aplica las migraciones a esa DB.
    - Carga DIVIPOLA (33 deptos + 1.103 municipios).
    - Cifra la connection string y la guarda en `Tenant.connectionString`.

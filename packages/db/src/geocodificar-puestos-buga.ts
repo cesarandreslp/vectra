@@ -38,7 +38,7 @@ const DIVIPOLA = '76111' // Guadalajara de Buga
 const DRY      = process.argv.includes('--dry')
 
 /** Nominatim exige User-Agent identificable y máximo 1 consulta por segundo. */
-const USER_AGENT = 'CampaignOS/1.0 (+https://github.com/cesarandreslp/vectra)'
+const USER_AGENT = 'Vectra/1.0 (+https://github.com/cesarandreslp/vectra)'
 const PAUSA_MS   = 1100
 
 type Punto = [number, number]

@@ -1,5 +1,5 @@
 import { NextResponse }               from 'next/server'
-import { auth }                       from '@campaignos/auth'
+import { auth }                       from '@vectra/auth'
 import { generarPlantillaTerritorioExcel } from '@/app/(tenant)/core/territorio/_lib/excel'
 
 /**

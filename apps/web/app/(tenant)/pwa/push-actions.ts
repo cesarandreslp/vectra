@@ -1,7 +1,7 @@
 'use server'
 
 import { requireAuth } from '@/lib/auth-helpers'
-import { getTenantDb } from '@campaignos/db'
+import { getTenantDb } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
 import { getVapidPublicKey } from '@/lib/push'
 

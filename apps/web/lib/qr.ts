@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import type { getTenantDb } from '@campaignos/db'
+import type { getTenantDb } from '@vectra/db'
 
 /**
  * Crea el QR personal de un elector recién creado — el token que puede

@@ -1,6 +1,8 @@
 import { requireAuthOrRedirect } from '@/lib/auth-helpers'
 import { listarDepartamentos }   from '../configuracion/actions'
-import { getDefaultMunicipioDivipola, getMunicipalityByDivipola, listCommunes, listVotingStationsAdmin } from './actions'
+import { getDefaultMunicipioDivipola, getMunicipalityByDivipola, listCommunes, listVotingStationsAdmin, getSede } from './actions'
+import { listVoterOptions }        from '../actions'
+import { SedePanel }               from './_components/sede-panel'
 import { SelectorMunicipio }     from './_components/selector-municipio'
 import { ComunasPanel }          from './_components/comunas-panel'
 import { PuestosPanel }          from './_components/puestos-panel'
@@ -24,9 +26,9 @@ export default async function TerritorioPage({ searchParams }: Props) {
     divipola ? getMunicipalityByDivipola(divipola) : Promise.resolve(null),
   ])
 
-  const [comunas, puestos] = municipio
-    ? await Promise.all([listCommunes(municipio.id), listVotingStationsAdmin(municipio.id)])
-    : [[], []]
+  const [comunas, puestos, electores, sede] = municipio
+    ? await Promise.all([listCommunes(municipio.id), listVotingStationsAdmin(municipio.id), listVoterOptions(), getSede()])
+    : [[], [], [], null]
 
   return (
     <div style={{ maxWidth: '800px' }}>
@@ -49,8 +51,9 @@ export default async function TerritorioPage({ searchParams }: Props) {
 
       {municipio && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1.5rem' }}>
+          {sede && <SedePanel sede={sede} electores={electores} />}
           <ImportarPanel municipalityId={municipio.id} />
-          <ComunasPanel municipalityId={municipio.id} comunasIniciales={comunas} />
+          <ComunasPanel municipalityId={municipio.id} comunasIniciales={comunas} electores={electores} />
           <PuestosPanel municipalityId={municipio.id} puestosIniciales={puestos} />
         </div>
       )}

@@ -1,5 +1,5 @@
 /**
- * Punto de entrada del paquete @campaignos/db.
+ * Punto de entrada del paquete @vectra/db.
  * Exporta los clientes Prisma para el superadmin y para los tenants.
  *
  * TODO: En una versión futura, separar en dos schemas independientes:

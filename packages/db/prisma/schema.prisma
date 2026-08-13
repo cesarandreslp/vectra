@@ -1,4 +1,4 @@
-// Prisma schema — CampaignOS
+// Prisma schema — Vectra
 // Documentación: https://pris.ly/d/prisma-schema
 //
 // TODO: En una versión futura, separar en dos archivos:
@@ -206,6 +206,10 @@ model Voter {
   address          String? // Dirección física del elector
   lat              Float? // Coordenada geocodificada desde address (para el mapa)
   lng              Float?
+  // Barrio donde vive. NO se digita: se resuelve solo cruzando lat/lng contra el
+  // polígono del barrio (ver lib/barrios.ts). Queda null si está fuera de todos
+  // los polígonos cargados o si todavía no se geocodificó.
+  neighborhoodId   String?
   leaderId         String? // Líder responsable de este elector
   // Campos de rol de líder — solo tienen sentido si este Voter tiene followers (ver abajo).
   // "Ser líder" es implícito: cualquier Voter con >=1 follower actúa como líder.
@@ -265,9 +269,15 @@ model Voter {
   actividadesADoliente    Actividad[]                @relation("ActividadDoliente")
   perfil                  PerfilSimpatizante?        @relation("PerfilDelVoter")
 
-  leader      Voter?       @relation("VoterHierarchy", fields: [leaderId], references: [id])
-  followers   Voter[]      @relation("VoterHierarchy")
-  votingTable VotingTable? @relation(fields: [votingTableId], references: [id])
+  // Cargos territoriales (aparte del árbol de captación): qué barrios y comunas
+  // coordina esta persona.
+  barriosACargo Neighborhood[] @relation("BarrioLider")
+  comunasACargo Commune[]      @relation("ComunaLider")
+
+  leader       Voter?        @relation("VoterHierarchy", fields: [leaderId], references: [id])
+  followers    Voter[]       @relation("VoterHierarchy")
+  neighborhood Neighborhood? @relation("VoterBarrio", fields: [neighborhoodId], references: [id])
+  votingTable  VotingTable?  @relation(fields: [votingTableId], references: [id])
   referredBy  Voter?       @relation("VoterReferrals", fields: [referredById], references: [id])
   referrals   Voter[]      @relation("VoterReferrals")
 
@@ -277,6 +287,7 @@ model Voter {
   @@unique([tenantId, cedulaHash])
   @@index([tenantId, leaderId])
   @@index([tenantId, commitmentStatus])
+  @@index([tenantId, neighborhoodId])
 }
 
 /// QR de captación generado por un líder. El token genera la URL pública de registro.
@@ -359,9 +370,13 @@ model Commune {
   type           CommuneType // COMUNA o CORREGIMIENTO
   municipalityId String
   boundary       Json? // Polígono real: array de [lat, lng] (orden Leaflet), sin huecos
+  // Quién coordina esta comuna: articula a los líderes de sus barrios. Es un
+  // cargo territorial, aparte del árbol de captación (Voter.leaderId).
+  liderId        String?
 
   municipality  Municipality   @relation(fields: [municipalityId], references: [id])
   neighborhoods Neighborhood[]
+  lider         Voter?         @relation("ComunaLider", fields: [liderId], references: [id])
 }
 
 /// Barrio (zona urbana) o vereda (zona rural) dentro de una comuna/corregimiento.
@@ -370,8 +385,12 @@ model Neighborhood {
   name      String
   communeId String
   boundary  Json? // Polígono real: array de [lat, lng] (orden Leaflet), sin huecos
+  /// Líder del barrio: con quién se coordina lo que pasa acá.
+  liderId   String?
 
-  commune Commune @relation(fields: [communeId], references: [id])
+  commune   Commune @relation(fields: [communeId], references: [id])
+  lider     Voter?  @relation("BarrioLider", fields: [liderId], references: [id])
+  habitantes Voter[] @relation("VoterBarrio")
 }
 
 /// Puesto de votación. Lugar físico donde se instalan las mesas.
@@ -469,6 +488,15 @@ model TenantConfig {
   electionOffice               ElectionOffice?
   electionDepartmentCode       String? // Department.code
   electionMunicipalityDivipola String? // Municipality.divipola
+
+  // Sede de campaña. Va acá y no en su propio modelo porque una campaña de
+  // municipio pequeño tiene UNA sola: es el techo de la cadena territorial
+  // (sede → líder de comuna → líder de barrio), no una entidad que se repita.
+  // Cuando una campaña necesite varias, esto se muda a un modelo Sede y las
+  // comunas se le cuelgan; hasta entonces sería una tabla de una fila.
+  sedeNombre    String?
+  sedeDireccion String?
+  sedeLiderId   String? // Voter.id — quien responde por la sede
 
   // Configuración Módulo Encuestas (WhatsApp & Limites)
   // Apaga el canal WhatsApp sin borrar las credenciales guardadas — la fuente
@@ -1199,8 +1227,17 @@ enum NivelEducativo {
   PRIMARIA
   BACHILLER
   TECNICO
-  UNIVERSITARIO
-  POSGRADO
+  TECNOLOGO
+  UNIVERSITARIO // "profesional" en el habla corriente
+  POSGRADO // en desuso: el posgrado dejó de ser un nivel y vive en PerfilSimpatizante.posgrado
+}
+
+/// Posgrado, que se suma al título de base en vez de reemplazarlo: alguien es
+/// profesional en X *y además* magíster en Y.
+enum Posgrado {
+  ESPECIALISTA
+  MAGISTER
+  DOCTOR
 }
 
 enum ActividadEstado {
@@ -1273,6 +1310,15 @@ model PerfilSimpatizante {
   disponibilidad String[]
   vehiculo       VehiculoPropio  @default(NINGUNO)
   nivelEducativo NivelEducativo?
+  /// "¿En qué?" del título de base. Solo tiene sentido de TECNICO para arriba:
+  /// un bachiller no es bachiller "en" algo.
+  tituloEn       String?
+  posgrado       Posgrado?
+  /// "¿En qué?" del posgrado, que rara vez es lo mismo que el pregrado.
+  posgradoEn     String?
+  /// Certificaciones y cursos: etiquetas libres, igual que habilidades
+  /// (ej. "manipulación de alimentos", "alturas", "primeros auxilios").
+  certificaciones String[]
   experiencia    String? // experiencia previa en campaña o actividades sociales
   zonaAccion     String? // barrio o zona donde se mueve
   aceptaWhatsapp Boolean         @default(false)

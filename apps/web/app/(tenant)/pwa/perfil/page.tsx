@@ -1,13 +1,17 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getMiPerfil, type MiPerfil } from './actions'
+import { getMiPerfil, getVocabulario, type MiPerfil, type Vocabulario } from './actions'
 import { FormPerfil } from './_components/form-perfil'
 
 export default function PwaPerfilPage() {
   const [perfil, setPerfil] = useState<MiPerfil | null | undefined>(undefined)
+  const [vocabulario, setVocabulario] = useState<Vocabulario | null>(null)
 
-  useEffect(() => { void getMiPerfil().then(setPerfil) }, [])
+  useEffect(() => {
+    void getMiPerfil().then(setPerfil)
+    void getVocabulario().then(setVocabulario)
+  }, [])
 
   return (
     <div style={{ maxWidth: '480px', margin: '0 auto', padding: '1rem', fontFamily: 'system-ui, sans-serif' }}>
@@ -16,13 +20,13 @@ export default function PwaPerfilPage() {
         Contá qué sabés hacer y cuándo podés. Así, cuando la campaña arme una actividad, sabe a quién llamar.
       </p>
 
-      {perfil === undefined && <div style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8', fontSize: '0.875rem' }}>Cargando...</div>}
+      {(perfil === undefined || (perfil && !vocabulario)) && <div style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8', fontSize: '0.875rem' }}>Cargando...</div>}
       {perfil === null && (
         <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', fontSize: '0.85rem', color: '#64748b' }}>
           Esta pantalla es para electores registrados en la campaña.
         </div>
       )}
-      {perfil && <FormPerfil inicial={perfil} />}
+      {perfil && vocabulario && <FormPerfil inicial={perfil} vocabulario={vocabulario} />}
     </div>
   )
 }

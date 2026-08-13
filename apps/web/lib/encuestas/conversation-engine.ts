@@ -1,5 +1,5 @@
-import { getTenantDb } from '@campaignos/db'
-import { sendMessage } from '@campaignos/messaging'
+import { getTenantDb } from '@vectra/db'
+import { sendMessage } from '@vectra/messaging'
 import { candidateMatcher } from './candidate-matcher'
 import { getTenantAiKeys } from '@/lib/tenant-ai'
 

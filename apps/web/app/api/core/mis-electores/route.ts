@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth }                      from '@campaignos/auth'
+import { auth }                      from '@vectra/auth'
 import { getTenantConnection }        from '@/lib/tenant'
-import { getTenantDb, decrypt }      from '@campaignos/db'
+import { getTenantDb, decrypt }      from '@vectra/db'
 import { idsSubarbol, profundidadSubarbol } from '@/app/(tenant)/core/actions'
 import { calcularIndiceCompromiso }  from '@/lib/compromiso'
 
@@ -174,10 +174,32 @@ export async function GET(request: NextRequest) {
       ? electoresDescifrados.filter((e) => e.depth !== 0)
       : electoresDescifrados
 
+    // El QR propio de QUIEN inició sesión, para que pueda invitar desde su
+    // pantalla. No sale de la lista de arriba: en vista acotada él no aparece
+    // entre "sus" electores.
+    const yo = session.user.voterId
+      ? await db.voter.findFirst({
+          where:  { id: session.user.voterId, tenantId: session.user.tenantId },
+          select: { name: true, apodo: true },
+        })
+      : null
+    const miQr = session.user.voterId
+      ? await db.qrRegistration.findFirst({
+          where:   { tenantId: session.user.tenantId, leaderId: session.user.voterId, isActive: true },
+          orderBy: { createdAt: 'asc' },
+          select:  { token: true },
+        })
+      : null
+
     return NextResponse.json(
       // tenantSlug: necesario para construir el link de referido (?c=slug), que
       // la página de registro exige para resolver el tenant.
-      { electores: listaFinal, tenantSlug: session.user.tenantSlug, syncAt: new Date().toISOString() },
+      {
+        electores: listaFinal,
+        tenantSlug: session.user.tenantSlug,
+        yo: yo ? { nombre: yo.apodo?.trim() || yo.name, qrToken: miQr?.token ?? null } : null,
+        syncAt: new Date().toISOString(),
+      },
       {
         headers: {
           // Permitir que el service worker cachee esta respuesta
