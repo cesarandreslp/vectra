@@ -1,5 +1,5 @@
 import { listAutomations, listTemplates, createAutomation, toggleAutomation } from '../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 
 const TRIGGERS: Record<string, string> = {
   NUEVO_ELECTOR:      'Nuevo elector registrado',
@@ -9,7 +9,7 @@ const TRIGGERS: Record<string, string> = {
 }
 
 export default async function AutomatizacionesPage() {
-  await requireModule('COMUNICACIONES', ['ADMIN_CAMPANA'])
+  await requireModuleOrRedirect('COMUNICACIONES', ['ADMIN_CAMPANA'])
 
   const [automations, templates] = await Promise.all([
     listAutomations(),

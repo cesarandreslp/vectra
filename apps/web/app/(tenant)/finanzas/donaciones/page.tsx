@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { listDonations, exportDonationsCsv } from '../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { ExportCsvButton } from '../gastos/_export-csv-button'
 
 const DONOR_TYPE_LABELS: Record<string, string> = {
@@ -20,7 +20,7 @@ function formatCOP(amount: number): string {
 }
 
 export default async function DonacionesPage() {
-  await requireModule('FINANZAS')
+  await requireModuleOrRedirect('FINANZAS')
 
   const donations = await listDonations()
   const total = donations.reduce((sum, d) => sum + d.amount, 0)

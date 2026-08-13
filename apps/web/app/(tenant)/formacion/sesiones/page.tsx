@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import { listSessions, deleteSession } from '../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 
 export default async function SesionesPage() {
-  const session  = await requireModule('FORMACION')
+  const session  = await requireModuleOrRedirect('FORMACION')
   const isAdmin  = session.user.role === 'ADMIN_CAMPANA'
   const sesiones = await listSessions()
 

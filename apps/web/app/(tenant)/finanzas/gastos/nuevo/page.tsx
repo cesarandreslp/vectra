@@ -1,9 +1,9 @@
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { getFinanceConfig } from '../../actions'
 import { ExpenseForm } from './_components/expense-form'
 
 export default async function NuevoGastoPage() {
-  await requireModule('FINANZAS', ['ADMIN_CAMPANA', 'COORDINADOR'])
+  await requireModuleOrRedirect('FINANZAS', ['ADMIN_CAMPANA', 'COORDINADOR'])
 
   const config = await getFinanceConfig()
 

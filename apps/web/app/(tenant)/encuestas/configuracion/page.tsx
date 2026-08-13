@@ -1,9 +1,9 @@
 import { getSurveyConfig } from '../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { SurveyConfigForm } from './_components/survey-config-form'
 
 export default async function ConfiguracionEncuestasPage() {
-  await requireModule('ENCUESTAS', ['ADMIN_CAMPANA'])
+  await requireModuleOrRedirect('ENCUESTAS', ['ADMIN_CAMPANA'])
 
   const config = await getSurveyConfig()
 

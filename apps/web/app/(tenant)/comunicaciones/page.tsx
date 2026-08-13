@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import { getDashboardMetrics } from './actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 
 export default async function ComunicacionesDashboardPage() {
-  await requireModule('COMUNICACIONES')
+  await requireModuleOrRedirect('COMUNICACIONES')
 
   const metrics = await getDashboardMetrics()
 

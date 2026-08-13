@@ -1,12 +1,12 @@
 import Link from 'next/link'
 import { listCandidates, createCandidate, deleteCandidate, actualizarDatosTarjeton } from '../../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { requiereFotoYAgrupacion } from '@/lib/e14'
 import { getTenantConnection } from '@/lib/tenant'
 import { getTenantDb } from '@vectra/db'
 
 export default async function ConfiguracionDiaEPage() {
-  const session = await requireModule('DIA_E', ['ADMIN_CAMPANA'])
+  const session = await requireModuleOrRedirect('DIA_E', ['ADMIN_CAMPANA'])
 
   const db  = getTenantDb(await getTenantConnection(session.user.tenantId))
   const cfg = await db.tenantConfig.findUnique({

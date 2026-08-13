@@ -1,9 +1,9 @@
 import { listTemplates } from '../../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { CampaignWizard } from './_components/campaign-wizard'
 
 export default async function NuevaCampanaPage() {
-  await requireModule('COMUNICACIONES', ['ADMIN_CAMPANA'])
+  await requireModuleOrRedirect('COMUNICACIONES', ['ADMIN_CAMPANA'])
 
   const templates = await listTemplates()
 

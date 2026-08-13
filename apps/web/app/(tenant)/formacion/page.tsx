@@ -1,11 +1,11 @@
 import { listMaterials, listMaterialsAdmin, createMaterial, toggleMaterial, deleteMaterial, toggleGlobalMaterialVisibility } from './actions'
 import { MaterialCard } from './_components/material-card'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 
 const TIPOS = ['SLIDES', 'PDF', 'VIDEO', 'INFOGRAFIA'] as const
 
 export default async function FormacionMaterialesPage() {
-  const session   = await requireModule('FORMACION')
+  const session   = await requireModuleOrRedirect('FORMACION')
   const isAdmin   = session.user.role === 'ADMIN_CAMPANA'
   const materiales = await listMaterials()
 

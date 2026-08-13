@@ -1,8 +1,8 @@
 import { getSurveyStats } from './actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 
 export default async function EncuestasDashboardPage() {
-  await requireModule('ENCUESTAS', ['ADMIN_CAMPANA', 'COORDINADOR'])
+  await requireModuleOrRedirect('ENCUESTAS', ['ADMIN_CAMPANA', 'COORDINADOR'])
 
   const stats = await getSurveyStats()
 

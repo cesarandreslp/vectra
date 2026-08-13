@@ -130,6 +130,48 @@ export async function requireAuthOrRedirect(
   return session as unknown as SessionVerificada
 }
 
+// ── requireModuleOrRedirect ───────────────────────────────────────────────────
+
+/**
+ * Versión para PÁGINAS Y LAYOUTS de requireModule / requireModuleOrScreen.
+ *
+ * Los helpers que lanzan están pensados para Server Actions, donde el error lo
+ * recoge el try/catch de la acción. En un Server Component nadie los atrapa: la
+ * excepción sube hasta Next y el usuario ve un "Application error" 500 en vez
+ * de la pantalla /no-autorizado que ya existe. Por eso una página nunca debe
+ * usar la variante que lanza.
+ *
+ * No se puede resolver con un error.tsx: en producción Next no le pasa el tipo
+ * ni el mensaje del error al boundary (solo un digest), así que ahí es
+ * imposible distinguir "no autorizado" de cualquier otra falla.
+ *
+ * @param screenKey - Opcional. Deja pasar además a un role=PERSONALIZADO con
+ *                    permiso de vista sobre esa pantalla, igual que
+ *                    requireModuleOrScreen.
+ */
+export async function requireModuleOrRedirect(
+  moduleKey: string,
+  rolesPermitidos: UserRole[] = [],
+  screenKey?: string | string[],
+): Promise<SessionVerificada> {
+  const session = await auth()
+  if (!session?.user) redirect('/login')
+
+  if (!session.user.activeModules.includes(moduleKey)) redirect('/no-autorizado')
+
+  const rolOk = rolesPermitidos.length === 0 || rolesPermitidos.includes(session.user.role)
+  if (rolOk) return session as unknown as SessionVerificada
+
+  if (screenKey && session.user.role === 'PERSONALIZADO') {
+    const claves = Array.isArray(screenKey) ? screenKey : [screenKey]
+    if (claves.some((k) => session.user.customPermissions?.[k]?.canView)) {
+      return session as unknown as SessionVerificada
+    }
+  }
+
+  redirect('/no-autorizado')
+}
+
 // ── requireModuleOrScreen ─────────────────────────────────────────────────────
 
 /**

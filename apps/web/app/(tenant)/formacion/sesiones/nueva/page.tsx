@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import { createSession } from '../../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 
 export default async function NuevaSesionPage() {
-  await requireModule('FORMACION', ['ADMIN_CAMPANA'])
+  await requireModuleOrRedirect('FORMACION', ['ADMIN_CAMPANA'])
 
   async function handleCreate(formData: FormData) {
     'use server'

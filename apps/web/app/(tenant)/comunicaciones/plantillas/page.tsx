@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import { listAllTemplates, toggleTemplateActive } from '../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 
 export default async function PlantillasPage() {
-  await requireModule('COMUNICACIONES', ['ADMIN_CAMPANA'])
+  await requireModuleOrRedirect('COMUNICACIONES', ['ADMIN_CAMPANA'])
 
   const templates = await listAllTemplates()
 

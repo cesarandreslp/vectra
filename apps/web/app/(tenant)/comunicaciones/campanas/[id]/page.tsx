@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import { getCampaignDetail, sendCampaign } from '../../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 
 export default async function CampanaDetallePage({ params }: { params: Promise<{ id: string }> }) {
-  await requireModule('COMUNICACIONES', ['ADMIN_CAMPANA'])
+  await requireModuleOrRedirect('COMUNICACIONES', ['ADMIN_CAMPANA'])
 
   const { id } = await params
   const campaign = await getCampaignDetail(id)

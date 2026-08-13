@@ -1,11 +1,11 @@
 import { getSurveyCampaigns } from '../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import Link from 'next/link'
 import { ToggleSurveyButton } from './_components/toggle-survey-button'
 import { EnviarAhoraButton } from './_components/enviar-ahora-button'
 
 export default async function CampanasEncuestasPage() {
-  await requireModule('ENCUESTAS', ['ADMIN_CAMPANA', 'COORDINADOR'])
+  await requireModuleOrRedirect('ENCUESTAS', ['ADMIN_CAMPANA', 'COORDINADOR'])
 
   const campaigns = await getSurveyCampaigns()
 

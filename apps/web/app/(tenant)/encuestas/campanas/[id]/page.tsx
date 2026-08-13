@@ -1,12 +1,12 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { getSurveyStatsByCampaign, getCoberturaEncuestaPorCaptacion } from '../../actions'
 import { ResultadosPorPregunta } from '../../_components/resultados-por-pregunta'
 import { ToggleSurveyButton } from '../_components/toggle-survey-button'
 
 export default async function CampanaResultadosPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireModule('ENCUESTAS', ['ADMIN_CAMPANA', 'COORDINADOR'])
+  await requireModuleOrRedirect('ENCUESTAS', ['ADMIN_CAMPANA', 'COORDINADOR'])
   const { id } = await params
 
   const [stats, cobertura] = await Promise.all([

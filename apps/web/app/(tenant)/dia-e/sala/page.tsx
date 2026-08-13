@@ -1,12 +1,12 @@
 import { getDashboardDiaE, listTransmissions, getResultadosEnVivo, getMesasEnDisputa } from '../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { AutoRefresh } from './_components/auto-refresh'
 import { TablaTransmisiones } from './_components/tabla-transmisiones'
 import { ChartVotacion } from './_components/chart-votacion'
 import { AlertaDisputas } from './_components/alerta-disputas'
 
 export default async function SalaDeSituacionPage() {
-  await requireModule('DIA_E', ['ADMIN_CAMPANA', 'COORDINADOR'])
+  await requireModuleOrRedirect('DIA_E', ['ADMIN_CAMPANA', 'COORDINADOR'])
 
   const [dashboard, transmissions, resultados, disputas] = await Promise.all([
     getDashboardDiaE(),

@@ -1,6 +1,6 @@
 import Link       from 'next/link'
 import { notFound } from 'next/navigation'
-import { requireModuleOrScreen } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
 import { getTenantDb }   from '@vectra/db'
 
@@ -47,7 +47,7 @@ function construirArbol(
 export default async function ArbolCaptacionPage({ params }: Props) {
   const { id } = await params
 
-  const session = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR', 'LIDER'], 'CORE_LIDERES')
+  const session = await requireModuleOrRedirect('CORE', ['ADMIN_CAMPANA', 'COORDINADOR', 'LIDER'], 'CORE_LIDERES')
   const connectionString = await getTenantConnection(session.user.tenantId)
   const db               = getTenantDb(connectionString)
 

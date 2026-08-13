@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import { listCampaigns } from '../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 
 export default async function CampanasPage() {
-  await requireModule('COMUNICACIONES')
+  await requireModuleOrRedirect('COMUNICACIONES')
 
   const campaigns = await listCampaigns()
 

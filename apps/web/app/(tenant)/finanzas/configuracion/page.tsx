@@ -1,9 +1,9 @@
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { getFinanceConfig, listVotersForTesorero } from '../actions'
 import { FinanceConfigForm } from './_components/finance-config-form'
 
 export default async function ConfiguracionPage() {
-  await requireModule('FINANZAS', ['ADMIN_CAMPANA'])
+  await requireModuleOrRedirect('FINANZAS', ['ADMIN_CAMPANA'])
 
   const [config, electores] = await Promise.all([getFinanceConfig(), listVotersForTesorero()])
 

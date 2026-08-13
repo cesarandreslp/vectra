@@ -1,9 +1,9 @@
 import { getSmtpConfig } from '../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { SmtpForm } from './_components/smtp-form'
 
 export default async function ConfiguracionSmtpPage() {
-  await requireModule('COMUNICACIONES', ['ADMIN_CAMPANA'])
+  await requireModuleOrRedirect('COMUNICACIONES', ['ADMIN_CAMPANA'])
 
   const config = await getSmtpConfig()
 

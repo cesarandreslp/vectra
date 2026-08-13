@@ -23,7 +23,7 @@ export default async function CoreLayout({ children }: { children: React.ReactNo
 
   const esAdmin       = ['ADMIN_CAMPANA', 'COORDINADOR'].includes(session.user.role)
   const personalizado = session.user.role === 'PERSONALIZADO'
-  // Para roles fijos, cada pantalla ya la controla su propio requireModuleOrScreen —
+  // Para roles fijos, cada pantalla ya la controla su propio requireModuleOrRedirect —
   // acá solo se decide si el ítem aparece en el menú. Para PERSONALIZADO, el menú
   // ES el control de acceso visible: solo se listan las pantallas con canView.
   const puedeVer = (screenKey: string) => !personalizado || Boolean(session.user.customPermissions[screenKey]?.canView)

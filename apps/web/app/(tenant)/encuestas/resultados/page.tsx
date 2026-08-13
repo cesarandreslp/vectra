@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { getSurveyStats, getFidelidadStats } from '../actions'
 import { ResultadosPorPregunta } from '../_components/resultados-por-pregunta'
 
@@ -12,7 +12,7 @@ const ESTADOS_FIDELIDAD: { key: string; label: string; color: string }[] = [
 ]
 
 export default async function ResultadosEncuestasPage() {
-  await requireModule('ENCUESTAS', ['ADMIN_CAMPANA', 'COORDINADOR'])
+  await requireModuleOrRedirect('ENCUESTAS', ['ADMIN_CAMPANA', 'COORDINADOR'])
 
   const [stats, fidelidad] = await Promise.all([getSurveyStats(), getFidelidadStats()])
 

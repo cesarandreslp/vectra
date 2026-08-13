@@ -1,9 +1,9 @@
 import { getElectionResults } from '../../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { AutoRefresh } from '../_components/auto-refresh'
 
 export default async function ResultadosPage() {
-  await requireModule('DIA_E', ['ADMIN_CAMPANA', 'COORDINADOR'])
+  await requireModuleOrRedirect('DIA_E', ['ADMIN_CAMPANA', 'COORDINADOR'])
 
   const results = await getElectionResults()
   const totalVotes   = results.reduce((s, r) => s + r.totalVotes, 0)

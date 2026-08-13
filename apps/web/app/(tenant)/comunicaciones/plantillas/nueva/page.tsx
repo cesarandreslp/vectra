@@ -1,8 +1,8 @@
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { TemplateEditor } from './_components/template-editor'
 
 export default async function NuevaPlantillaPage() {
-  await requireModule('COMUNICACIONES', ['ADMIN_CAMPANA'])
+  await requireModuleOrRedirect('COMUNICACIONES', ['ADMIN_CAMPANA'])
 
   return (
     <div style={{ maxWidth: '800px' }}>

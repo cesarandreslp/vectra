@@ -1,11 +1,11 @@
 import { listWitnessAssignments, assignWitness } from '../../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
 import { getTenantDb } from '@vectra/db'
 import { TramiteRegistraduria } from './_components/tramite-registraduria'
 
 export default async function AsignacionesPage() {
-  const session = await requireModule('DIA_E', ['ADMIN_CAMPANA', 'COORDINADOR'])
+  const session = await requireModuleOrRedirect('DIA_E', ['ADMIN_CAMPANA', 'COORDINADOR'])
   const tenantId = session.user.tenantId as string
   const conn = await getTenantConnection(tenantId)
   const db = getTenantDb(conn)

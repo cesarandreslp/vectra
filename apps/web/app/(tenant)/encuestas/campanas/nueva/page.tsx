@@ -1,8 +1,8 @@
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { NewCampaignForm } from './_components/new-campaign-form'
 
 export default async function NuevaCampanaEncuestasPage() {
-  await requireModule('ENCUESTAS', ['ADMIN_CAMPANA'])
+  await requireModuleOrRedirect('ENCUESTAS', ['ADMIN_CAMPANA'])
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

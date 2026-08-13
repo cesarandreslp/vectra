@@ -1,9 +1,9 @@
 import { getFormacionMetrics, getWitnessProgress } from '../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { TablaProgreso } from './_components/tabla-progreso'
 
 export default async function ReportesPage() {
-  await requireModule('FORMACION', ['ADMIN_CAMPANA'])
+  await requireModuleOrRedirect('FORMACION', ['ADMIN_CAMPANA'])
 
   const [metrics, witnesses] = await Promise.all([
     getFormacionMetrics(),

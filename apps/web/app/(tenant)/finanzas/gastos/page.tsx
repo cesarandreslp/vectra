@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { listExpenses, exportExpensesCsv } from '../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { ExportCsvButton } from './_export-csv-button'
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -36,7 +36,7 @@ function formatCOP(amount: number): string {
 }
 
 export default async function GastosPage() {
-  await requireModule('FINANZAS')
+  await requireModuleOrRedirect('FINANZAS')
 
   const result = await listExpenses()
 

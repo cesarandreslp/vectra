@@ -1,9 +1,9 @@
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { getFinanceConfig } from '../../actions'
 import { DonationForm } from './_components/donation-form'
 
 export default async function NuevaDonacionPage() {
-  await requireModule('FINANZAS', ['ADMIN_CAMPANA', 'COORDINADOR'])
+  await requireModuleOrRedirect('FINANZAS', ['ADMIN_CAMPANA', 'COORDINADOR'])
 
   const config = await getFinanceConfig()
 

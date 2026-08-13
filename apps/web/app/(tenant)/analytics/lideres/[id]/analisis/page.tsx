@@ -1,4 +1,4 @@
-import { requireModuleOrScreen } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
 import { getTenantDb }         from '@vectra/db'
 import { FichaAnalisis }       from './_components/ficha-analisis'
@@ -6,7 +6,7 @@ import type { LeaderAnalysisResult, RadarDimension } from '../../../actions'
 
 export default async function AnalisisLiderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: leaderId } = await params
-  const session = await requireModuleOrScreen('ANALYTICS', ['ADMIN_CAMPANA', 'COORDINADOR'], 'ANALYTICS_LIDERES')
+  const session = await requireModuleOrRedirect('ANALYTICS', ['ADMIN_CAMPANA', 'COORDINADOR'], 'ANALYTICS_LIDERES')
   const db = getTenantDb(await getTenantConnection(session.user.tenantId))
   const tenantId = session.user.tenantId
 

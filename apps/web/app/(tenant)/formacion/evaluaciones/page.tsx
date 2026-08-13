@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import { listQuizzes, deleteQuiz } from '../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 
 export default async function EvaluacionesPage() {
-  const session  = await requireModule('FORMACION')
+  const session  = await requireModuleOrRedirect('FORMACION')
   const isAdmin  = session.user.role === 'ADMIN_CAMPANA'
   const quizzes  = await listQuizzes()
 

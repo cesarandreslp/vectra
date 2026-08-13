@@ -1,9 +1,9 @@
 import Link from 'next/link'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { QuizBuilder } from './_components/quiz-builder'
 
 export default async function NuevaEvaluacionPage() {
-  await requireModule('FORMACION', ['ADMIN_CAMPANA'])
+  await requireModuleOrRedirect('FORMACION', ['ADMIN_CAMPANA'])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '700px' }}>

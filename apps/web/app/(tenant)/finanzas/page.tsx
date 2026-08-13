@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { getFinanceDashboard } from './actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { BarraTope } from './_components/barra-tope'
 import { AlertaTope } from './_components/alerta-tope'
 import { ChartGastos } from './_components/chart-gastos'
@@ -10,7 +10,7 @@ function formatCOP(amount: number): string {
 }
 
 export default async function FinanzasDashboardPage() {
-  await requireModule('FINANZAS')
+  await requireModuleOrRedirect('FINANZAS')
 
   const data = await getFinanceDashboard()
 

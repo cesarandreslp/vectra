@@ -1,5 +1,5 @@
 import { listIncidents, updateIncidentStatus } from '../../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { AutoRefresh } from '../_components/auto-refresh'
 
 const SEVERITY_COLORS: Record<string, { bg: string; text: string }> = {
@@ -15,7 +15,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 }
 
 export default async function IncidentesPage() {
-  await requireModule('DIA_E', ['ADMIN_CAMPANA', 'COORDINADOR'])
+  await requireModuleOrRedirect('DIA_E', ['ADMIN_CAMPANA', 'COORDINADOR'])
 
   const incidents = await listIncidents()
 

@@ -1,10 +1,10 @@
 import Link from 'next/link'
 import { getMyAssignment, getTransmissionStatus, listCandidates } from '../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { TestigoFlow } from './_components/testigo-flow'
 
 export default async function TestigoPage() {
-  const session = await requireModule('DIA_E', ['TESTIGO'])
+  const session = await requireModuleOrRedirect('DIA_E', ['TESTIGO'])
 
   const [assignment, candidates] = await Promise.all([
     getMyAssignment(),

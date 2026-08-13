@@ -1,10 +1,10 @@
 import Link from 'next/link'
 import { getSessionDetail, enrollInSession, confirmAttendance } from '../../actions'
-import { requireModule } from '@/lib/auth-helpers'
+import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 
 export default async function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: sessionId } = await params
-  const session   = await requireModule('FORMACION')
+  const session   = await requireModuleOrRedirect('FORMACION')
   const isAdmin   = session.user.role === 'ADMIN_CAMPANA'
   const userId    = session.user.id
   const detail    = await getSessionDetail(sessionId)
