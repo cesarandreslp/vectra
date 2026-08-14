@@ -11,7 +11,7 @@
 import { requireAuth, requireModule, requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantConnection }        from '@/lib/tenant'
 import { calcularCedulaHash }         from '@/lib/cedula-hash'
-import { getTenantDb, encrypt, decrypt, Prisma } from '@vectra/db'
+import { getTenantDb, encrypt, decrypt, Prisma, superadminDb } from '@vectra/db'
 import { geocodeAddress }             from '@/lib/geocode'
 import { resolverBarrios }            from '@/lib/barrios'
 import { puntoEnPoligono }            from '@/lib/geometry'
@@ -1247,6 +1247,92 @@ export async function getVotersGeo(): Promise<VoterGeo[]> {
     neighborhoodId: r.neighborhood?.id ?? null,
     neighborhoodName: r.neighborhood?.name ?? null,
   }))
+}
+
+export interface TestigoGeo {
+  /** Es el id del ELECTOR: el testigo no es otra entidad, es una condición suya. */
+  id:     string
+  name:   string
+  lat:    number
+  lng:    number
+  /** Mesa que vigila. null = todavía sin asignar. */
+  mesa:   string | null
+  puesto: string | null
+  /** Barrio donde vive, para que el filtro de arriba también acote esta vista. */
+  neighborhoodId: string | null
+}
+
+export interface TestigosGeoResult {
+  testigos: TestigoGeo[]
+  /** Testigos que existen pero no se pueden dibujar: sin dirección geocodificada. */
+  sinUbicar: number
+}
+
+/**
+ * Testigos electorales para la vista de mapa "Testigos".
+ *
+ * Ser testigo es una CONDICIÓN de un elector, no otra entidad: el punto que se
+ * dibuja es el de su casa, igual que en la vista por residencia. Lo que cambia
+ * es el color, que dice si ya tiene mesa asignada o no.
+ *
+ * Cruza tres fuentes porque el dato vive repartido: el rol TESTIGO está en la
+ * BD del superadmin, la ubicación en el elector del tenant, y la mesa en
+ * `WitnessAssignment` — que además guarda `votingTableId` como id suelto, sin
+ * relación de Prisma, así que la mesa se trae aparte.
+ */
+export async function getTestigosGeo(): Promise<TestigosGeoResult> {
+  const session  = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR'], 'CORE_DASHBOARD')
+  const tenantId = session.user.tenantId
+  const db       = await obtenerDbTenant(tenantId)
+
+  const usuarios = await superadminDb.user.findMany({
+    where:  { tenantId, role: 'TESTIGO', isActive: true, voterId: { not: null } },
+    select: { id: true, voterId: true },
+  })
+  if (usuarios.length === 0) return { testigos: [], sinUbicar: 0 }
+
+  const voterIds = usuarios.map((u) => u.voterId!)
+
+  const [electores, asignaciones] = await Promise.all([
+    db.voter.findMany({
+      where:  { tenantId, id: { in: voterIds } },
+      select: { id: true, name: true, lat: true, lng: true, neighborhoodId: true },
+    }),
+    db.witnessAssignment.findMany({
+      where:  { tenantId, userId: { in: usuarios.map((u) => u.id) } },
+      select: { userId: true, votingTableId: true },
+    }),
+  ])
+
+  const mesas = asignaciones.length > 0
+    ? await db.votingTable.findMany({
+        where:  { id: { in: asignaciones.map((a) => a.votingTableId) } },
+        select: { id: true, number: true, station: { select: { name: true } } },
+      })
+    : []
+
+  const mesaPorId   = new Map(mesas.map((m) => [m.id, m]))
+  const mesaPorUser = new Map(asignaciones.map((a) => [a.userId, mesaPorId.get(a.votingTableId)]))
+  const voterPorId  = new Map(electores.map((e) => [e.id, e]))
+
+  const testigos: TestigoGeo[] = []
+  let sinUbicar = 0
+
+  for (const u of usuarios) {
+    const elector = voterPorId.get(u.voterId!)
+    if (!elector) continue
+    if (elector.lat == null || elector.lng == null) { sinUbicar++; continue }
+
+    const mesa = mesaPorUser.get(u.id)
+    testigos.push({
+      id: elector.id, name: elector.name, lat: elector.lat, lng: elector.lng,
+      mesa:   mesa ? `Mesa ${mesa.number}` : null,
+      puesto: mesa ? mesa.station.name : null,
+      neighborhoodId: elector.neighborhoodId,
+    })
+  }
+
+  return { testigos, sinUbicar }
 }
 
 /**

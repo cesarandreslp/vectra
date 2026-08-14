@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import 'leaflet/dist/leaflet.css'
-import { geocodificarPendientes, type VoterGeo, type GeoStats, type StationGeo, type ComunaGeo, type BarrioGeo, type CentroMunicipio } from '../actions'
+import { geocodificarPendientes, type VoterGeo, type GeoStats, type StationGeo, type ComunaGeo, type BarrioGeo, type TestigosGeoResult, type CentroMunicipio } from '../actions'
 import { intensidadDeEstado, COLOR_TEMPERATURA, ETIQUETA_TEMPERATURA, GRADIENTE_CALOR } from '@/lib/temperatura'
 
 const COLOR_ESTADO: Record<string, string> = {
@@ -19,15 +19,19 @@ const COLOR_JURISDICCION: Record<StationGeo['estado'], string> = {
   NO_CUENTA: '#ef4444',
 }
 
-type Vista = 'residencia' | 'puesto' | 'comuna' | 'barrio' | 'calor'
+type Vista = 'residencia' | 'puesto' | 'comuna' | 'barrio' | 'testigos' | 'calor'
 
 const ETIQUETA_VISTA: Record<Vista, string> = {
   residencia: 'Por residencia',
   puesto:     'Por puesto de votación',
   comuna:     'Por comuna',
   barrio:     'Por barrio',
+  testigos:   'Testigos',
   calor:      'Mapa de calor',
 }
+
+/** Un testigo con mesa está cubriendo algo; sin mesa es capacidad ociosa. */
+const COLOR_TESTIGO = { conMesa: '#16a34a', sinMesa: '#f59e0b' } as const
 
 function dibujarCapaResidencia(L: typeof import('leaflet'), capa: import('leaflet').FeatureGroup, puntos: VoterGeo[]) {
   for (const p of puntos) {
@@ -74,6 +78,25 @@ function dibujarCapaBarrios(L: typeof import('leaflet'), capa: import('leaflet')
   dibujarCapaResidencia(L, capa, puntos)
 }
 
+/**
+ * Testigos, dibujados en la casa de cada uno — ser testigo es una condición del
+ * elector, no otra entidad, así que el punto es el mismo de "por residencia".
+ * El color dice lo único que importa acá: si ya tiene mesa o no.
+ */
+function dibujarCapaTestigos(L: typeof import('leaflet'), capa: import('leaflet').FeatureGroup, testigos: TestigosGeoResult['testigos']) {
+  for (const t of testigos) {
+    const color = t.mesa ? COLOR_TESTIGO.conMesa : COLOR_TESTIGO.sinMesa
+    L.circleMarker([t.lat, t.lng], {
+      radius: 9, weight: 2, color: '#fff', fillOpacity: 1, fillColor: color,
+    })
+      .bindPopup(
+        `<b>${t.name}</b><br>` +
+        (t.mesa ? `${t.mesa} · ${t.puesto}` : '<i>Sin mesa asignada</i>'),
+      )
+      .addTo(capa)
+  }
+}
+
 function dibujarCapaPuestos(L: typeof import('leaflet'), capa: import('leaflet').FeatureGroup, puestos: StationGeo[]) {
   for (const s of puestos) {
     L.circleMarker([s.lat, s.lng], {
@@ -95,9 +118,10 @@ const ZOOM_MUNICIPIO = 13
 /** Vista de arranque si la campaña aún no tiene municipio configurado. */
 const VISTA_COLOMBIA: [[number, number], number] = [[4.6, -74.08], 5]
 
-export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: barriosGeo, centro }: {
+export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: barriosGeo, testigos, centro }: {
   puntos: VoterGeo[]; geoStats: GeoStats; puestos: StationGeo[]; comunas: ComunaGeo[]
   barrios: BarrioGeo[]
+  testigos: TestigosGeoResult
   /** Centro del municipio configurado. null = sin municipio elegido todavía. */
   centro: CentroMunicipio | null
 }) {
@@ -132,6 +156,10 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
   const barriosVisibles = useMemo(
     () => (barrio ? barriosGeo.filter((b) => b.id === barrio) : barriosGeo),
     [barriosGeo, barrio],
+  )
+  const testigosVisibles = useMemo(
+    () => (barrio ? testigos.testigos.filter((t) => t.neighborhoodId === barrio) : testigos.testigos),
+    [testigos, barrio],
   )
 
   useEffect(() => {
@@ -194,6 +222,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
         if (vista === 'residencia')    dibujarCapaResidencia(L, capa, visibles)
         else if (vista === 'puesto')   dibujarCapaPuestos(L, capa, puestos)
         else if (vista === 'barrio')   dibujarCapaBarrios(L, capa, barriosVisibles, visibles)
+        else if (vista === 'testigos') dibujarCapaTestigos(L, capa, testigosVisibles)
         else                           dibujarCapaComunas(L, capa, comunas, visibles)
         capa.addTo(mapa)
         capaRef.current = capa
@@ -206,7 +235,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
     return () => {
       cancelado = true
     }
-  }, [vista, visibles, puestos, comunas, barriosVisibles, centro])
+  }, [vista, visibles, puestos, comunas, barriosVisibles, testigosVisibles, centro])
 
   useEffect(() => () => {
     if (mapaRef.current) { mapaRef.current.remove(); mapaRef.current = null }
@@ -224,7 +253,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-        {(['residencia', 'puesto', 'comuna', 'barrio', 'calor'] as const).map((v) => (
+        {(['residencia', 'puesto', 'comuna', 'barrio', 'testigos', 'calor'] as const).map((v) => (
           <button
             key={v}
             onClick={() => setVista(v)}
@@ -261,6 +290,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
       {vista === 'puesto'     && <ControlesPuesto puestos={puestos} />}
       {vista === 'comuna'     && <ControlesComuna comunas={comunas} />}
       {vista === 'barrio'     && <ControlesBarrio barrios={barriosVisibles} />}
+      {vista === 'testigos'   && <ControlesTestigos testigos={testigosVisibles} sinUbicar={testigos.sinUbicar} />}
       {vista === 'calor'      && <ControlesCalor puntos={visibles} />}
 
       <div
@@ -286,6 +316,13 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
       {vista === 'barrio' && barriosGeo.length === 0 && (
         <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '0.5rem' }}>
           Todavía no hay barrios con límites cargados. Se importan igual que las comunas.
+        </p>
+      )}
+      {vista === 'testigos' && testigos.testigos.length === 0 && (
+        <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '0.5rem' }}>
+          {testigos.sinUbicar > 0
+            ? `Hay ${testigos.sinUbicar} testigo(s), pero ninguno tiene dirección ubicada en el mapa.`
+            : 'Todavía no hay testigos. Se crean en Usuarios y testigos.'}
         </p>
       )}
       {vista === 'calor' && puntos.length === 0 && (
@@ -370,6 +407,35 @@ function ControlesComuna({ comunas }: { comunas: ComunaGeo[] }) {
       <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.4rem' }}>
         Solo cuenta electores ya ubicados en el mapa (vista "por residencia").
       </p>
+    </div>
+  )
+}
+
+/**
+ * Leyenda de testigos. Los que no tienen mesa son el dato accionable: son
+ * capacidad disponible para cubrir las mesas que siguen descubiertas.
+ */
+function ControlesTestigos({ testigos, sinUbicar }: {
+  testigos: TestigosGeoResult['testigos']; sinUbicar: number
+}) {
+  const conMesa = testigos.filter((t) => t.mesa).length
+  const sinMesa = testigos.length - conMesa
+
+  return (
+    <div style={{ marginBottom: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', fontSize: '0.8rem' }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#334155', fontWeight: 600 }}>
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: COLOR_TESTIGO.conMesa }} />
+        Con mesa: {conMesa}
+      </span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#334155', fontWeight: 600 }}>
+        <span style={{ width: 9, height: 9, borderRadius: '50%', background: COLOR_TESTIGO.sinMesa }} />
+        Sin mesa: {sinMesa}
+      </span>
+      {sinUbicar > 0 && (
+        <span style={{ color: '#94a3b8' }}>
+          {sinUbicar} sin dirección ubicada — no salen en el mapa
+        </span>
+      )}
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { getCoreStats, getVotersGeo, getGeoStats, getVotingStationsGeo, getJurisdictionStats, getElectoresPorComuna, getElectoresPorBarrio, getLeaderRanking, getCentroMunicipio } from './actions'
+import { getCoreStats, getVotersGeo, getGeoStats, getVotingStationsGeo, getJurisdictionStats, getElectoresPorComuna, getElectoresPorBarrio, getTestigosGeo, getLeaderRanking, getCentroMunicipio } from './actions'
 import { MapaElectores } from './_components/mapa-electores'
 
 export const metadata = { title: 'Dashboard' }
@@ -13,7 +13,7 @@ export const maxDuration = 60
  * (ver app/page.tsx y app/login/page.tsx), así que debe existir y cargar rápido.
  */
 export default async function CoreDashboardPage() {
-  const [stats, puntos, geoStats, puestos, jurisdiccion, comunas, barrios, ranking, centro] = await Promise.all([
+  const [stats, puntos, geoStats, puestos, jurisdiccion, comunas, barrios, testigos, ranking, centro] = await Promise.all([
     getCoreStats(),
     getVotersGeo(),
     getGeoStats(),
@@ -21,6 +21,7 @@ export default async function CoreDashboardPage() {
     getJurisdictionStats(),
     getElectoresPorComuna(),
     getElectoresPorBarrio(),
+    getTestigosGeo(),
     getLeaderRanking(5),
     getCentroMunicipio(),
   ])
@@ -62,7 +63,7 @@ export default async function CoreDashboardPage() {
       {/* Mapa de electores geolocalizados */}
       <div style={{ marginTop: '2rem' }}>
         <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.75rem' }}>Mapa de electores</h2>
-        <MapaElectores puntos={puntos} geoStats={geoStats} puestos={puestos} comunas={comunas} barrios={barrios} centro={centro} />
+        <MapaElectores puntos={puntos} geoStats={geoStats} puestos={puestos} comunas={comunas} barrios={barrios} testigos={testigos} centro={centro} />
 
         <div style={{ display: 'flex', gap: '1.25rem', marginTop: '1rem', fontSize: '0.85rem' }}>
           <span style={{ color: '#166534' }}>{jurisdiccion.cuenta} cuentan</span>
