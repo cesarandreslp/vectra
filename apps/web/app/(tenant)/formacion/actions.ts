@@ -340,8 +340,8 @@ export async function getSessionDetail(sessionId: string): Promise<SessionDetail
   // Obtener datos de usuarios
   const userIds = s.attendances.map(a => a.userId)
   const users = userIds.length > 0
-    ? await db.user.findMany({
-        where:  { id: { in: userIds } },
+    ? await superadminDb.user.findMany({
+        where:  { id: { in: userIds }, tenantId },
         select: { id: true, email: true, name: true },
       })
     : []
@@ -690,7 +690,7 @@ export async function getFormacionMetrics(): Promise<FormacionMetrics> {
     db.trainingSession.count({ where: { tenantId, isActive: true } }),
     db.quiz.count({ where: { tenantId, isActive: true } }),
     db.certificate.count({ where: { tenantId } }),
-    db.user.count({ where: { tenantId, role: 'TESTIGO', isActive: true } }),
+    superadminDb.user.count({ where: { tenantId, role: 'TESTIGO', isActive: true } }),
     db.quizAttempt.findMany({ where: { tenantId }, select: { passed: true } }),
   ])
 
@@ -712,7 +712,7 @@ export async function getFormacionMetrics(): Promise<FormacionMetrics> {
 export async function getWitnessProgress(): Promise<WitnessProgress[]> {
   const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA'], 'FORMACION_REPORTES')
 
-  const witnesses = await db.user.findMany({
+  const witnesses = await superadminDb.user.findMany({
     where:   { tenantId, role: 'TESTIGO', isActive: true },
     select:  { id: true, email: true, name: true },
     orderBy: { email: 'asc' },

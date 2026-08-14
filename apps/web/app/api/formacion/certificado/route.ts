@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { requireModule } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
-import { getTenantDb } from '@vectra/db'
+import { getTenantDb, superadminDb } from '@vectra/db'
 import { put } from '@vercel/blob'
 import { CertificatePDF } from './_certificate-pdf'
 
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     // Obtener datos para el certificado
     const [quiz, user] = await Promise.all([
       db.quiz.findUnique({ where: { id: quizId }, select: { title: true } }),
-      db.user.findUnique({ where: { id: userId }, select: { email: true, name: true } }),
+      superadminDb.user.findFirst({ where: { id: userId, tenantId }, select: { email: true, name: true } }),
     ])
 
     if (!quiz || !user) {

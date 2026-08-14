@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { crearUsuario, alternarUsuarioActivo, vincularUsuarioAElector, type UsuarioView, type CrearUsuarioInput } from '../actions-roles'
-import { type CustomRoleView } from '../actions-roles'
+import { crearUsuario, alternarUsuarioActivo, vincularUsuarioAElector, type UsuarioView, type CrearUsuarioInput } from '../../configuracion/actions-roles'
+import { type CustomRoleView } from '../../configuracion/actions-roles'
 
 interface VoterOption { id: string; name: string; zone: string | null }
 

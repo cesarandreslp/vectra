@@ -9,7 +9,7 @@
 
 import { requireModule, requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
-import { getTenantDb, Prisma, encrypt, decrypt } from '@vectra/db'
+import { getTenantDb, Prisma, encrypt, decrypt, superadminDb } from '@vectra/db'
 import { sendMessage, sendBatch } from '@vectra/messaging'
 import type { SmtpConfig, MessagePayload } from '@vectra/messaging'
 import { revalidatePath }      from 'next/cache'
@@ -165,7 +165,8 @@ async function resolveRecipients(
     const userWhere: Record<string, unknown> = { tenantId, isActive: true }
     if (role) userWhere.role = role
 
-    const users = await db.user.findMany({
+    // Los User viven en la BD del superadmin; `userWhere` ya trae el tenantId.
+    const users = await superadminDb.user.findMany({
       where: userWhere,
       select: { id: true, name: true, email: true },
     })

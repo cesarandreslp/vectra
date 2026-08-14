@@ -7,7 +7,7 @@ const SCREENS_CORE = [
   'CORE_DASHBOARD', 'CORE_ESTRUCTURA', 'CORE_LIDERES', 'CORE_ELECTORES', 'CORE_IMPORTAR', 'CORE_QR',
   'CORE_TERRITORIO', 'CORE_AGENDA', 'CORE_LOGISTICA', 'CORE_ACTIVIDADES', 'CORE_PRESUPUESTOS',
   'CORE_TESORERIA', 'CORE_PERFILES',
-  'CORE_RUTAS', 'CORE_ALERTAS', 'CORE_CONFIGURACION',
+  'CORE_RUTAS', 'CORE_ALERTAS', 'CORE_USUARIOS', 'CORE_CONFIGURACION',
 ]
 
 export default async function CoreLayout({ children }: { children: React.ReactNode }) {
@@ -48,6 +48,11 @@ export default async function CoreLayout({ children }: { children: React.ReactNo
     ...(((esAdmin || personalizado) && puedeVer('CORE_PERFILES')) ? [{ href: '/core/perfiles', label: 'Perfiles' } as NavItem] : []),
     ...(((esAdmin || personalizado) && puedeVer('CORE_RUTAS'))      ? [{ href: '/core/rutas', label: 'Rutas' } as NavItem] : []),
     ...(puedeVer('CORE_ALERTAS')    ? [{ href: '/core/alertas', label: 'Alertas', badge: <BadgeNotificaciones /> } as NavItem] : []),
+    // Crear testigos es trabajo de campaña, no un ajuste: va en el menú, no
+    // enterrado en Configuración.
+    ...((session.user.role === 'ADMIN_CAMPANA' || (personalizado && puedeVer('CORE_USUARIOS')))
+      ? [{ href: '/core/usuarios', label: 'Usuarios y testigos' } as NavItem]
+      : []),
     ...((session.user.role === 'ADMIN_CAMPANA' || (personalizado && puedeVer('CORE_CONFIGURACION')))
       ? [{ href: '/core/configuracion', label: 'Configuración' } as NavItem]
       : []),

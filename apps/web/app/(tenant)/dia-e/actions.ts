@@ -286,6 +286,9 @@ export async function actualizarDatosTarjeton(formData: FormData): Promise<{ suc
 
     const party    = String(formData.get('party') ?? '').trim()
     const ordenRaw = String(formData.get('order') ?? '')
+    // El nombre del candidato PROPIO no se toca acá: viene de su ficha en CORE.
+    // Para un rival sí, que si no un typo obliga a borrarlo y volverlo a crear.
+    const name     = candidato.isOwn ? '' : String(formData.get('name') ?? '').trim()
     const [photoUrl, partyLogoUrl] = await Promise.all([
       subirImagen(formData.get('photo') as File | null, tenantId, 'foto'),
       subirImagen(formData.get('partyLogo') as File | null, tenantId, 'logo'),
@@ -294,6 +297,7 @@ export async function actualizarDatosTarjeton(formData: FormData): Promise<{ suc
     await db.candidate.update({
       where: { id },
       data: {
+        ...(name       !== ''   && { name }),
         ...(party      !== ''   && { party }),
         ...(ordenRaw   !== ''   && { order: parseInt(ordenRaw) || 0 }),
         ...(photoUrl     !== null && { photoUrl }),      // solo si subieron una nueva
@@ -349,9 +353,11 @@ export async function assignWitness(
   try {
     const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'], 'DIA_E_ASIGNACIONES', 'edit')
 
-    // Verificar que el usuario es TESTIGO
-    const user = await db.user.findUnique({
-      where: { id: witnessUserId },
+    // Verificar que el usuario es TESTIGO. Los User viven en la BD del
+    // SUPERADMIN, no en la del tenant — contra la del tenant esto no
+    // encontraba a nadie y rechazaba toda asignación.
+    const user = await superadminDb.user.findFirst({
+      where: { id: witnessUserId, tenantId },
       select: { role: true },
     })
     if (!user || user.role !== 'TESTIGO') {
@@ -401,11 +407,12 @@ export async function listWitnessAssignments(filters?: {
   })
   const assignMap = new Map(assignments.map(a => [a.votingTableId + ':' + a.isPrimary, a]))
 
-  // Obtener datos de usuarios
+  // Obtener datos de usuarios (viven en la BD del superadmin, no en la del
+  // tenant; se acota por tenantId igual, que un id no es una autorización).
   const userIds = [...new Set(assignments.map(a => a.userId))]
   const users = userIds.length > 0
-    ? await db.user.findMany({
-        where: { id: { in: userIds } },
+    ? await superadminDb.user.findMany({
+        where: { id: { in: userIds }, tenantId },
         select: { id: true, email: true, name: true },
       })
     : []
@@ -500,7 +507,7 @@ async function armarListadoPropuesto(
 
   const [usuarios, mesas] = await Promise.all([
     superadminDb.user.findMany({
-      where:  { id: { in: [...new Set(asignaciones.map(a => a.userId))] } },
+      where:  { id: { in: [...new Set(asignaciones.map(a => a.userId))] }, tenantId },
       select: { id: true, email: true, name: true, voterId: true },
     }),
     db.votingTable.findMany({
@@ -1052,8 +1059,8 @@ export async function getTransmissionStatus(votingTableId: string): Promise<Tran
   const tx = await db.e14Transmission.findUnique({ where: { votingTableId } })
   if (!tx || tx.tenantId !== tenantId) return null
 
-  const user = await db.user.findUnique({
-    where: { id: tx.witnessUserId },
+  const user = await superadminDb.user.findFirst({
+    where: { id: tx.witnessUserId, tenantId },
     select: { email: true },
   })
 
@@ -1124,7 +1131,7 @@ export async function listTransmissions(filters?: {
         })
       : [],
     userIds.length > 0
-      ? db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, email: true } })
+      ? superadminDb.user.findMany({ where: { id: { in: userIds }, tenantId }, select: { id: true, email: true } })
       : [],
     db.candidate.findMany({ where: { tenantId, isOwn: true }, select: { id: true, name: true } }),
   ])
@@ -1249,7 +1256,7 @@ export async function listIncidents(filters?: {
 
   const userIds = [...new Set(incidents.map((i: { reportedBy: string }) => i.reportedBy))]
   const users = userIds.length > 0
-    ? await db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, email: true } })
+    ? await superadminDb.user.findMany({ where: { id: { in: userIds }, tenantId }, select: { id: true, email: true } })
     : []
   const userMap = new Map(users.map((u: { id: string; email: string }) => [u.id, u.email]))
 

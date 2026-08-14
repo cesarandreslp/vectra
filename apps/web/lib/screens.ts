@@ -27,6 +27,7 @@ export const SCREENS: Record<string, ScreenDef> = {
   CORE_PERFILES:      { label: 'Perfiles',          modulo: 'CORE', path: '/core/perfiles' },
   CORE_RUTAS:         { label: 'Rutas',             modulo: 'CORE', path: '/core/rutas' },
   CORE_ALERTAS:       { label: 'Alertas',           modulo: 'CORE', path: '/core/alertas' },
+  CORE_USUARIOS:      { label: 'Usuarios y testigos', modulo: 'CORE', path: '/core/usuarios' },
   CORE_CONFIGURACION: { label: 'Configuración',     modulo: 'CORE', path: '/core/configuracion' },
 
   ANALYTICS_DASHBOARD:     { label: 'Dashboard',     modulo: 'ANALYTICS', path: '/analytics' },

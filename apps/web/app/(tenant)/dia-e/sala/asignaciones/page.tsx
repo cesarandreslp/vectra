@@ -1,18 +1,18 @@
 import { listWitnessAssignments, assignWitness } from '../../actions'
 import { requireModuleOrRedirect } from '@/lib/auth-helpers'
-import { getTenantConnection } from '@/lib/tenant'
-import { getTenantDb } from '@vectra/db'
+import { superadminDb } from '@vectra/db'
 import { TramiteRegistraduria } from './_components/tramite-registraduria'
 
 export default async function AsignacionesPage() {
   const session = await requireModuleOrRedirect('DIA_E', ['ADMIN_CAMPANA', 'COORDINADOR'])
   const tenantId = session.user.tenantId as string
-  const conn = await getTenantConnection(tenantId)
-  const db = getTenantDb(conn)
 
   const [assignments, testigos] = await Promise.all([
     listWitnessAssignments(),
-    db.user.findMany({
+    // Los User viven en la BD del SUPERADMIN, no en la del tenant: contra la
+    // del tenant este desplegable salía SIEMPRE vacío y no se podía asignar
+    // ningún testigo a ninguna mesa.
+    superadminDb.user.findMany({
       where:  { tenantId, role: 'TESTIGO', isActive: true },
       select: { id: true, email: true, name: true },
       orderBy: { email: 'asc' },

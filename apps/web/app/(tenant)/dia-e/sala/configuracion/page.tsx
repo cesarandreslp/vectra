@@ -168,7 +168,7 @@ export default async function ConfiguracionDiaEPage() {
             </thead>
             <tbody>
               {candidates.map(c => (
-                <CandidateRow key={c.id} candidate={c} exigeFoto={exigeFoto} />
+                <CandidateRow key={c.id} candidate={c} exigeFoto={exigeFoto} action={handleActualizar} />
               ))}
             </tbody>
           </table>
@@ -184,7 +184,10 @@ interface CandidatoTarjeton {
   isOwn: boolean; order: number
 }
 
-/** Completa foto / agrupación / número — sirve igual para el propio y los rivales. */
+/**
+ * Completa foto / agrupación / número — sirve igual para el propio y los rivales.
+ * El nombre solo se edita en los rivales: el del candidato propio viene de CORE.
+ */
 function FormTarjeton({ candidato, action }: {
   candidato: CandidatoTarjeton
   action: (formData: FormData) => Promise<void>
@@ -196,6 +199,12 @@ function FormTarjeton({ candidato, action }: {
         <label style={{ ...labelStyle, fontSize: '0.7rem' }}>Nº</label>
         <input name="order" type="number" min="0" defaultValue={candidato.order} style={{ ...inputStyle, width: '64px' }} />
       </div>
+      {!candidato.isOwn && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1, minWidth: '150px' }}>
+          <label style={{ ...labelStyle, fontSize: '0.7rem' }}>Nombre</label>
+          <input name="name" defaultValue={candidato.name} style={inputStyle} />
+        </div>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1, minWidth: '140px' }}>
         <label style={{ ...labelStyle, fontSize: '0.7rem' }}>Agrupación</label>
         <input name="party" defaultValue={candidato.party ?? ''} placeholder="Partido o movimiento" style={inputStyle} />
@@ -218,9 +227,10 @@ function FormTarjeton({ candidato, action }: {
   )
 }
 
-function CandidateRow({ candidate: c, exigeFoto }: {
+function CandidateRow({ candidate: c, exigeFoto, action }: {
   candidate: CandidatoTarjeton
   exigeFoto: boolean
+  action: (formData: FormData) => Promise<void>
 }) {
   async function handleDelete() {
     'use server'
@@ -231,6 +241,7 @@ function CandidateRow({ candidate: c, exigeFoto }: {
   const faltaGrupo = exigeFoto && !c.party
 
   return (
+    <>
     <tr style={{ background: c.isOwn ? '#eff6ff' : undefined }}>
       <td style={{ ...tdStyle, fontWeight: 700, textAlign: 'center' }}>{c.order}</td>
       <td style={tdStyle}>
@@ -261,7 +272,7 @@ function CandidateRow({ candidate: c, exigeFoto }: {
       </td>
       <td style={tdStyle}>
         {c.isOwn ? (
-          <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Nombre desde CORE</span>
+          <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Se edita arriba</span>
         ) : (
           <form action={handleDelete} style={{ display: 'inline' }}>
             <button type="submit" style={{
@@ -274,6 +285,16 @@ function CandidateRow({ candidate: c, exigeFoto }: {
         )}
       </td>
     </tr>
+    {/* Editar un rival: antes solo se podía borrar y volver a crear, así que un
+        número mal digitado costaba rehacer el renglón entero del tarjetón. */}
+    {!c.isOwn && (
+      <tr style={{ background: '#f8fafc' }}>
+        <td colSpan={5} style={{ padding: '0.6rem 1rem', borderBottom: '1px solid #f1f5f9' }}>
+          <FormTarjeton candidato={c} action={action} />
+        </td>
+      </tr>
+    )}
+    </>
   )
 }
 

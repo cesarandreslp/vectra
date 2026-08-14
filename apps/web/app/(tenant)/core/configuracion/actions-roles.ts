@@ -181,7 +181,7 @@ export async function crearUsuario(input: CrearUsuarioInput) {
     return { success: false, error: 'Ya existe una cuenta con ese correo.' }
   }
 
-  revalidatePath('/core/configuracion')
+  revalidatePath('/core/usuarios')
   return { success: true }
 }
 
@@ -220,7 +220,7 @@ export async function vincularUsuarioAElector(userId: string, voterId: string | 
   }
 
   await superadminDb.user.update({ where: { id: userId }, data: { voterId } })
-  revalidatePath('/core/configuracion')
+  revalidatePath('/core/usuarios')
   return { success: true }
 }
 
@@ -238,6 +238,6 @@ export async function alternarUsuarioActivo(id: string, isActive: boolean) {
   }
 
   await superadminDb.user.update({ where: { id }, data: { isActive } })
-  revalidatePath('/core/configuracion')
+  revalidatePath('/core/usuarios')
   return { success: true }
 }
