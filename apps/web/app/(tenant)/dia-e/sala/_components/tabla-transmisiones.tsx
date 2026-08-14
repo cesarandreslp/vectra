@@ -71,7 +71,23 @@ export function TablaTransmisiones({
                   onClick={() => handleSelectRow(tx)}
                   style={{ cursor: 'pointer', background: selectedId === tx.id ? '#f8fafc' : undefined }}
                 >
-                  <td style={tdStyle}>{tx.tableNumber}</td>
+                  <td style={tdStyle}>
+                    {tx.tableNumber}
+                    {/* El acta fotografiada dice ser de otra mesa: o el testigo
+                        fotografió el papel equivocado, o hay algo peor. */}
+                    {tx.actaCruzada && (
+                      <span
+                        title={`El acta fotografiada dice mesa ${tx.actaMesaNumero}, no ${tx.tableNumber}`}
+                        style={{
+                          marginLeft: '0.4rem', padding: '0.1rem 0.4rem', borderRadius: '9999px',
+                          background: '#fee2e2', color: '#991b1b', fontSize: '0.65rem', fontWeight: 700,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        acta de la {tx.actaMesaNumero}
+                      </span>
+                    )}
+                  </td>
                   <td style={tdStyle}>{tx.stationName}</td>
                   <td style={{ ...tdStyle, fontSize: '0.8rem' }}>{tx.witnessEmail}</td>
                   <td style={tdStyle}>

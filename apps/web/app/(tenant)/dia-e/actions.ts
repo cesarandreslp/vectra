@@ -11,7 +11,7 @@ import { getTenantConnection } from '@/lib/tenant'
 import { getTenantDb, Prisma, superadminDb, decrypt } from '@vectra/db'
 import * as XLSX                from 'xlsx'
 import { calcularCedulaHash }   from '@/lib/cedula-hash'
-import { normalizarClavesE14 }  from '@/lib/e14'
+import { normalizarClavesE14, actaEsDeLaMesa } from '@/lib/e14'
 import {
   compararListados,
   cubreLaMesa,
@@ -115,6 +115,13 @@ export interface TransmissionView {
   hasPhoto:            boolean
   hasRegistraduria:    boolean
   extractionConfidence: string | null
+  /** Número impreso en el acta fotografiada, como lo leyó la IA ("014"). */
+  actaMesaNumero:      string | null
+  /**
+   * true = el acta fotografiada dice ser de OTRA mesa. null = no se pudo saber
+   * (la IA no leyó el número, o no hay foto todavía).
+   */
+  actaCruzada:         boolean | null
 }
 
 export interface TransmissionDetail {
@@ -840,16 +847,19 @@ export async function submitPhotoE14(
     let confidence: string
     let discrepanciesArr: string[]
     let leidos: { numero: number | null; nombre: string; votos: number | null }[]
+    let actaMesaNumero: string | null
 
     if (lecturas.length >= 2) {
       const consenso = consensoE14(lecturas[0], lecturas[1])
       leidos           = consenso.data.candidatos
       confidence       = consenso.confidence
       discrepanciesArr = consenso.discrepancies
+      actaMesaNumero   = consenso.data.mesaNumero
     } else {
       leidos           = lecturas[0].candidatos
       confidence       = 'MEDIA'
       discrepanciesArr = []
+      actaMesaNumero   = lecturas[0].mesaNumero
     }
 
     // La IA devuelve lo impreso en el acta; el testigo y la Registraduría mandan
@@ -876,6 +886,9 @@ export async function submitPhotoE14(
       extractedData,
       extractedTotal,
       extractionConfidence: confidence,
+      // El número impreso en el acta. Es la única evidencia de QUÉ papel se
+      // fotografió: sin esto, un acta de otra mesa entra sin dejar rastro.
+      actaMesaNumero,
       // Auditoría: se guarda la respuesta CRUDA, incluso la que no se pudo
       // parsear — es justo la que hay que poder mirar cuando algo salió mal.
       groqResult:           groqCrudo ? { rawResponse: groqCrudo.rawResponse } : Prisma.DbNull,
@@ -1122,7 +1135,7 @@ export async function listTransmissions(filters?: {
     verificationStatus: string; finalData: unknown; manualData: unknown
     extractedData: unknown; extractionConfidence: string | null
     manualSubmittedAt: Date | null; photoSubmittedAt: Date | null; photoUrl: string | null
-    registraduriaAt: Date | null
+    registraduriaAt: Date | null; actaMesaNumero: string | null
   }) => {
     const table = tableMap.get(tx.votingTableId)
     const user  = userMap.get(tx.witnessUserId)
@@ -1152,8 +1165,19 @@ export async function listTransmissions(filters?: {
       hasPhoto:             !!tx.photoUrl,
       hasRegistraduria:     !!tx.registraduriaAt,
       extractionConfidence: tx.extractionConfidence,
+      actaMesaNumero:       tx.actaMesaNumero,
+      // Se compara acá y no se guarda como bandera: el número de la mesa vive
+      // en votingTable y una bandera duplicada quedaría desactualizada.
+      actaCruzada:          table
+        ? invertir(actaEsDeLaMesa(tx.actaMesaNumero, table.number))
+        : null,
     }
   })
+}
+
+/** true = coincide → NO está cruzada. Se invierte para nombrar el problema. */
+function invertir(coincide: boolean | null): boolean | null {
+  return coincide === null ? null : !coincide
 }
 
 // ── INCIDENTES ───────────────────────────────────────────────────────────────

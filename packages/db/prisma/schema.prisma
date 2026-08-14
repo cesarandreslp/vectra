@@ -740,6 +740,10 @@ model E14Transmission {
   groqResult           Json? // resultado crudo de Groq — solo auditoría
   zhipuResult          Json? // resultado crudo de Zhipu — solo auditoría
   mistralResult        Json? // resultado crudo de Mistral (respaldo) — solo auditoría
+  /// Número de mesa que venía IMPRESO en el acta fotografiada, tal cual lo leyó
+  /// la IA ("014"). Se guarda para poder detectar que un testigo fotografió el
+  /// acta de otra mesa: es la única evidencia de qué papel se transmitió.
+  actaMesaNumero       String?
   photoSubmittedAt     DateTime?
 
   // Tercera fuente OBLIGATORIA: lo publicado por la Registraduría, sea por

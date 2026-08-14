@@ -1,4 +1,4 @@
-import { getDashboardDiaE, listTransmissions, getResultadosEnVivo, getMesasEnDisputa } from '../actions'
+import { getDashboardDiaE, listTransmissions, getResultadosEnVivo, getMesasEnDisputa, type TransmissionView } from '../actions'
 import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { AutoRefresh } from './_components/auto-refresh'
 import { TablaTransmisiones } from './_components/tabla-transmisiones'
@@ -38,6 +38,11 @@ export default async function SalaDeSituacionPage() {
           <MetricCard label="Sin reportar" value={dashboard.mesasSinReportar} color="#94a3b8" />
         </div>
 
+        {/* Actas que dicen ser de otra mesa. Va ANTES de las disputas porque no
+            es un desacuerdo entre fuentes: es que se transmitió el papel
+            equivocado, y hasta que alguien lo mire esos votos están mal puestos. */}
+        <AlertaActasCruzadas transmissions={transmissions} />
+
         {/* Fuentes que no cuadran — lo primero que debe ver la sala */}
         <AlertaDisputas mesas={disputas} />
 
@@ -68,6 +73,41 @@ export default async function SalaDeSituacionPage() {
         <TablaTransmisiones transmissions={transmissions} />
       </div>
     </AutoRefresh>
+  )
+}
+
+/**
+ * El E-14 lleva impreso su número de mesa. Si lo que leyó la IA no coincide con
+ * la mesa del testigo, se fotografió el acta equivocada — y esos votos entraron
+ * a la mesa que no era. No se bloquea al testigo, pero tiene que saltar a la vista.
+ */
+function AlertaActasCruzadas({ transmissions }: { transmissions: TransmissionView[] }) {
+  const cruzadas = transmissions.filter(t => t.actaCruzada)
+  if (cruzadas.length === 0) return null
+
+  return (
+    <div style={{
+      background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px',
+      padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem',
+    }}>
+      <div style={{ fontWeight: 700, color: '#991b1b', fontSize: '0.95rem' }}>
+        {cruzadas.length === 1
+          ? '1 mesa transmitió el acta de otra mesa'
+          : `${cruzadas.length} mesas transmitieron el acta de otra mesa`}
+      </div>
+      <p style={{ margin: 0, fontSize: '0.8rem', color: '#7f1d1d', lineHeight: 1.5 }}>
+        El número impreso en la foto no coincide con la mesa asignada. Verifica con
+        el testigo antes de dar estos votos por buenos.
+      </p>
+      <ul style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '0.85rem', color: '#7f1d1d' }}>
+        {cruzadas.map(t => (
+          <li key={t.id}>
+            Mesa <strong>{t.tableNumber}</strong> ({t.stationName}) transmitió un acta
+            que dice mesa <strong>{t.actaMesaNumero}</strong> — {t.witnessEmail}
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 

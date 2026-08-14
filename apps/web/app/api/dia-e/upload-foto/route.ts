@@ -8,6 +8,12 @@ import { put } from '@vercel/blob'
  * Solo usuarios autenticados con módulo DIA_E.
  * Body: FormData con campo "file" (imagen) y "votingTableId"
  */
+/** Lo que sale de la cámara de un celular. HEIC es el formato por defecto en iPhone. */
+const TIPOS_ACEPTADOS = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
+
+/** Una foto de acta de un celular ronda 2-5 MB; 15 deja margen de sobra. */
+const MAX_BYTES = 15 * 1024 * 1024
+
 export async function POST(req: NextRequest) {
   try {
     const session  = await requireModule('DIA_E')
@@ -23,6 +29,23 @@ export async function POST(req: NextRequest) {
 
     if (!votingTableId) {
       return NextResponse.json({ error: 'votingTableId requerido.' }, { status: 400 })
+    }
+
+    // El accept="image/*" del formulario es solo una sugerencia del navegador:
+    // sin esto, un PDF o cualquier archivo se guardaba como .jpg y se le mandaba
+    // a las IAs. Se valida acá, que es el único lado que manda.
+    if (!TIPOS_ACEPTADOS.includes(file.type)) {
+      return NextResponse.json(
+        { error: 'El acta debe ser una foto (JPG, PNG, WEBP o HEIC).' },
+        { status: 400 },
+      )
+    }
+
+    if (file.size > MAX_BYTES) {
+      return NextResponse.json(
+        { error: `La foto pesa ${(file.size / 1024 / 1024).toFixed(1)} MB; el máximo es ${MAX_BYTES / 1024 / 1024} MB.` },
+        { status: 400 },
+      )
     }
 
     const timestamp = Date.now()

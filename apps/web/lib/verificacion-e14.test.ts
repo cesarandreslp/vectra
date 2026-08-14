@@ -9,7 +9,7 @@
  */
 import assert from 'node:assert/strict'
 import { verificarTresFuentes } from './verificacion-e14'
-import { normalizarClavesE14 } from './e14'
+import { normalizarClavesE14, actaEsDeLaMesa } from './e14'
 
 const acta = [
   { candidateId: 'c1', votes: 87 },
@@ -146,6 +146,20 @@ function main() {
     [{ candidateId: 'Otro', votes: 3 }],
     'order 0 es "sin número asignado", no un número de tarjetón real',
   )
+
+  // ── El acta fotografiada tiene que ser la de esta mesa ────────────────────
+  // El E-14 lleva impreso su número; la IA lo devuelve como texto con relleno.
+  assert.equal(actaEsDeLaMesa('014', 14), true,  'los ceros a la izquierda no cuentan')
+  assert.equal(actaEsDeLaMesa('14', 14),  true)
+  assert.equal(actaEsDeLaMesa(' 7 ', 7),  true,  'los espacios no cuentan')
+  assert.equal(actaEsDeLaMesa('Mesa 007', 7), true, 'el número puede venir con texto alrededor')
+  assert.equal(actaEsDeLaMesa('014', 7),  false, 'acta de otra mesa: eso es lo que hay que cazar')
+
+  // "No se sabe" NO es "no coincide": marcar como cruzada un acta que salió
+  // borrosa sería peor que no marcar nada.
+  assert.equal(actaEsDeLaMesa(null, 7),        null)
+  assert.equal(actaEsDeLaMesa('', 7),          null)
+  assert.equal(actaEsDeLaMesa('ilegible', 7),  null)
 
   console.log('verificacion-e14: OK')
 }

@@ -79,6 +79,27 @@ function clave(valor: string): string {
     .trim()
 }
 
+/**
+ * ¿El acta fotografiada es la de esta mesa?
+ *
+ * El E-14 lleva impreso su número de mesa y la IA lo lee, pero llega como texto
+ * y con relleno ("014", "Mesa 7", " 07 "), mientras que la mesa del sistema es
+ * un entero. Se comparan los dígitos.
+ *
+ * Devuelve `null` cuando no se puede saber — la IA no leyó el número o lo que
+ * leyó no tiene dígitos. Un "no se sabe" NO es un "no coincide": marcar como
+ * cruzada un acta que simplemente salió borrosa sería peor que no marcar nada.
+ */
+export function actaEsDeLaMesa(
+  actaMesaNumero: string | null | undefined,
+  mesaDelSistema: number,
+): boolean | null {
+  if (!actaMesaNumero) return null
+  const digitos = actaMesaNumero.replace(/\D/g, '')
+  if (digitos === '') return null
+  return parseInt(digitos, 10) === mesaDelSistema
+}
+
 /** Filas del acta que no son un candidato del tarjetón. */
 export const VOTOS_BLANCO = 'VOTOS_BLANCO'
 export const VOTOS_NULOS  = 'VOTOS_NULOS'
