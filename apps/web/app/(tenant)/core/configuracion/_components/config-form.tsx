@@ -18,6 +18,7 @@ const CARGOS: { value: Cargo; label: string }[] = [
 export function ConfigForm({ inicial, departamentos }: { inicial: ConfiguracionView; departamentos: Opcion[] }) {
   const [groqKey,   setGroqKey]   = useState('')
   const [zhipuKey,  setZhipuKey]  = useState('')
+  const [mistralKey, setMistralKey] = useState('')
   const [color,     setColor]     = useState(inicial.primaryColor ?? '#7d2839')
   const [domain,    setDomain]    = useState(inicial.domain ?? '')
   const [logoUrl,   setLogoUrl]   = useState(inicial.logoUrl)
@@ -99,6 +100,7 @@ export function ConfigForm({ inicial, departamentos }: { inicial: ConfiguracionV
       const res = await guardarConfiguracion({
         groqApiKey:   groqKey || undefined,
         zhipuApiKey:  zhipuKey || undefined,
+        mistralApiKey: mistralKey || undefined,
         primaryColor: color,
         domain,
         electionOffice:               cargo,
@@ -108,6 +110,7 @@ export function ConfigForm({ inicial, departamentos }: { inicial: ConfiguracionV
       if (res.success) {
         setGroqKey('')
         setZhipuKey('')
+        setMistralKey('')
         setMsg({ tipo: 'ok', texto: 'Configuración guardada.' })
       } else {
         setMsg({ tipo: 'error', texto: res.error })
@@ -240,8 +243,28 @@ export function ConfigForm({ inicial, departamentos }: { inicial: ConfiguracionV
           />
         </Campo>
         <p style={estiloHint}>
-          Se guardan cifradas. Déjalas en blanco para no cambiarlas. Si no configuras
-          ninguna, la campaña usa las claves globales del sistema.
+          Groq y Zhipu son las dos lecturas que se comparan entre sí cuando el
+          testigo fotografía el acta E-14.
+        </p>
+
+        <Campo label="Mistral API key — respaldo">
+          <input
+            type="password" name="mistral-api-key" autoComplete="new-password" {...antiAutofill}
+            value={mistralKey} onChange={(e) => setMistralKey(e.target.value)}
+            placeholder={inicial.hasMistralKey ? '•••••••• (ya configurada)' : '…'}
+            style={estiloInput}
+          />
+        </Campo>
+        <p style={estiloHint}>
+          Solo entra si Groq o Zhipu falla, para que el acta siga teniendo dos
+          lecturas que comparar en vez de una sola. Los proveedores gratuitos
+          tienen límite de tasa, así que un día de elección esa caída es
+          esperable.
+        </p>
+
+        <p style={estiloHint}>
+          Las tres se guardan cifradas. Déjalas en blanco para no cambiarlas. Si no
+          configuras alguna, la campaña usa la clave global del sistema.
         </p>
       </Seccion>
 

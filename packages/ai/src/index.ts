@@ -7,6 +7,7 @@ export { chatZhipu }           from './zhipu'
 export { extractE14WithZhipu } from './zhipu'
 export { chatGroq }            from './groq'
 export { extractE14WithGroq }  from './groq'
+export { extractE14WithMistral } from './mistral'
 export { consensoE14 }         from './e14-consensus'
 export type { ConsensoResult } from './e14-consensus'
 

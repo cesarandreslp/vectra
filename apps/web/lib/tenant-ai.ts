@@ -7,19 +7,20 @@ import { getTenantDb, decrypt } from '@vectra/db'
  */
 export async function getTenantAiKeys(
   tenantId: string,
-): Promise<{ groq: string | undefined; zhipu: string | undefined }> {
+): Promise<{ groq: string | undefined; zhipu: string | undefined; mistral: string | undefined }> {
   try {
     const db  = getTenantDb(await getTenantConnection(tenantId))
     const cfg = await db.tenantConfig.findUnique({
       where:  { tenantId },
-      select: { groqApiKey: true, zhipuApiKey: true },
+      select: { groqApiKey: true, zhipuApiKey: true, mistralApiKey: true },
     })
     return {
-      groq:  descifrarSeguro(cfg?.groqApiKey),
-      zhipu: descifrarSeguro(cfg?.zhipuApiKey),
+      groq:    descifrarSeguro(cfg?.groqApiKey),
+      zhipu:   descifrarSeguro(cfg?.zhipuApiKey),
+      mistral: descifrarSeguro(cfg?.mistralApiKey),
     }
   } catch {
-    return { groq: undefined, zhipu: undefined }
+    return { groq: undefined, zhipu: undefined, mistral: undefined }
   }
 }
 

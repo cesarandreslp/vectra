@@ -512,9 +512,12 @@ model TenantConfig {
   surveyDailyLimit    Int     @default(250)
 
   // IA por campaña — CIFRADAS en reposo (AES-256-GCM). Si están vacías, se usan
-  // las claves globales del sistema (GROQ_API_KEY / ZHIPU_API_KEY del entorno).
+  // las claves globales del sistema (GROQ_API_KEY / ZHIPU_API_KEY / MISTRAL_API_KEY).
   groqApiKey  String?
   zhipuApiKey String?
+  // Respaldo: solo entra a leer el acta cuando Groq o Zhipu fallan, para que el
+  // consenso no se quede con una sola lectura.
+  mistralApiKey String?
 
   // Branding por campaña
   logoUrl      String? // URL del logo en Vercel Blob
@@ -708,7 +711,8 @@ model WitnessAssignment {
 
 /// Transmisión del formulario E-14 para una mesa de votación.
 /// Almacena datos manuales, datos extraídos por IA, y verificación cruzada.
-/// groqResult y zhipuResult son para auditoría — NUNCA se retornan al cliente.
+/// groqResult, zhipuResult y mistralResult son para auditoría — NUNCA se
+/// retornan al cliente.
 model E14Transmission {
   id            String @id @default(cuid())
   tenantId      String
@@ -735,6 +739,7 @@ model E14Transmission {
   extractionConfidence String? // ALTA | MEDIA | BAJA
   groqResult           Json? // resultado crudo de Groq — solo auditoría
   zhipuResult          Json? // resultado crudo de Zhipu — solo auditoría
+  mistralResult        Json? // resultado crudo de Mistral (respaldo) — solo auditoría
   photoSubmittedAt     DateTime?
 
   // Tercera fuente OBLIGATORIA: lo publicado por la Registraduría, sea por

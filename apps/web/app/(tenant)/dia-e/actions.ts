@@ -27,7 +27,9 @@ import {
 import {
   extractE14WithGroq,
   extractE14WithZhipu,
+  extractE14WithMistral,
   consensoE14,
+  type E14ExtractionResult as E14Lectura,
 }                              from '@vectra/ai'
 import { getTenantAiKeys }     from '@/lib/tenant-ai'
 import { put }                 from '@vercel/blob'
@@ -785,8 +787,8 @@ export async function submitPhotoE14(
     // Configuración ("si no configuras ninguna, la campaña usa las claves
     // globales"). Si no hay ninguna de las dos, el cliente lanza y se degrada
     // a una sola fuente o a captura manual, como ya sabe hacer el resto.
-    const { groq: groqKey, zhipu: zhipuKey } = await getTenantAiKeys(tenantId)
-    const [groqResult, zhipuResult] = await Promise.all([
+    const { groq: groqKey, zhipu: zhipuKey, mistral: mistralKey } = await getTenantAiKeys(tenantId)
+    const [groqCrudo, zhipuCrudo] = await Promise.all([
       extractE14WithGroq(base64, mimeType, groqKey).catch(err => {
         console.error('[Groq E14]', err instanceof Error ? err.message : err)
         return null
@@ -797,8 +799,32 @@ export async function submitPhotoE14(
       }),
     ])
 
+    // Una respuesta SIN candidatos no es una lectura. Los clientes devuelven el
+    // objeto igual cuando el JSON no parsea, así que una respuesta ilegible se
+    // veía como lectura válida — y en la rama de confianza BAJA el consenso toma
+    // la primera como primaria, borrando la lectura buena de la otra IA.
+    const conCandidatos = (r: E14Lectura | null) => (r && r.candidatos.length > 0 ? r : null)
+    const groqResult  = conCandidatos(groqCrudo)
+    const zhipuResult = conCandidatos(zhipuCrudo)
+
+    // RESPALDO. Si una de las dos principales falló, el acta se quedaría con una
+    // sola lectura y sin nada contra qué compararla. Mistral entra a ocupar ese
+    // lugar para que el consenso siga siendo de dos. No se llama si las dos
+    // respondieron: es respaldo, no una tercera opinión permanente.
+    let mistralCrudo = null
+    if (!groqResult || !zhipuResult) {
+      mistralCrudo = await extractE14WithMistral(base64, mimeType, mistralKey).catch(err => {
+        console.error('[Mistral E14 respaldo]', err instanceof Error ? err.message : err)
+        return null
+      })
+    }
+    const mistralResult = conCandidatos(mistralCrudo)
+
+    // Las lecturas que sirvieron, en orden de preferencia.
+    const lecturas = [groqResult, zhipuResult, mistralResult].filter(r => r !== null)
+
     // Si ninguna IA respondió
-    if (!groqResult && !zhipuResult) {
+    if (lecturas.length === 0) {
       // Guardar solo la foto — la imagen del acta no se pierde aunque la IA falle.
       const soloFoto = { photoUrl, photoSubmittedAt: new Date() }
       await db.e14Transmission.upsert({
@@ -809,21 +835,21 @@ export async function submitPhotoE14(
       return { success: false, error: 'No se pudo procesar la imagen. Digita los datos manualmente.' }
     }
 
-    // Consenso — si solo una IA respondió, usar esa
+    // Consenso con dos lecturas; si solo hubo una (falló una principal Y el
+    // respaldo), se usa esa sola y la confianza baja a MEDIA.
     let extractedData: { candidateId: string; votes: number }[]
     let confidence: string
     let discrepanciesArr: string[]
 
-    if (groqResult && zhipuResult) {
-      const consenso = consensoE14(groqResult, zhipuResult)
+    if (lecturas.length >= 2) {
+      const consenso = consensoE14(lecturas[0], lecturas[1])
       extractedData  = consenso.data.candidatos
         .filter(c => c.votos !== null)
         .map(c => ({ candidateId: c.nombre, votes: c.votos! }))
       confidence     = consenso.confidence
       discrepanciesArr = consenso.discrepancies
     } else {
-      const result   = (groqResult ?? zhipuResult)!
-      extractedData  = result.candidatos
+      extractedData  = lecturas[0].candidatos
         .filter(c => c.votos !== null)
         .map(c => ({ candidateId: c.nombre, votes: c.votos! }))
       confidence     = 'MEDIA'
@@ -847,8 +873,11 @@ export async function submitPhotoE14(
       extractedData,
       extractedTotal,
       extractionConfidence: confidence,
-      groqResult:           groqResult ? { rawResponse: groqResult.rawResponse } : Prisma.DbNull,
-      zhipuResult:          zhipuResult ? { rawResponse: zhipuResult.rawResponse } : Prisma.DbNull,
+      // Auditoría: se guarda la respuesta CRUDA, incluso la que no se pudo
+      // parsear — es justo la que hay que poder mirar cuando algo salió mal.
+      groqResult:           groqCrudo ? { rawResponse: groqCrudo.rawResponse } : Prisma.DbNull,
+      zhipuResult:          zhipuCrudo ? { rawResponse: zhipuCrudo.rawResponse } : Prisma.DbNull,
+      mistralResult:        mistralCrudo ? { rawResponse: mistralCrudo.rawResponse } : Prisma.DbNull,
       discrepancies:        discrepanciesArr.length > 0 ? discrepanciesArr : Prisma.DbNull,
       photoSubmittedAt:     new Date(),
     }
