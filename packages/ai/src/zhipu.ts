@@ -1,17 +1,25 @@
 /**
- * Cliente Zhipu Flash (Z-AI) para análisis de fidelidad de líderes.
+ * Cliente Zhipu Flash (Z-AI): análisis de fidelidad de líderes y lectura del E-14.
  *
- * Usa la API OpenAI-compatible de ZhipuAI con el modelo glm-4-flash.
- * Se usa fetch nativo — sin SDKs externos.
+ * Usa la API OpenAI-compatible de Z.AI con fetch nativo — sin SDKs externos.
  *
- * Env var requerida: ZHIPU_API_KEY
+ * Los dos modelos son los de nivel gratuito. Verificado contra la API el
+ * 2026-08-14: el endpoint anterior (open.bigmodel.cn) y los modelos anteriores
+ * (glm-4-flash / glm-4v-flash) responden "1211 Unknown Model", así que esta
+ * integración estaba caída entera. glm-4.6v-flash responde 200.
+ *
+ * OJO: el nivel gratuito tiene límite de tasa (error 1302). Un día de elección,
+ * con cientos de testigos transmitiendo, es esperable que parte de las llamadas
+ * caigan; el consenso ya sabe degradar a una sola IA o a captura manual.
+ *
+ * Env var requerida: ZHIPU_API_KEY (clave global; el tenant puede traer la suya)
  */
 
 import type { E14ExtractionResult } from './index'
 
-const BASE_URL     = 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
-const MODEL        = 'glm-4-flash'
-const VISION_MODEL = 'glm-4v-flash'
+const BASE_URL     = 'https://api.z.ai/api/paas/v4/chat/completions'
+const MODEL        = 'glm-4.7-flash'  // texto
+const VISION_MODEL = 'glm-4.6v-flash' // visión — lectura del acta E-14
 
 interface ZhipuChoice {
   message: { role: string; content: string }
@@ -78,7 +86,7 @@ No inventes datos — solo extrae lo que es legible.`
 
 /**
  * Extrae datos del formulario E-14 de una imagen usando Zhipu Vision.
- * Usa glm-4v-flash con capacidades de visión.
+ * Ver VISION_MODEL arriba.
  *
  * @param imageBase64 - Imagen codificada en base64
  * @param mimeType    - Tipo MIME de la imagen (image/jpeg, image/png, etc.)

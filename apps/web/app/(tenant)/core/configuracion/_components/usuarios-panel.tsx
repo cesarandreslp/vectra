@@ -114,11 +114,22 @@ export function UsuariosPanel({ usuarios: usuariosIniciales, roles, electores }:
             </select>
           )}
 
-          <select value={voterId} onChange={(e) => setVoterId(e.target.value)}
+          {/* Para un TESTIGO el elector NO es opcional: la Registraduría lo
+              identifica por su cédula, y la cédula vive en la ficha del elector. */}
+          <select value={voterId} onChange={(e) => setVoterId(e.target.value)} required={role === 'TESTIGO'}
             style={{ border: '1px solid #cbd5e1', borderRadius: '6px', padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}>
-            <option value="">Sin vincular a un elector (opcional)</option>
+            <option value="">
+              {role === 'TESTIGO' ? 'Elige el elector que será testigo…' : 'Sin vincular a un elector (opcional)'}
+            </option>
             {electores.map((v) => <option key={v.id} value={v.id}>{v.name}{v.zone ? ` · ${v.zone}` : ''}</option>)}
           </select>
+
+          {role === 'TESTIGO' && (
+            <p style={{ margin: 0, fontSize: '0.72rem', color: '#64748b', lineHeight: 1.4 }}>
+              Todo testigo es un elector de la campaña. Sin ficha de elector no tiene
+              cédula, y sin cédula no se puede radicar ante la Registraduría.
+            </p>
+          )}
 
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button type="submit" disabled={guardando} style={{ background: '#0f172a', color: '#fff', border: 'none', borderRadius: '6px', padding: '0.4rem 0.9rem', fontSize: '0.8rem', cursor: 'pointer' }}>

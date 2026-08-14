@@ -779,24 +779,22 @@ export async function submitPhotoE14(
     const base64      = Buffer.from(arrayBuffer).toString('base64')
     const mimeType    = imageResponse.headers.get('content-type') ?? 'image/jpeg'
 
-    // Llamar a ambas IAs en paralelo — SOLO con claves propias del tenant. Si
-    // el tenant no configuró una de las dos, esa IA simplemente no participa
-    // del consenso (en vez de caer en silencio a la clave global del SaaS);
-    // el resto del flujo ya sabe degradar a una sola fuente o a captura manual.
+    // Llamar a ambas IAs en paralelo con la clave propia del tenant si la tiene.
+    // Cuando no la tiene se pasa undefined y el cliente cae a la clave global
+    // del sistema por defecto — que es lo que promete la pantalla de
+    // Configuración ("si no configuras ninguna, la campaña usa las claves
+    // globales"). Si no hay ninguna de las dos, el cliente lanza y se degrada
+    // a una sola fuente o a captura manual, como ya sabe hacer el resto.
     const { groq: groqKey, zhipu: zhipuKey } = await getTenantAiKeys(tenantId)
     const [groqResult, zhipuResult] = await Promise.all([
-      groqKey
-        ? extractE14WithGroq(base64, mimeType, groqKey).catch(err => {
-            console.error('[Groq E14]', err instanceof Error ? err.message : err)
-            return null
-          })
-        : Promise.resolve(null),
-      zhipuKey
-        ? extractE14WithZhipu(base64, mimeType, zhipuKey).catch(err => {
-            console.error('[Zhipu E14]', err instanceof Error ? err.message : err)
-            return null
-          })
-        : Promise.resolve(null),
+      extractE14WithGroq(base64, mimeType, groqKey).catch(err => {
+        console.error('[Groq E14]', err instanceof Error ? err.message : err)
+        return null
+      }),
+      extractE14WithZhipu(base64, mimeType, zhipuKey).catch(err => {
+        console.error('[Zhipu E14]', err instanceof Error ? err.message : err)
+        return null
+      }),
     ])
 
     // Si ninguna IA respondió

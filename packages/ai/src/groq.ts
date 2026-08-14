@@ -12,8 +12,21 @@
 import type { E14ExtractionResult } from './index'
 
 const BASE_URL     = 'https://api.groq.com/openai/v1/chat/completions'
-const MODEL        = 'llama-3.3-70b-versatile'
-const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct'
+const MODEL        = 'llama-3.3-70b-versatile' // verificado 2026-08-14: responde 200
+
+/**
+ * Verificado contra la API el 2026-08-14 leyendo un E-14 real (docs/e14.webp):
+ * 10 candidatos en ~8 s, con los mismos votos que leyó Zhipu.
+ *
+ * El modelo anterior (meta-llama/llama-4-scout-17b-16e-instruct) devuelve 404:
+ * ya no existe en la cuenta. Sin este cambio, la lectura del acta por Groq
+ * estaba caída y el consenso de dos IAs nunca corría.
+ *
+ * Es un modelo de RAZONAMIENTO: sin `reasoning_format: 'hidden'` antepone un
+ * bloque <think> y el JSON no parsea. `response_format: json_object` tampoco
+ * sirve acá — la API responde json_validate_failed.
+ */
+const VISION_MODEL = 'qwen/qwen3.6-27b'
 
 interface GroqChoice {
   message: { role: string; content: string }
@@ -80,7 +93,7 @@ No inventes datos — solo extrae lo que es legible.`
 
 /**
  * Extrae datos del formulario E-14 de una imagen usando Groq Vision.
- * Usa meta-llama/llama-4-scout-17b-16e-instruct con capacidades de visión.
+ * Ver VISION_MODEL arriba — incluido por qué va con el razonamiento oculto.
  *
  * @param imageBase64 - Imagen codificada en base64
  * @param mimeType    - Tipo MIME de la imagen (image/jpeg, image/png, etc.)
@@ -115,6 +128,9 @@ export async function extractE14WithGroq(
         },
       ],
       temperature: 0.1,
+      // Sin esto el modelo antepone su bloque <think> y el JSON no parsea.
+      reasoning_format: 'hidden',
+      max_completion_tokens: 4096,
     }),
   })
 

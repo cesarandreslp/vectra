@@ -130,6 +130,15 @@ export async function listarUsuarios(): Promise<UsuarioView[]> {
   }))
 }
 
+/**
+ * Todo testigo es un elector de la campaña. La Registraduría lo identifica por
+ * la CÉDULA, que vive cifrada en su ficha de `Voter` — el `User` está en la BD
+ * del superadmin y no la tiene. Un testigo sin elector no se puede radicar, y
+ * hoy eso solo se descubría al armar el listado, cuando ya no hay margen.
+ */
+const TESTIGO_NECESITA_ELECTOR =
+  'Un testigo tiene que estar vinculado a un elector: de ahí sale la cédula que pide la Registraduría.'
+
 export interface CrearUsuarioInput {
   name:     string
   email:    string
@@ -147,6 +156,9 @@ export async function crearUsuario(input: CrearUsuarioInput) {
   if (input.password.length < 8) return { success: false, error: 'La contraseña debe tener al menos 8 caracteres.' }
   if (input.role === 'PERSONALIZADO' && !input.customRoleId) {
     return { success: false, error: 'Elige un rol personalizado.' }
+  }
+  if (input.role === 'TESTIGO' && !input.voterId) {
+    return { success: false, error: TESTIGO_NECESITA_ELECTOR }
   }
   if (input.role === 'SUPERADMIN') return { success: false, error: 'No puedes crear cuentas SUPERADMIN desde aquí.' }
 
@@ -185,8 +197,13 @@ export async function vincularUsuarioAElector(userId: string, voterId: string | 
   const session  = await requireAuth(['ADMIN_CAMPANA'])
   const tenantId = session.user.tenantId
 
-  const usuario = await superadminDb.user.findFirst({ where: { id: userId, tenantId }, select: { id: true } })
+  const usuario = await superadminDb.user.findFirst({ where: { id: userId, tenantId }, select: { id: true, role: true } })
   if (!usuario) return { success: false, error: 'Usuario no encontrado.' }
+
+  // Desvincular a un testigo lo deja sin cédula y por fuera del trámite.
+  if (!voterId && usuario.role === 'TESTIGO') {
+    return { success: false, error: TESTIGO_NECESITA_ELECTOR }
+  }
 
   if (voterId) {
     const db = getTenantDb(await getTenantConnection(tenantId))
