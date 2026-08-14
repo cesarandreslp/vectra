@@ -1551,6 +1551,71 @@ export async function getElectoresPorComuna(): Promise<ComunaGeo[]> {
     })
 }
 
+export interface BarrioGeo {
+  id:             string
+  name:           string
+  comunaName:     string
+  boundary:       [number, number][]
+  totalElectores: number
+  color:          string
+}
+
+/**
+ * Barrios con polígono real, para la vista de mapa "por barrio".
+ *
+ * Los electores se cuentan por `neighborhoodId` y no repitiendo el punto-en-
+ * polígono como en comunas: ese campo YA se resolvió con el mismo cálculo (ver
+ * `resolverBarrios`), así que rehacerlo sería el mismo resultado más caro.
+ *
+ * El color se reparte entre los barrios de CADA comuna, no del municipio
+ * entero: lo que hay que poder distinguir de un vistazo son los barrios
+ * vecinos, y son los de la misma comuna.
+ */
+export async function getElectoresPorBarrio(): Promise<BarrioGeo[]> {
+  const session  = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR', 'LIDER', 'TESTIGO'], 'CORE_DASHBOARD')
+  const db       = await obtenerDbTenant(session.user.tenantId)
+  const tenantId = session.user.tenantId
+
+  const [barrios, conteos] = await Promise.all([
+    db.neighborhood.findMany({
+      include: { commune: { select: { name: true } } },
+      orderBy: [{ communeId: 'asc' }, { name: 'asc' }],
+    }),
+    db.voter.groupBy({
+      by:    ['neighborhoodId'],
+      where: { tenantId, neighborhoodId: { not: null } },
+      _count: { _all: true },
+    }),
+  ])
+
+  const porBarrio = new Map<string, number>(
+    conteos.map((c: { neighborhoodId: string | null; _count: { _all: number } }) => [c.neighborhoodId!, c._count._all]),
+  )
+
+  // Igual que en comunas: los colores se calculan sobre la lista COMPLETA de
+  // cada comuna, antes de filtrar los que no tienen polígono. Si no, un barrio
+  // cambiaría de color según cuántos vecinos tengan boundary cargado.
+  const porComuna = new Map<string, string[]>()
+  for (const b of barrios) {
+    porComuna.set(b.communeId, [...(porComuna.get(b.communeId) ?? []), b.id])
+  }
+  const colores = new Map<string, string>()
+  for (const ids of porComuna.values()) {
+    for (const [id, color] of coloresPorZona(ids)) colores.set(id, color)
+  }
+
+  return barrios
+    .filter((b) => b.boundary !== null)
+    .map((b) => ({
+      id:             b.id,
+      name:           b.name,
+      comunaName:     b.commune.name,
+      boundary:       b.boundary as unknown as [number, number][],
+      totalElectores: porBarrio.get(b.id) ?? 0,
+      color:          colores.get(b.id)!,
+    }))
+}
+
 export interface StationOption {
   id:     string
   name:   string

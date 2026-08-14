@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import 'leaflet/dist/leaflet.css'
-import { geocodificarPendientes, type VoterGeo, type GeoStats, type StationGeo, type ComunaGeo, type CentroMunicipio } from '../actions'
+import { geocodificarPendientes, type VoterGeo, type GeoStats, type StationGeo, type ComunaGeo, type BarrioGeo, type CentroMunicipio } from '../actions'
 import { intensidadDeEstado, COLOR_TEMPERATURA, ETIQUETA_TEMPERATURA, GRADIENTE_CALOR } from '@/lib/temperatura'
 
 const COLOR_ESTADO: Record<string, string> = {
@@ -19,12 +19,13 @@ const COLOR_JURISDICCION: Record<StationGeo['estado'], string> = {
   NO_CUENTA: '#ef4444',
 }
 
-type Vista = 'residencia' | 'puesto' | 'comuna' | 'calor'
+type Vista = 'residencia' | 'puesto' | 'comuna' | 'barrio' | 'calor'
 
 const ETIQUETA_VISTA: Record<Vista, string> = {
   residencia: 'Por residencia',
   puesto:     'Por puesto de votación',
   comuna:     'Por comuna',
+  barrio:     'Por barrio',
   calor:      'Mapa de calor',
 }
 
@@ -57,6 +58,22 @@ function dibujarCapaComunas(L: typeof import('leaflet'), capa: import('leaflet')
   dibujarCapaResidencia(L, capa, puntos)
 }
 
+/**
+ * Mismo tratamiento que las comunas, un nivel más abajo. Los barrios se dibujan
+ * con más opacidad de borde porque son chicos y vecinos entre sí: con el borde
+ * fino de comuna, dos barrios pegados se leen como uno solo.
+ */
+function dibujarCapaBarrios(L: typeof import('leaflet'), capa: import('leaflet').FeatureGroup, barrios: BarrioGeo[], puntos: VoterGeo[]) {
+  barrios.forEach((b) => {
+    L.polygon(b.boundary, {
+      color: b.color, weight: 2, fillColor: b.color, fillOpacity: 0.35,
+    })
+      .bindPopup(`<b>${b.name}</b><br>${b.comunaName}<br>${b.totalElectores} elector(es)`)
+      .addTo(capa)
+  })
+  dibujarCapaResidencia(L, capa, puntos)
+}
+
 function dibujarCapaPuestos(L: typeof import('leaflet'), capa: import('leaflet').FeatureGroup, puestos: StationGeo[]) {
   for (const s of puestos) {
     L.circleMarker([s.lat, s.lng], {
@@ -78,8 +95,9 @@ const ZOOM_MUNICIPIO = 13
 /** Vista de arranque si la campaña aún no tiene municipio configurado. */
 const VISTA_COLOMBIA: [[number, number], number] = [[4.6, -74.08], 5]
 
-export function MapaElectores({ puntos, geoStats, puestos, comunas, centro }: {
+export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: barriosGeo, centro }: {
   puntos: VoterGeo[]; geoStats: GeoStats; puestos: StationGeo[]; comunas: ComunaGeo[]
+  barrios: BarrioGeo[]
   /** Centro del municipio configurado. null = sin municipio elegido todavía. */
   centro: CentroMunicipio | null
 }) {
@@ -99,14 +117,21 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, centro }: {
   const barrios = useMemo(() => {
     const m = new Map<string, string>()
     for (const p of puntos) if (p.neighborhoodId) m.set(p.neighborhoodId, p.neighborhoodName ?? p.neighborhoodId)
+    // También los que tienen polígono aunque no tengan a nadie ubicado: en la
+    // vista "por barrio" se dibujan, así que hay que poder filtrar por ellos.
+    for (const b of barriosGeo) m.set(b.id, b.name)
     return [...m].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
-  }, [puntos])
+  }, [puntos, barriosGeo])
 
   // Filtrar en el cliente: los puntos ya están todos acá, así que acotar no
   // cuesta una consulta más y el mapa reencuadra solo sobre lo que queda.
   const visibles = useMemo(
     () => (barrio ? puntos.filter((p) => p.neighborhoodId === barrio) : puntos),
     [puntos, barrio],
+  )
+  const barriosVisibles = useMemo(
+    () => (barrio ? barriosGeo.filter((b) => b.id === barrio) : barriosGeo),
+    [barriosGeo, barrio],
   )
 
   useEffect(() => {
@@ -168,6 +193,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, centro }: {
         const capa = L.featureGroup()
         if (vista === 'residencia')    dibujarCapaResidencia(L, capa, visibles)
         else if (vista === 'puesto')   dibujarCapaPuestos(L, capa, puestos)
+        else if (vista === 'barrio')   dibujarCapaBarrios(L, capa, barriosVisibles, visibles)
         else                           dibujarCapaComunas(L, capa, comunas, visibles)
         capa.addTo(mapa)
         capaRef.current = capa
@@ -180,7 +206,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, centro }: {
     return () => {
       cancelado = true
     }
-  }, [vista, visibles, puestos, comunas, centro])
+  }, [vista, visibles, puestos, comunas, barriosVisibles, centro])
 
   useEffect(() => () => {
     if (mapaRef.current) { mapaRef.current.remove(); mapaRef.current = null }
@@ -198,7 +224,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, centro }: {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-        {(['residencia', 'puesto', 'comuna', 'calor'] as const).map((v) => (
+        {(['residencia', 'puesto', 'comuna', 'barrio', 'calor'] as const).map((v) => (
           <button
             key={v}
             onClick={() => setVista(v)}
@@ -234,6 +260,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, centro }: {
       {vista === 'residencia' && <ControlesResidencia puntos={visibles} geoStats={geoStats} msg={msg} isPending={isPending} onUbicar={ubicar} />}
       {vista === 'puesto'     && <ControlesPuesto puestos={puestos} />}
       {vista === 'comuna'     && <ControlesComuna comunas={comunas} />}
+      {vista === 'barrio'     && <ControlesBarrio barrios={barriosVisibles} />}
       {vista === 'calor'      && <ControlesCalor puntos={visibles} />}
 
       <div
@@ -254,6 +281,11 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, centro }: {
       {vista === 'comuna' && comunas.length === 0 && (
         <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '0.5rem' }}>
           Todavía no hay comunas con límites cargados para este municipio.
+        </p>
+      )}
+      {vista === 'barrio' && barriosGeo.length === 0 && (
+        <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '0.5rem' }}>
+          Todavía no hay barrios con límites cargados. Se importan igual que las comunas.
         </p>
       )}
       {vista === 'calor' && puntos.length === 0 && (
@@ -337,6 +369,37 @@ function ControlesComuna({ comunas }: { comunas: ComunaGeo[] }) {
       </div>
       <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.4rem' }}>
         Solo cuenta electores ya ubicados en el mapa (vista "por residencia").
+      </p>
+    </div>
+  )
+}
+
+/**
+ * Leyenda de barrios. Lleva la comuna en el chip porque hay nombres de barrio
+ * que se repiten entre comunas, y sin eso dos chips iguales serían indistinguibles.
+ */
+function ControlesBarrio({ barrios }: { barrios: BarrioGeo[] }) {
+  const ordenados = [...barrios].sort((a, b) => b.totalElectores - a.totalElectores)
+  return (
+    <div style={{ marginBottom: '0.75rem' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+        {ordenados.map((b) => (
+          <span
+            key={b.id}
+            title={`${b.name} · ${b.comunaName}`}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+              background: '#f8fafc', color: '#334155', padding: '0.2rem 0.6rem',
+              borderRadius: 999, fontSize: '0.78rem', fontWeight: 600,
+            }}
+          >
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: b.color }} />
+            {b.name}: {b.totalElectores}
+          </span>
+        ))}
+      </div>
+      <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.4rem' }}>
+        Cuenta los electores cuyo barrio ya se resolvió, aunque el filtro de arriba muestre otro.
       </p>
     </div>
   )
