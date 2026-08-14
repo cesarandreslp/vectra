@@ -84,7 +84,7 @@ export function SelectorMesa({ comunas, voterId, onChange }: {
 
       {!cargando && communeId && puestos.length === 0 && (
         <span style={{ fontSize: '0.75rem', color: '#b45309' }}>
-          No hay puestos en esta comuna. Puede ser que falten geocodificar.
+          No hay mesas disponibles en esta comuna — o ya están todas cubiertas, o los puestos faltan geocodificar.
         </span>
       )}
 
@@ -106,10 +106,9 @@ export function SelectorMesa({ comunas, voterId, onChange }: {
         <select value={mesaId} onChange={(e) => elegirMesa(e.target.value)} style={inputStyle}>
           <option value="">Elige la mesa…</option>
           {puesto.mesas.map(m => (
-            <option key={m.id} value={m.id} disabled={m.ocupadaPor !== null}>
+            <option key={m.id} value={m.id}>
               Mesa {m.number}
               {m.esSuMesa ? ' — es su mesa de votación' : ''}
-              {m.ocupadaPor ? ` — ya la vigila ${m.ocupadaPor}` : ''}
             </option>
           ))}
         </select>

@@ -460,7 +460,8 @@ export interface PuestoParaTestigo {
   distanciaKm: number | null
   /** Es el puesto donde el testigo está inscrito para votar. */
   esDondeVota: boolean
-  mesas:   { id: string; number: number; ocupadaPor: string | null; esSuMesa: boolean }[]
+  /** Solo mesas LIBRES: las que ya vigila otro testigo no se ofrecen. */
+  mesas:   { id: string; number: number; esSuMesa: boolean }[]
 }
 
 /**
@@ -551,13 +552,12 @@ export async function puestosParaTestigo(
       select:  { id: true, name: true, address: true, lat: true, lng: true, tables: { select: { id: true, number: true }, orderBy: { number: 'asc' } } },
       orderBy: { name: 'asc' },
     }),
-    db.witnessAssignment.findMany({ where: { tenantId }, select: { votingTableId: true, userId: true } }),
+    db.witnessAssignment.findMany({ where: { tenantId }, select: { votingTableId: true } }),
   ])
 
-  const ocupadas = new Map<string, string>(
-    asignadas.map((a: { votingTableId: string; userId: string }) => [a.votingTableId, a.userId]),
+  const ocupadas = new Set<string>(
+    asignadas.map((a: { votingTableId: string }) => a.votingTableId),
   )
-  const nombres = await nombresDeTestigos([...new Set(ocupadas.values())], tenantId)
 
   const suMesaId    = elector?.votingTable?.id ?? null
   const suPuestoId  = elector?.votingTable?.stationId ?? null
@@ -597,6 +597,11 @@ export async function puestosParaTestigo(
       if (otras.some((pol: [number, number][]) => puntoEnPoligono([p.lat!, p.lng!], pol))) continue
     }
 
+    // Solo mesas libres. Un puesto sin ninguna mesa disponible no se ofrece:
+    // no hay nada que asignar ahí.
+    const mesasLibres = p.tables.filter(m => !ocupadas.has(m.id))
+    if (mesasLibres.length === 0) continue
+
     resultado.push({
       id: p.id, name: p.name, address: p.address,
       // El puesto donde vota queda a 0 sí o sí: aunque no esté geocodificado,
@@ -605,11 +610,7 @@ export async function puestosParaTestigo(
         : ubicado && ancla ? distanciaHaversineKm(ancla, { lat: p.lat!, lng: p.lng! })
         : null,
       esDondeVota: p.id === suPuestoId,
-      mesas: p.tables.map(m => ({
-        id: m.id, number: m.number,
-        ocupadaPor: ocupadas.has(m.id) ? (nombres.get(ocupadas.get(m.id)!) ?? 'otro testigo') : null,
-        esSuMesa:   m.id === suMesaId,
-      })),
+      mesas: mesasLibres.map(m => ({ id: m.id, number: m.number, esSuMesa: m.id === suMesaId })),
     })
   }
 
@@ -645,15 +646,6 @@ async function comunaDelPuesto(
     return pol?.length ? puntoEnPoligono([p.lat!, p.lng!], pol) : false
   })
   return encontrada?.id ?? null
-}
-
-async function nombresDeTestigos(userIds: string[], tenantId: string): Promise<Map<string, string>> {
-  if (userIds.length === 0) return new Map()
-  const users = await superadminDb.user.findMany({
-    where:  { id: { in: userIds }, tenantId },
-    select: { id: true, name: true, email: true },
-  })
-  return new Map(users.map(u => [u.id, u.name ?? u.email]))
 }
 
 export async function assignWitness(
