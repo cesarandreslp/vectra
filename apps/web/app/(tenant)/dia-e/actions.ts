@@ -371,18 +371,50 @@ export interface PuestoParaTestigo {
   id:      string
   name:    string
   address: string
-  /** km en línea recta desde el barrio (o la comuna). null = puesto sin geocodificar. */
+  /** km en línea recta desde el ancla (ver `motivo`). null = puesto sin geocodificar. */
   distanciaKm: number | null
-  mesas:   { id: string; number: number; ocupadaPor: string | null }[]
+  /** Es el puesto donde el testigo está inscrito para votar. */
+  esDondeVota: boolean
+  mesas:   { id: string; number: number; ocupadaPor: string | null; esSuMesa: boolean }[]
 }
 
 /**
- * Puestos donde puede quedar un testigo de esta comuna, del más cercano al más
- * lejano, con sus mesas y cuáles ya tienen testigo.
+ * Desde dónde se midió la cercanía. Es el orden de preferencia que pidió el
+ * usuario, del criterio más fuerte al más débil.
+ */
+export type MotivoPropuesta =
+  /** Vota en una mesa que está libre: esa misma mesa es la mejor asignación. */
+  | 'VOTA_AHI'
+  /** Su mesa ya la vigila otro, así que se busca lo más cerca de donde vota. */
+  | 'CERCA_DE_DONDE_VOTA'
+  /** No está inscrito en ninguna mesa: se mide desde donde vive. */
+  | 'CERCA_DE_DONDE_VIVE'
+  /** No se sabe ni dónde vota ni dónde vive: solo queda el centro de la comuna. */
+  | 'SIN_REFERENCIA'
+
+export interface PropuestaMesa {
+  motivo:  MotivoPropuesta
+  puestos: PuestoParaTestigo[]
+  /** Comuna que contiene el puesto donde vota — para preseleccionarla. */
+  comunaSugerida:  string | null
+  /** Mesa que se propone marcada de entrada. null = que elija el que asigna. */
+  mesaPropuesta:   string | null
+}
+
+/**
+ * Puestos donde puede quedar un testigo, del más cercano al más lejano.
  *
- * La cercanía se mide desde el centro del BARRIO si se eligió uno, y si no
- * desde el centro de la comuna. Es una propuesta, no una regla: la lista
- * completa queda disponible y se puede escoger cualquiera.
+ * El ancla de la distancia cambia según lo que se sepa de él, en este orden:
+ *
+ *   1. Si está inscrito para votar en una mesa LIBRE, esa mesa es la propuesta:
+ *      lo ideal es que el testigo vigile la mesa donde vota.
+ *   2. Si su mesa ya la vigila otro, se mide desde el PUESTO donde vota — el
+ *      reemplazo debería quedarle cerca de donde iba a estar de todos modos.
+ *   3. Si no está inscrito en ninguna mesa, se mide desde donde VIVE: sus
+ *      coordenadas si las tiene, si no el centro del barrio elegido.
+ *   4. Sin nada de eso, el centro de la comuna.
+ *
+ * Nada de esto obliga: la lista completa de la comuna queda disponible.
  *
  * ponytail: un puesto SIN lat/lng no se puede ubicar en ninguna comuna, así que
  * se devuelve igual (`distanciaKm: null`) en vez de desaparecer — hoy son 32 de
@@ -392,16 +424,19 @@ export interface PuestoParaTestigo {
 export async function puestosParaTestigo(
   communeId: string,
   neighborhoodId?: string,
-): Promise<PuestoParaTestigo[]> {
+  voterId?: string,
+): Promise<PropuestaMesa> {
   const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'])
 
   // Todas las comunas, no solo la elegida: hace falta saber si un puesto
   // pertenece a OTRA (y entonces se excluye) o a NINGUNA (y entonces entra acá,
   // porque si no sería inalcanzable desde cualquier comuna — le pasa a la
   // Cárcel de Buga, que está geocodificada fuera de todo polígono urbano).
+  const vacio: PropuestaMesa = { motivo: 'SIN_REFERENCIA', puestos: [], comunaSugerida: null, mesaPropuesta: null }
+
   const todas = await db.commune.findMany({ select: { id: true, boundary: true } })
   const comuna = todas.find((c: { id: string }) => c.id === communeId)
-  if (!comuna) return []
+  if (!comuna) return vacio
 
   const barrio = neighborhoodId
     ? await db.neighborhood.findFirst({ where: { id: neighborhoodId, communeId }, select: { boundary: true } })
@@ -414,7 +449,17 @@ export async function puestosParaTestigo(
       const pol = c.boundary as [number, number][] | null
       return pol?.length ? [pol] : []
     })
-  const ancla = centroDePoligono((barrio?.boundary as [number, number][] | null) ?? poligonoComuna)
+
+  // Dónde vota y dónde vive el testigo — de ahí sale el ancla.
+  const elector = voterId
+    ? await db.voter.findFirst({
+        where:  { id: voterId, tenantId },
+        select: {
+          lat: true, lng: true,
+          votingTable: { select: { id: true, stationId: true, station: { select: { lat: true, lng: true } } } },
+        },
+      })
+    : null
 
   const [puestos, asignadas] = await Promise.all([
     db.votingStation.findMany({
@@ -428,6 +473,32 @@ export async function puestosParaTestigo(
     asignadas.map((a: { votingTableId: string; userId: string }) => [a.votingTableId, a.userId]),
   )
   const nombres = await nombresDeTestigos([...new Set(ocupadas.values())], tenantId)
+
+  const suMesaId    = elector?.votingTable?.id ?? null
+  const suPuestoId  = elector?.votingTable?.stationId ?? null
+  const suMesaLibre = suMesaId !== null && !ocupadas.has(suMesaId)
+
+  // El ancla, en el orden de preferencia del negocio (ver el doc de arriba).
+  const puestoDondeVota = elector?.votingTable?.station
+  const coordsDondeVota = puestoDondeVota?.lat != null && puestoDondeVota.lng != null
+    ? { lat: puestoDondeVota.lat, lng: puestoDondeVota.lng }
+    : null
+  const coordsCasa = elector?.lat != null && elector.lng != null
+    ? { lat: elector.lat, lng: elector.lng }
+    : null
+
+  const centro = centroDePoligono((barrio?.boundary as [number, number][] | null) ?? poligonoComuna)
+
+  // El MOTIVO depende solo de si vota en algún lado y de si esa mesa está
+  // libre: "vota en esta mesa" no necesita coordenadas para ser cierto. Las
+  // coordenadas solo deciden desde dónde se mide el resto de la lista, y ahí sí
+  // se va cayendo a lo que haya.
+  const motivo: MotivoPropuesta =
+    suMesaId  ? (suMesaLibre ? 'VOTA_AHI' : 'CERCA_DE_DONDE_VOTA')
+    : coordsCasa || barrio ? 'CERCA_DE_DONDE_VIVE'
+    : 'SIN_REFERENCIA'
+
+  const ancla = (suMesaId ? coordsDondeVota : null) ?? coordsCasa ?? centro
 
   type PuestoDb = { id: string; name: string; address: string; lat: number | null; lng: number | null; tables: { id: string; number: number }[] }
   const resultado: PuestoParaTestigo[] = []
@@ -443,20 +514,52 @@ export async function puestosParaTestigo(
 
     resultado.push({
       id: p.id, name: p.name, address: p.address,
-      distanciaKm: ubicado && ancla ? distanciaHaversineKm(ancla, { lat: p.lat!, lng: p.lng! }) : null,
+      // El puesto donde vota queda a 0 sí o sí: aunque no esté geocodificado,
+      // más cerca de donde vota que él mismo no hay nada.
+      distanciaKm: p.id === suPuestoId ? 0
+        : ubicado && ancla ? distanciaHaversineKm(ancla, { lat: p.lat!, lng: p.lng! })
+        : null,
+      esDondeVota: p.id === suPuestoId,
       mesas: p.tables.map(m => ({
         id: m.id, number: m.number,
         ocupadaPor: ocupadas.has(m.id) ? (nombres.get(ocupadas.get(m.id)!) ?? 'otro testigo') : null,
+        esSuMesa:   m.id === suMesaId,
       })),
     })
   }
 
   // Más cerca primero; los que no se pueden ubicar, al final.
-  return resultado.sort((a, b) => {
+  resultado.sort((a, b) => {
     if (a.distanciaKm === null) return b.distanciaKm === null ? 0 : 1
     if (b.distanciaKm === null) return -1
     return a.distanciaKm - b.distanciaKm
   })
+
+  return {
+    motivo,
+    puestos: resultado,
+    comunaSugerida: suPuestoId ? await comunaDelPuesto(db, suPuestoId, todas) : null,
+    // Solo se propone mesa concreta cuando es la suya y está libre. Si está
+    // ocupada, el que asigna escoge: proponer una mesa cualquiera del mismo
+    // puesto sería inventar una decisión que nadie tomó.
+    mesaPropuesta: suMesaLibre ? suMesaId : null,
+  }
+}
+
+/** En qué comuna cae un puesto, para preseleccionarla en el formulario. */
+async function comunaDelPuesto(
+  db: ReturnType<typeof getTenantDb>,
+  stationId: string,
+  comunas: { id: string; boundary: unknown }[],
+): Promise<string | null> {
+  const p = await db.votingStation.findUnique({ where: { id: stationId }, select: { lat: true, lng: true } })
+  if (p?.lat == null || p.lng == null) return null
+
+  const encontrada = comunas.find((c) => {
+    const pol = c.boundary as [number, number][] | null
+    return pol?.length ? puntoEnPoligono([p.lat!, p.lng!], pol) : false
+  })
+  return encontrada?.id ?? null
 }
 
 async function nombresDeTestigos(userIds: string[], tenantId: string): Promise<Map<string, string>> {

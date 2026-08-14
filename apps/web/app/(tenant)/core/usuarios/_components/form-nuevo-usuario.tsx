@@ -122,7 +122,11 @@ export function FormNuevoUsuario({ roles, electores, comunas, onCancelar }: {
 
       {esTestigo && comunas.length > 0 && (
         <>
-          <SelectorMesa comunas={comunas} onChange={setVotingTableId} />
+          <SelectorMesa
+            comunas={comunas}
+            voterId={delPadron ? (voterId || undefined) : undefined}
+            onChange={setVotingTableId}
+          />
           {votingTableId && (
             <label style={radioStyle}>
               <input type="checkbox" checked={tambienVotaAhi} onChange={(e) => setTambienVotaAhi(e.target.checked)} />
