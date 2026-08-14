@@ -1253,8 +1253,12 @@ export interface TestigoGeo {
   /** Es el id del ELECTOR: el testigo no es otra entidad, es una condición suya. */
   id:     string
   name:   string
-  lat:    number
-  lng:    number
+  /** Dónde VIVE. null si su dirección no está geocodificada. */
+  lat:    number | null
+  lng:    number | null
+  /** Dónde VIGILA. null si no tiene mesa, o si su puesto no está geocodificado. */
+  puestoLat: number | null
+  puestoLng: number | null
   /** Mesa que vigila. null = todavía sin asignar. */
   mesa:   string | null
   puesto: string | null
@@ -1263,9 +1267,12 @@ export interface TestigoGeo {
 }
 
 export interface TestigosGeoResult {
+  /**
+   * TODOS los testigos, incluso los que no se pueden dibujar. Cuáles se dibujan
+   * depende de si el mapa está ubicando por casa o por puesto, y eso lo decide
+   * el cliente: filtrar acá dejaría fuera a los que sí se ven en el otro modo.
+   */
   testigos: TestigoGeo[]
-  /** Testigos que existen pero no se pueden dibujar: sin dirección geocodificada. */
-  sinUbicar: number
 }
 
 /**
@@ -1289,7 +1296,7 @@ export async function getTestigosGeo(): Promise<TestigosGeoResult> {
     where:  { tenantId, role: 'TESTIGO', isActive: true, voterId: { not: null } },
     select: { id: true, voterId: true },
   })
-  if (usuarios.length === 0) return { testigos: [], sinUbicar: 0 }
+  if (usuarios.length === 0) return { testigos: [] }
 
   const voterIds = usuarios.map((u) => u.voterId!)
 
@@ -1307,7 +1314,7 @@ export async function getTestigosGeo(): Promise<TestigosGeoResult> {
   const mesas = asignaciones.length > 0
     ? await db.votingTable.findMany({
         where:  { id: { in: asignaciones.map((a) => a.votingTableId) } },
-        select: { id: true, number: true, station: { select: { name: true } } },
+        select: { id: true, number: true, station: { select: { name: true, lat: true, lng: true } } },
       })
     : []
 
@@ -1316,23 +1323,23 @@ export async function getTestigosGeo(): Promise<TestigosGeoResult> {
   const voterPorId  = new Map(electores.map((e) => [e.id, e]))
 
   const testigos: TestigoGeo[] = []
-  let sinUbicar = 0
 
   for (const u of usuarios) {
     const elector = voterPorId.get(u.voterId!)
     if (!elector) continue
-    if (elector.lat == null || elector.lng == null) { sinUbicar++; continue }
 
     const mesa = mesaPorUser.get(u.id)
     testigos.push({
       id: elector.id, name: elector.name, lat: elector.lat, lng: elector.lng,
+      puestoLat: mesa?.station.lat ?? null,
+      puestoLng: mesa?.station.lng ?? null,
       mesa:   mesa ? `Mesa ${mesa.number}` : null,
       puesto: mesa ? mesa.station.name : null,
       neighborhoodId: elector.neighborhoodId,
     })
   }
 
-  return { testigos, sinUbicar }
+  return { testigos }
 }
 
 /**

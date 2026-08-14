@@ -21,6 +21,9 @@ const COLOR_JURISDICCION: Record<StationGeo['estado'], string> = {
 
 type Vista = 'residencia' | 'puesto' | 'comuna' | 'barrio' | 'testigos' | 'calor'
 
+/** En la vista Testigos: dibujar cada testigo en su casa o en el puesto que vigila. */
+type UbicarPor = 'residencia' | 'puesto'
+
 const ETIQUETA_VISTA: Record<Vista, string> = {
   residencia: 'Por residencia',
   puesto:     'Por puesto de votación',
@@ -83,10 +86,13 @@ function dibujarCapaBarrios(L: typeof import('leaflet'), capa: import('leaflet')
  * elector, no otra entidad, así que el punto es el mismo de "por residencia".
  * El color dice lo único que importa acá: si ya tiene mesa o no.
  */
-function dibujarCapaTestigos(L: typeof import('leaflet'), capa: import('leaflet').FeatureGroup, testigos: TestigosGeoResult['testigos']) {
+function dibujarCapaTestigos(L: typeof import('leaflet'), capa: import('leaflet').FeatureGroup, testigos: TestigosGeoResult['testigos'], ubicarPor: UbicarPor) {
   for (const t of testigos) {
+    const lat = ubicarPor === 'puesto' ? t.puestoLat : t.lat
+    const lng = ubicarPor === 'puesto' ? t.puestoLng : t.lng
+    if (lat == null || lng == null) continue
     const color = t.mesa ? COLOR_TESTIGO.conMesa : COLOR_TESTIGO.sinMesa
-    L.circleMarker([t.lat, t.lng], {
+    L.circleMarker([lat, lng], {
       radius: 9, weight: 2, color: '#fff', fillOpacity: 1, fillColor: color,
     })
       .bindPopup(
@@ -131,6 +137,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const heatCapaRef = useRef<any>(null)
   const [vista, setVista] = useState<Vista>('residencia')
+  const [ubicarPor, setUbicarPor] = useState<UbicarPor>('residencia')
   const [barrio, setBarrio] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -222,7 +229,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
         if (vista === 'residencia')    dibujarCapaResidencia(L, capa, visibles)
         else if (vista === 'puesto')   dibujarCapaPuestos(L, capa, puestos)
         else if (vista === 'barrio')   dibujarCapaBarrios(L, capa, barriosVisibles, visibles)
-        else if (vista === 'testigos') dibujarCapaTestigos(L, capa, testigosVisibles)
+        else if (vista === 'testigos') dibujarCapaTestigos(L, capa, testigosVisibles, ubicarPor)
         else                           dibujarCapaComunas(L, capa, comunas, visibles)
         capa.addTo(mapa)
         capaRef.current = capa
@@ -235,7 +242,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
     return () => {
       cancelado = true
     }
-  }, [vista, visibles, puestos, comunas, barriosVisibles, testigosVisibles, centro])
+  }, [vista, ubicarPor, visibles, puestos, comunas, barriosVisibles, testigosVisibles, centro])
 
   useEffect(() => () => {
     if (mapaRef.current) { mapaRef.current.remove(); mapaRef.current = null }
@@ -290,7 +297,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
       {vista === 'puesto'     && <ControlesPuesto puestos={puestos} />}
       {vista === 'comuna'     && <ControlesComuna comunas={comunas} />}
       {vista === 'barrio'     && <ControlesBarrio barrios={barriosVisibles} />}
-      {vista === 'testigos'   && <ControlesTestigos testigos={testigosVisibles} sinUbicar={testigos.sinUbicar} />}
+      {vista === 'testigos'   && <ControlesTestigos testigos={testigosVisibles} ubicarPor={ubicarPor} onUbicarPor={setUbicarPor} />}
       {vista === 'calor'      && <ControlesCalor puntos={visibles} />}
 
       <div
@@ -320,9 +327,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
       )}
       {vista === 'testigos' && testigos.testigos.length === 0 && (
         <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '0.5rem' }}>
-          {testigos.sinUbicar > 0
-            ? `Hay ${testigos.sinUbicar} testigo(s), pero ninguno tiene dirección ubicada en el mapa.`
-            : 'Todavía no hay testigos. Se crean en Usuarios y testigos.'}
+          Todavía no hay testigos. Se crean en Usuarios y testigos.
         </p>
       )}
       {vista === 'calor' && puntos.length === 0 && (
@@ -415,11 +420,18 @@ function ControlesComuna({ comunas }: { comunas: ComunaGeo[] }) {
  * Leyenda de testigos. Los que no tienen mesa son el dato accionable: son
  * capacidad disponible para cubrir las mesas que siguen descubiertas.
  */
-function ControlesTestigos({ testigos, sinUbicar }: {
-  testigos: TestigosGeoResult['testigos']; sinUbicar: number
+function ControlesTestigos({ testigos, ubicarPor, onUbicarPor }: {
+  testigos: TestigosGeoResult['testigos']
+  ubicarPor: UbicarPor
+  onUbicarPor: (u: UbicarPor) => void
 }) {
   const conMesa = testigos.filter((t) => t.mesa).length
   const sinMesa = testigos.length - conMesa
+  // Quiénes se quedan sin dibujar depende del modo: por casa, los sin dirección
+  // geocodificada; por puesto, los sin mesa o cuyo puesto no está geocodificado.
+  const sinUbicar = ubicarPor === 'puesto'
+    ? testigos.filter((t) => t.puestoLat == null).length
+    : testigos.filter((t) => t.lat == null).length
 
   return (
     <div style={{ marginBottom: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', fontSize: '0.8rem' }}>
@@ -431,9 +443,27 @@ function ControlesTestigos({ testigos, sinUbicar }: {
         <span style={{ width: 9, height: 9, borderRadius: '50%', background: COLOR_TESTIGO.sinMesa }} />
         Sin mesa: {sinMesa}
       </span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#64748b' }}>
+        Ubicar por:
+        {(['residencia', 'puesto'] as const).map((u) => (
+          <button
+            key={u}
+            type="button"
+            onClick={() => onUbicarPor(u)}
+            style={{
+              padding: '0.15rem 0.55rem', borderRadius: 999, border: '1px solid #e2e8f0', cursor: 'pointer',
+              background: ubicarPor === u ? '#0f172a' : '#f1f5f9',
+              color:      ubicarPor === u ? '#fff' : '#475569',
+              fontWeight: 600,
+            }}
+          >
+            {u === 'residencia' ? 'residencia' : 'puesto'}
+          </button>
+        ))}
+      </span>
       {sinUbicar > 0 && (
         <span style={{ color: '#94a3b8' }}>
-          {sinUbicar} sin dirección ubicada — no salen en el mapa
+          {sinUbicar} {ubicarPor === 'puesto' ? 'sin puesto ubicable' : 'sin dirección ubicada'} — no salen en el mapa
         </span>
       )}
     </div>
