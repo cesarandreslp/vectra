@@ -170,7 +170,7 @@ async function main() {
 
   const [candidato, barrios, mesas, asignadasYa] = await Promise.all([
     db.voter.findFirst({ where: { tenantId: tenant.id, isCandidate: true }, select: { id: true, name: true } }),
-    db.neighborhood.findMany({ select: { name: true, boundary: true } }),
+    db.neighborhood.findMany({ select: { id: true, name: true, boundary: true } }),
     db.votingTable.findMany({
       select:  { id: true, number: true, station: { select: { name: true } } },
       orderBy: [{ stationId: 'asc' }, { number: 'asc' }],
@@ -181,7 +181,7 @@ async function main() {
   if (!candidato) throw new Error('No hay candidato marcado (isCandidate) — los testigos cuelgan de él')
   const conPoligono = barrios.flatMap((b) => {
     const pol = b.boundary as Punto[] | null
-    return pol?.length ? [{ name: b.name, pol }] : []
+    return pol?.length ? [{ id: b.id, name: b.name, pol }] : []
   })
   if (conPoligono.length === 0) throw new Error('No hay barrios con polígono para ubicar a los testigos')
 
@@ -236,6 +236,9 @@ async function main() {
         phone:         encrypt(celular()),
         address:       direccion(barrio.name),
         lat, lng,
+        // El barrio no se digita, pero acá lo SABEMOS: es el polígono en que se
+        // generó el punto. Guardarlo es lo que hace que el filtro por barrio los vea.
+        neighborhoodId: barrio.id,
         leaderId:      candidato.id,
         // Vota en la mesa que va a vigilar — el caso ideal del criterio 1.
         votingTableId: mesa?.id,

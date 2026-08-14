@@ -21,6 +21,7 @@
     "db:import-corregimientos-y-barrios": "tsx src/import-corregimientos-y-barrios.ts",
     "db:import-puestos-buga": "tsx src/import-puestos-buga.ts",
     "db:geocodificar-puestos-buga": "tsx src/geocodificar-puestos-buga.ts",
+    "db:resolver-barrios": "tsx src/resolver-barrios.ts",
     "db:sembrar-red-prueba-buga": "tsx src/sembrar-red-prueba-buga.ts",
     "db:sembrar-testigos-prueba": "tsx src/sembrar-testigos-prueba.ts",
     "db:backfill-qr-electores": "tsx src/backfill-qr-electores.ts",
