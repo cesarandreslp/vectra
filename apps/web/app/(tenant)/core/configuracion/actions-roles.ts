@@ -13,6 +13,7 @@ import { revalidatePath } from 'next/cache'
 import bcrypt from 'bcryptjs'
 import { type UserRole } from '@vectra/auth'
 import { SCREENS } from '@/lib/screens'
+import { createVoter } from '../actions'
 
 /** ELECTOR nunca tiene fila en User (solo de sesión) — un staff no puede tener ese rol. */
 export type StaffRole = Exclude<UserRole, 'ELECTOR'>
@@ -135,9 +136,14 @@ export async function listarUsuarios(): Promise<UsuarioView[]> {
  * la CÉDULA, que vive cifrada en su ficha de `Voter` — el `User` está en la BD
  * del superadmin y no la tiene. Un testigo sin elector no se puede radicar, y
  * hoy eso solo se descubría al armar el listado, cuando ya no hay margen.
+ *
+ * Pero "todo testigo es elector" NO significa que haya que escogerlo del padrón:
+ * lo normal es que el testigo sea gente nueva, y al crearlo se le arma su ficha
+ * de elector colgada del candidato. Escoger a alguien que YA está en el padrón
+ * es el otro camino, no el principal.
  */
 const TESTIGO_NECESITA_ELECTOR =
-  'Un testigo tiene que estar vinculado a un elector: de ahí sale la cédula que pide la Registraduría.'
+  'Un testigo tiene que quedar como elector: escribe su cédula, o escógelo del padrón si ya está.'
 
 export interface CrearUsuarioInput {
   name:     string
@@ -145,35 +151,81 @@ export interface CrearUsuarioInput {
   password: string
   role:     StaffRole
   customRoleId?: string
+  /** Elector que YA existe en el padrón. Excluyente con `cedula`. */
   voterId?:      string
+  /** Cédula para crearle la ficha de elector al testigo nuevo. */
+  cedula?:       string
+  phone?:        string
 }
 
 export async function crearUsuario(input: CrearUsuarioInput) {
   const session = await requireAuth(['ADMIN_CAMPANA'])
 
-  if (!input.name.trim())  return { success: false, error: 'Falta el nombre.' }
+  const tenantId = session.user.tenantId
+
   if (!input.email.trim()) return { success: false, error: 'Falta el correo.' }
   if (input.password.length < 8) return { success: false, error: 'La contraseña debe tener al menos 8 caracteres.' }
   if (input.role === 'PERSONALIZADO' && !input.customRoleId) {
     return { success: false, error: 'Elige un rol personalizado.' }
   }
-  if (input.role === 'TESTIGO' && !input.voterId) {
-    return { success: false, error: TESTIGO_NECESITA_ELECTOR }
-  }
   if (input.role === 'SUPERADMIN') return { success: false, error: 'No puedes crear cuentas SUPERADMIN desde aquí.' }
+
+  let voterId = input.voterId || null
+  let nombre  = input.name.trim()
+
+  if (voterId) {
+    // Viene del padrón: el nombre ya está en su ficha, no se vuelve a digitar.
+    const db      = getTenantDb(await getTenantConnection(tenantId))
+    const elector = await db.voter.findFirst({ where: { id: voterId, tenantId }, select: { name: true } })
+    if (!elector) return { success: false, error: 'Ese elector no existe en esta campaña.' }
+    if (!nombre) nombre = elector.name
+
+    // Un elector no puede ser dos cuentas: si no, ambas escribirían el mismo
+    // perfil y responderían por las mismas actividades.
+    const ocupado = await superadminDb.user.findFirst({
+      where:  { tenantId, voterId },
+      select: { email: true },
+    })
+    if (ocupado) return { success: false, error: `Ese elector ya está vinculado a ${ocupado.email}.` }
+
+  } else if (input.role === 'TESTIGO') {
+    // Testigo nuevo: se le crea la ficha de elector colgada del candidato. Va
+    // ANTES de crear la cuenta — si la cédula está repetida, preferible no
+    // dejar un User huérfano sin elector.
+    if (!input.cedula?.trim()) return { success: false, error: TESTIGO_NECESITA_ELECTOR }
+    if (!nombre) return { success: false, error: 'Falta el nombre.' }
+
+    const db        = getTenantDb(await getTenantConnection(tenantId))
+    const candidato = await db.voter.findFirst({
+      where:  { tenantId, isCandidate: true },
+      select: { id: true },
+    })
+
+    const creado = await createVoter({
+      name:   nombre,
+      cedula: input.cedula.trim(),
+      phone:  input.phone?.trim() || undefined,
+      // Sin candidato marcado queda en la raíz del árbol, no bloquea.
+      leaderId: candidato?.id,
+    })
+    if (!creado.success) return { success: false, error: creado.error }
+    voterId = creado.voterId
+  }
+
+  if (!nombre) return { success: false, error: 'Falta el nombre.' }
 
   const passwordHash = await bcrypt.hash(input.password, 12)
 
   try {
     await superadminDb.user.create({
       data: {
-        tenantId:     session.user.tenantId,
-        name:         input.name.trim(),
+        tenantId,
+        name:         nombre,
         email:        input.email.trim().toLowerCase(),
         passwordHash,
         role:         input.role,
         customRoleId: input.role === 'PERSONALIZADO' ? input.customRoleId : null,
-        voterId:      input.voterId || null,
+        voterId,
         isActive:     true,
       },
     })
@@ -182,6 +234,7 @@ export async function crearUsuario(input: CrearUsuarioInput) {
   }
 
   revalidatePath('/core/usuarios')
+  revalidatePath('/core/electores')
   return { success: true }
 }
 
@@ -202,7 +255,10 @@ export async function vincularUsuarioAElector(userId: string, voterId: string | 
 
   // Desvincular a un testigo lo deja sin cédula y por fuera del trámite.
   if (!voterId && usuario.role === 'TESTIGO') {
-    return { success: false, error: TESTIGO_NECESITA_ELECTOR }
+    return {
+      success: false,
+      error: 'No puedes dejar a un testigo sin elector: ahí vive la cédula que pide la Registraduría.',
+    }
   }
 
   if (voterId) {
