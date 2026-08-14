@@ -367,6 +367,91 @@ export async function comunasParaTestigo(): Promise<ComunaConBarrios[]> {
   }))
 }
 
+/**
+ * Qué mesa vigila cada testigo, ya legible ("Mesa 5 · Ie Gran Colombia").
+ *
+ * Va aparte de `listarUsuarios` porque los User viven en la BD del superadmin y
+ * las asignaciones en la del tenant: no hay join posible, se cruzan por id.
+ */
+export async function mesasDeTestigos(): Promise<Record<string, string>> {
+  const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'])
+
+  // WitnessAssignment.votingTableId es un id suelto (sin relación en el schema),
+  // así que la mesa se trae aparte y se cruza acá.
+  const asignaciones = await db.witnessAssignment.findMany({
+    where:  { tenantId },
+    select: { userId: true, votingTableId: true },
+  })
+  if (asignaciones.length === 0) return {}
+
+  const mesas = await db.votingTable.findMany({
+    where:  { id: { in: asignaciones.map((a: { votingTableId: string }) => a.votingTableId) } },
+    select: { id: true, number: true, station: { select: { name: true } } },
+  })
+  const porId = new Map(
+    (mesas as { id: string; number: number; station: { name: string } }[])
+      .map(m => [m.id, `Mesa ${m.number} · ${m.station.name}`]),
+  )
+
+  const salida: Record<string, string> = {}
+  for (const a of asignaciones as { userId: string; votingTableId: string }[]) {
+    const etiqueta = porId.get(a.votingTableId)
+    if (etiqueta) salida[a.userId] = etiqueta
+  }
+  return salida
+}
+
+export interface CoberturaPuesto {
+  id:       string
+  name:     string
+  /** Números de mesa que todavía no tienen testigo, en orden. */
+  sinTestigo: number[]
+  total:    number
+}
+
+export interface Cobertura {
+  mesasTotales: number
+  conTestigo:   number
+  puestos:      CoberturaPuesto[]
+}
+
+/**
+ * Qué mesas siguen sin testigo, agrupadas por puesto.
+ *
+ * Se recalcula en cada carga en vez de guardarse: es una consulta barata y una
+ * cifra de cobertura desactualizada el día de la elección es peor que ninguna.
+ * Los puestos ya cubiertos no se devuelven — la lista es de lo que FALTA.
+ */
+export async function coberturaDeMesas(): Promise<Cobertura> {
+  const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'])
+
+  const [puestos, asignadas] = await Promise.all([
+    db.votingStation.findMany({
+      select:  { id: true, name: true, tables: { select: { id: true, number: true }, orderBy: { number: 'asc' } } },
+      orderBy: { name: 'asc' },
+    }),
+    db.witnessAssignment.findMany({ where: { tenantId }, select: { votingTableId: true } }),
+  ])
+
+  const cubiertas = new Set(asignadas.map((a: { votingTableId: string }) => a.votingTableId))
+
+  let mesasTotales = 0
+  const conFaltantes: CoberturaPuesto[] = []
+
+  for (const p of puestos as { id: string; name: string; tables: { id: string; number: number }[] }[]) {
+    mesasTotales += p.tables.length
+    const sinTestigo = p.tables.filter(m => !cubiertas.has(m.id)).map(m => m.number)
+    if (sinTestigo.length > 0) {
+      conFaltantes.push({ id: p.id, name: p.name, sinTestigo, total: p.tables.length })
+    }
+  }
+
+  // Lo más descubierto primero: es por donde hay que empezar a nombrar testigos.
+  conFaltantes.sort((a, b) => b.sinTestigo.length - a.sinTestigo.length)
+
+  return { mesasTotales, conTestigo: cubiertas.size, puestos: conFaltantes }
+}
+
 export interface PuestoParaTestigo {
   id:      string
   name:    string

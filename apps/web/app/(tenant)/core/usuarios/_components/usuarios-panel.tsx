@@ -4,11 +4,14 @@ import { useState } from 'react'
 import { alternarUsuarioActivo, vincularUsuarioAElector, type UsuarioView } from '../../configuracion/actions-roles'
 import { type CustomRoleView } from '../../configuracion/actions-roles'
 import { FormNuevoUsuario, type VoterOption } from './form-nuevo-usuario'
+import { AsignarMesa } from './asignar-mesa'
 import type { ComunaConBarrios } from '../../../dia-e/actions'
 
-export function UsuariosPanel({ usuarios: usuariosIniciales, roles, electores, comunas }: {
+export function UsuariosPanel({ usuarios: usuariosIniciales, roles, electores, comunas, mesas }: {
   usuarios: UsuarioView[]; roles: CustomRoleView[]; electores: VoterOption[]
   comunas: ComunaConBarrios[]
+  /** userId → mesa que vigila, ya legible. Sin entrada = sin mesa asignada. */
+  mesas: Record<string, string>
 }) {
   const [usuarios, setUsuarios] = useState(usuariosIniciales)
   const [creando, setCreando] = useState(false)
@@ -28,7 +31,7 @@ export function UsuariosPanel({ usuarios: usuariosIniciales, roles, electores, c
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
       {usuarios.map((u) => (
-        <div key={u.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.75rem 1rem' }}>
+        <div key={u.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.75rem 1rem' }}>
           <div>
             <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{u.name ?? u.email}</div>
             <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
@@ -47,6 +50,15 @@ export function UsuariosPanel({ usuarios: usuariosIniciales, roles, electores, c
                 {electores.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
               </select>
             </label>
+
+            {/* Solo a los testigos: es el único rol que vigila una mesa. */}
+            {u.role === 'TESTIGO' && comunas.length > 0 && (
+              mesas[u.id]
+                ? <div style={{ fontSize: '0.72rem', color: '#166534', marginTop: '0.35rem', fontWeight: 600 }}>
+                    {mesas[u.id]}
+                  </div>
+                : <AsignarMesa userId={u.id} voterId={u.voterId} comunas={comunas} />
+            )}
           </div>
           <button
             onClick={() => onAlternar(u.id, u.isActive)}
