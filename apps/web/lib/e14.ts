@@ -100,6 +100,59 @@ export function actaEsDeLaMesa(
   return parseInt(digitos, 10) === mesaDelSistema
 }
 
+/**
+ * Palabras que encabezan medio directorio de puestos y no distinguen a ninguno.
+ * Sin quitarlas, "Colegio San José" y "Colegio San Antonio" comparten dos de
+ * tres palabras y nada se podría separar.
+ */
+const RELLENO_PUESTO = new Set([
+  'institucion', 'institucional', 'educativa', 'educativo', 'instituto', 'colegio',
+  'escuela', 'liceo', 'centro', 'sede', 'puesto', 'normal', 'superior', 'tecnico',
+  'tecnica', 'iglesia', 'salon', 'comunal', 'san', 'santa', 'nuestra', 'senora',
+  'de', 'del', 'la', 'el', 'los', 'las', 'y',
+])
+
+/** Palabras con las que un puesto se distingue de otro. */
+function tokensPuesto(nombre: string | null | undefined): Set<string> {
+  if (!nombre) return new Set()
+  return new Set(
+    clave(nombre)
+      .replace(/[^a-z0-9 ]/g, ' ')
+      .split(/\s+/)
+      // Menos de 3 letras es ruido de OCR o una letra de sede, no un nombre.
+      .filter(t => t.length >= 3 && !RELLENO_PUESTO.has(t)),
+  )
+}
+
+/**
+ * ¿El acta fotografiada es la de ESTE puesto?
+ *
+ * Hace falta además de `actaEsDeLaMesa` porque el número de mesa se repite entre
+ * puestos: en un municipio con decenas de puestos hay muchas "mesa 1", y sin
+ * mirar el puesto el acta de la mesa 1 del colegio de al lado pasa como propia.
+ *
+ * ponytail: heurística de solapamiento — solo marca cuando los dos nombres no
+ * comparten NI UNA palabra distintiva. Techo conocido: no separa puestos de
+ * nombre parecido ("Sede A" vs "Sede B" del mismo colegio). Es el lado seguro
+ * del error: el día de la elección una alerta falsa quema la confianza en TODAS
+ * las alertas. Si algún día el puesto tiene código DIVIPOLA propio en
+ * VotingStation, comparar por código y borrar esto.
+ *
+ * `null` = no se puede saber (la IA no leyó el puesto, o lo que leyó no dejó
+ * ninguna palabra distintiva). Un "no se sabe" no es un "no coincide".
+ */
+export function actaEsDelPuesto(
+  actaPuestoNombre: string | null | undefined,
+  puestoDelSistema: string,
+): boolean | null {
+  const acta   = tokensPuesto(actaPuestoNombre)
+  const propio = tokensPuesto(puestoDelSistema)
+  if (acta.size === 0 || propio.size === 0) return null
+
+  for (const t of acta) if (propio.has(t)) return true
+  return false
+}
+
 /** Filas del acta que no son un candidato del tarjetón. */
 export const VOTOS_BLANCO = 'VOTOS_BLANCO'
 export const VOTOS_NULOS  = 'VOTOS_NULOS'

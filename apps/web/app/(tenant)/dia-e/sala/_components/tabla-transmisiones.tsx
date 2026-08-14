@@ -73,18 +73,20 @@ export function TablaTransmisiones({
                 >
                   <td style={tdStyle}>
                     {tx.tableNumber}
-                    {/* El acta fotografiada dice ser de otra mesa: o el testigo
-                        fotografió el papel equivocado, o hay algo peor. */}
+                    {/* El acta fotografiada dice ser de otra mesa o de otro
+                        puesto: o el testigo fotografió el papel equivocado, o
+                        hay algo peor. El detalle va en el title porque el nombre
+                        de un puesto no cabe en la celda. */}
                     {tx.actaCruzada && (
                       <span
-                        title={`El acta fotografiada dice mesa ${tx.actaMesaNumero}, no ${tx.tableNumber}`}
+                        title={`El acta fotografiada dice ${tx.actaCruzadaDetalle} — la asignada es la mesa ${tx.tableNumber} de ${tx.stationName}`}
                         style={{
                           marginLeft: '0.4rem', padding: '0.1rem 0.4rem', borderRadius: '9999px',
                           background: '#fee2e2', color: '#991b1b', fontSize: '0.65rem', fontWeight: 700,
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        acta de la {tx.actaMesaNumero}
+                        otra acta
                       </span>
                     )}
                   </td>

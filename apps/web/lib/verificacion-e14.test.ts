@@ -9,7 +9,7 @@
  */
 import assert from 'node:assert/strict'
 import { verificarTresFuentes } from './verificacion-e14'
-import { normalizarClavesE14, actaEsDeLaMesa } from './e14'
+import { normalizarClavesE14, actaEsDeLaMesa, actaEsDelPuesto } from './e14'
 
 const acta = [
   { candidateId: 'c1', votes: 87 },
@@ -160,6 +160,30 @@ function main() {
   assert.equal(actaEsDeLaMesa(null, 7),        null)
   assert.equal(actaEsDeLaMesa('', 7),          null)
   assert.equal(actaEsDeLaMesa('ilegible', 7),  null)
+
+  // ── …y del puesto, porque el número de mesa se repite entre puestos ───────
+  // Este es el hueco que el número de mesa solo NO cierra: la mesa 1 existe en
+  // los 51 puestos del municipio.
+  assert.equal(
+    actaEsDelPuesto('COLEGIO SANTA LIBRADA', 'Escuela Jhon F. Kennedy'),
+    false,
+    'mesa 1 del puesto de al lado: eso es lo que hay que cazar',
+  )
+
+  // El OCR nunca devuelve el nombre igual que la BD: abrevia, pierde tildes,
+  // cambia el genérico. Con que compartan UNA palabra distintiva, pasa.
+  assert.equal(actaEsDelPuesto('INST EDUC JHON F KENNEDY', 'Escuela Jhon F. Kennedy'), true)
+  assert.equal(actaEsDelPuesto('ESCUELA SAN JOSE', 'Colegio San José'), true, 'sin tildes')
+  assert.equal(actaEsDelPuesto('I.E. SANTA LIBRADA SEDE B', 'Colegio Santa Librada'), true)
+
+  // Las palabras de relleno no alcanzan para dar por bueno un puesto: si
+  // "colegio" contara, cualquier colegio pasaría por cualquier otro.
+  assert.equal(actaEsDelPuesto('COLEGIO SAN ANTONIO', 'Colegio San José'), false)
+
+  // "No se sabe" tampoco es "no coincide", igual que con la mesa.
+  assert.equal(actaEsDelPuesto(null, 'Colegio San José'),        null)
+  assert.equal(actaEsDelPuesto('PUESTO', 'Colegio San José'),    null, 'solo relleno: no dice nada')
+  assert.equal(actaEsDelPuesto('COLEGIO SAN JOSE', ''),          null, 'sin puesto en el sistema')
 
   console.log('verificacion-e14: OK')
 }

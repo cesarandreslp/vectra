@@ -85,14 +85,15 @@ export function consensoE14(
   }
 
   const totalVotos = lecturaA.totalVotos ?? lecturaB.totalVotos
-  const mesaNumero = lecturaA.mesaNumero ?? lecturaB.mesaNumero
+  const mesaNumero   = lecturaA.mesaNumero ?? lecturaB.mesaNumero
+  const puestoNombre = lecturaA.puestoNombre ?? lecturaB.puestoNombre
 
   if (discrepancies.length === 0) {
     return {
       confidence: 'ALTA',
       discrepancies,
       data: {
-        candidatos: mergedCandidatos, totalVotos, mesaNumero,
+        candidatos: mergedCandidatos, totalVotos, mesaNumero, puestoNombre,
         rawResponse: `consenso:ALTA a:${lecturaA.rawResponse.slice(0, 100)}`,
       },
     }
@@ -103,7 +104,7 @@ export function consensoE14(
       confidence: 'MEDIA',
       discrepancies,
       data: {
-        candidatos: mergedCandidatos, totalVotos, mesaNumero,
+        candidatos: mergedCandidatos, totalVotos, mesaNumero, puestoNombre,
         rawResponse: `consenso:MEDIA disc:${discrepancies[0]}`,
       },
     }
@@ -117,7 +118,8 @@ export function consensoE14(
     data: {
       candidatos:  lecturaA.candidatos,
       totalVotos:  lecturaA.totalVotos,
-      mesaNumero:  lecturaA.mesaNumero,
+      mesaNumero:   lecturaA.mesaNumero,
+      puestoNombre: lecturaA.puestoNombre,
       rawResponse: `consenso:BAJA disc:${discrepancies.join(',')}`,
     },
   }

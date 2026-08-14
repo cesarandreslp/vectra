@@ -23,5 +23,11 @@ export interface E14ExtractionResult {
   candidatos: { numero: number | null; nombre: string; votos: number | null }[]
   totalVotos: number | null
   mesaNumero: string | null
+  /**
+   * Nombre del puesto impreso en el encabezado del acta. Va junto a mesaNumero
+   * porque el número de mesa se repite entre puestos: sin el puesto, el acta de
+   * la mesa 1 de otro colegio pasa por la mesa 1 propia.
+   */
+  puestoNombre: string | null
   rawResponse: string // para auditoría
 }

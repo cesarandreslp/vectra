@@ -17,7 +17,8 @@ export const E14_SYSTEM_PROMPT = `Eres un sistema de extracción de datos de for
 Extrae TODOS los candidatos y sus votos del formulario.
 El tarjetón va NUMERADO: cada renglón tiene su número impreso a la izquierda. Ese número es la identidad del candidato — cópialo tal cual, no lo deduzcas por la posición.
 Responde SOLO con JSON válido en este formato exacto:
-{ "candidatos": [{ "numero": number, "nombre": "string", "votos": number }], "totalVotos": number, "mesaNumero": "string" }
+{ "candidatos": [{ "numero": number, "nombre": "string", "votos": number }], "totalVotos": number, "mesaNumero": "string", "puestoNombre": "string" }
+"mesaNumero" y "puestoNombre" son los del encabezado del acta (MESA y PUESTO), no los del cuerpo.
 Si no puedes leer algún valor con certeza, usa null.
 No inventes datos — solo extrae lo que es legible.`
 
@@ -60,10 +61,11 @@ export function parsearRespuestaE14(rawResponse: string): E14ExtractionResult {
         }
       }),
       totalVotos: numeroONull(parsed.totalVotos),
-      mesaNumero: parsed.mesaNumero != null ? String(parsed.mesaNumero) : null,
+      mesaNumero:   parsed.mesaNumero != null ? String(parsed.mesaNumero) : null,
+      puestoNombre: parsed.puestoNombre != null ? String(parsed.puestoNombre).trim() || null : null,
       rawResponse,
     }
   } catch {
-    return { candidatos: [], totalVotos: null, mesaNumero: null, rawResponse }
+    return { candidatos: [], totalVotos: null, mesaNumero: null, puestoNombre: null, rawResponse }
   }
 }

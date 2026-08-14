@@ -744,6 +744,10 @@ model E14Transmission {
   /// la IA ("014"). Se guarda para poder detectar que un testigo fotografió el
   /// acta de otra mesa: es la única evidencia de qué papel se transmitió.
   actaMesaNumero       String?
+  /// Puesto impreso en el encabezado del acta fotografiada. Va aparte del
+  /// número de mesa porque ese número se repite entre puestos: sin el puesto,
+  /// el acta de la mesa 1 del colegio vecino pasa como la mesa 1 propia.
+  actaPuestoNombre     String?
   photoSubmittedAt     DateTime?
 
   // Tercera fuente OBLIGATORIA: lo publicado por la Registraduría, sea por

@@ -77,9 +77,10 @@ export default async function SalaDeSituacionPage() {
 }
 
 /**
- * El E-14 lleva impreso su número de mesa. Si lo que leyó la IA no coincide con
- * la mesa del testigo, se fotografió el acta equivocada — y esos votos entraron
- * a la mesa que no era. No se bloquea al testigo, pero tiene que saltar a la vista.
+ * El E-14 lleva impresos su número de mesa y su puesto. Si lo que leyó la IA no
+ * coincide con la mesa del testigo, se fotografió el acta equivocada — y esos
+ * votos entraron a la mesa que no era. No se bloquea al testigo, pero tiene que
+ * saltar a la vista.
  */
 function AlertaActasCruzadas({ transmissions }: { transmissions: TransmissionView[] }) {
   const cruzadas = transmissions.filter(t => t.actaCruzada)
@@ -96,14 +97,14 @@ function AlertaActasCruzadas({ transmissions }: { transmissions: TransmissionVie
           : `${cruzadas.length} mesas transmitieron el acta de otra mesa`}
       </div>
       <p style={{ margin: 0, fontSize: '0.8rem', color: '#7f1d1d', lineHeight: 1.5 }}>
-        El número impreso en la foto no coincide con la mesa asignada. Verifica con
+        Lo impreso en la foto no coincide con la mesa asignada. Verifica con
         el testigo antes de dar estos votos por buenos.
       </p>
       <ul style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '0.85rem', color: '#7f1d1d' }}>
         {cruzadas.map(t => (
           <li key={t.id}>
             Mesa <strong>{t.tableNumber}</strong> ({t.stationName}) transmitió un acta
-            que dice mesa <strong>{t.actaMesaNumero}</strong> — {t.witnessEmail}
+            que dice <strong>{t.actaCruzadaDetalle}</strong> — {t.witnessEmail}
           </li>
         ))}
       </ul>

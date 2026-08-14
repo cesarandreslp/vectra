@@ -11,7 +11,7 @@ import { getTenantConnection } from '@/lib/tenant'
 import { getTenantDb, Prisma, superadminDb, decrypt } from '@vectra/db'
 import * as XLSX                from 'xlsx'
 import { calcularCedulaHash }   from '@/lib/cedula-hash'
-import { normalizarClavesE14, actaEsDeLaMesa } from '@/lib/e14'
+import { normalizarClavesE14, actaEsDeLaMesa, actaEsDelPuesto } from '@/lib/e14'
 import {
   compararListados,
   cubreLaMesa,
@@ -117,11 +117,16 @@ export interface TransmissionView {
   extractionConfidence: string | null
   /** Número impreso en el acta fotografiada, como lo leyó la IA ("014"). */
   actaMesaNumero:      string | null
+  /** Puesto impreso en el acta fotografiada, como lo leyó la IA. */
+  actaPuestoNombre:    string | null
   /**
-   * true = el acta fotografiada dice ser de OTRA mesa. null = no se pudo saber
-   * (la IA no leyó el número, o no hay foto todavía).
+   * true = el acta fotografiada dice ser de OTRA mesa o de OTRO puesto.
+   * null = no se pudo saber (la IA no leyó ninguno de los dos, o no hay foto).
    */
   actaCruzada:         boolean | null
+  /** Qué dice el acta que no cuadra ("mesa 014", "puesto Colegio X"), ya listo
+   *  para mostrar. null cuando no está cruzada. */
+  actaCruzadaDetalle:  string | null
 }
 
 export interface TransmissionDetail {
@@ -848,6 +853,7 @@ export async function submitPhotoE14(
     let discrepanciesArr: string[]
     let leidos: { numero: number | null; nombre: string; votos: number | null }[]
     let actaMesaNumero: string | null
+    let actaPuestoNombre: string | null
 
     if (lecturas.length >= 2) {
       const consenso = consensoE14(lecturas[0], lecturas[1])
@@ -855,11 +861,13 @@ export async function submitPhotoE14(
       confidence       = consenso.confidence
       discrepanciesArr = consenso.discrepancies
       actaMesaNumero   = consenso.data.mesaNumero
+      actaPuestoNombre = consenso.data.puestoNombre
     } else {
       leidos           = lecturas[0].candidatos
       confidence       = 'MEDIA'
       discrepanciesArr = []
       actaMesaNumero   = lecturas[0].mesaNumero
+      actaPuestoNombre = lecturas[0].puestoNombre
     }
 
     // La IA devuelve lo impreso en el acta; el testigo y la Registraduría mandan
@@ -889,6 +897,8 @@ export async function submitPhotoE14(
       // El número impreso en el acta. Es la única evidencia de QUÉ papel se
       // fotografió: sin esto, un acta de otra mesa entra sin dejar rastro.
       actaMesaNumero,
+      // …y el puesto, porque el número de mesa se repite entre puestos.
+      actaPuestoNombre,
       // Auditoría: se guarda la respuesta CRUDA, incluso la que no se pudo
       // parsear — es justo la que hay que poder mirar cuando algo salió mal.
       groqResult:           groqCrudo ? { rawResponse: groqCrudo.rawResponse } : Prisma.DbNull,
@@ -1136,6 +1146,7 @@ export async function listTransmissions(filters?: {
     extractedData: unknown; extractionConfidence: string | null
     manualSubmittedAt: Date | null; photoSubmittedAt: Date | null; photoUrl: string | null
     registraduriaAt: Date | null; actaMesaNumero: string | null
+    actaPuestoNombre: string | null
   }) => {
     const table = tableMap.get(tx.votingTableId)
     const user  = userMap.get(tx.witnessUserId)
@@ -1152,6 +1163,14 @@ export async function listTransmissions(filters?: {
       }
     }
 
+    // Se compara acá y no se guarda como bandera: la mesa y el puesto viven en
+    // votingTable y una bandera duplicada quedaría desactualizada.
+    const coincideMesa   = table ? actaEsDeLaMesa(tx.actaMesaNumero, table.number) : null
+    const coincidePuesto = table ? actaEsDelPuesto(tx.actaPuestoNombre, table.station?.name ?? '') : null
+    const desajustes: string[] = []
+    if (coincideMesa === false)   desajustes.push(`mesa ${tx.actaMesaNumero}`)
+    if (coincidePuesto === false) desajustes.push(`puesto ${tx.actaPuestoNombre}`)
+
     return {
       id:                   tx.id,
       votingTableId:        tx.votingTableId,
@@ -1166,18 +1185,21 @@ export async function listTransmissions(filters?: {
       hasRegistraduria:     !!tx.registraduriaAt,
       extractionConfidence: tx.extractionConfidence,
       actaMesaNumero:       tx.actaMesaNumero,
-      // Se compara acá y no se guarda como bandera: el número de la mesa vive
-      // en votingTable y una bandera duplicada quedaría desactualizada.
-      actaCruzada:          table
-        ? invertir(actaEsDeLaMesa(tx.actaMesaNumero, table.number))
-        : null,
+      actaPuestoNombre:     tx.actaPuestoNombre,
+      actaCruzada:          esActaCruzada(coincideMesa, coincidePuesto),
+      actaCruzadaDetalle:   desajustes.length > 0 ? desajustes.join(', ') : null,
     }
   })
 }
 
-/** true = coincide → NO está cruzada. Se invierte para nombrar el problema. */
-function invertir(coincide: boolean | null): boolean | null {
-  return coincide === null ? null : !coincide
+/**
+ * Acta cruzada = alguno de los chequeos dijo que NO. Si ninguno se pudo hacer
+ * queda en null: "no se sabe" no es lo mismo que "está bien".
+ */
+function esActaCruzada(...chequeos: (boolean | null)[]): boolean | null {
+  if (chequeos.includes(false)) return true
+  if (chequeos.every(c => c === null)) return null
+  return false
 }
 
 // ── INCIDENTES ───────────────────────────────────────────────────────────────
