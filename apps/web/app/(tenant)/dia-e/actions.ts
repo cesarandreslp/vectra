@@ -12,6 +12,7 @@ import { getTenantDb, Prisma, superadminDb, decrypt } from '@vectra/db'
 import * as XLSX                from 'xlsx'
 import { calcularCedulaHash }   from '@/lib/cedula-hash'
 import { normalizarClavesE14, actaEsDeLaMesa, actaEsDelPuesto } from '@/lib/e14'
+import { puntoEnPoligono, distanciaHaversineKm, centroDePoligono } from '@/lib/geometry'
 import {
   compararListados,
   cubreLaMesa,
@@ -345,13 +346,137 @@ export async function deleteCandidate(id: string): Promise<{ success: boolean; e
 
 // ── ASIGNACIÓN DE TESTIGOS ───────────────────────────────────────────────────
 
+export interface ComunaConBarrios {
+  id:      string
+  name:    string
+  type:    string
+  barrios: { id: string; name: string }[]
+}
+
+/** Comunas y corregimientos con sus barrios, para elegir dónde va el testigo. */
+export async function comunasParaTestigo(): Promise<ComunaConBarrios[]> {
+  const { db } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'])
+
+  const comunas = await db.commune.findMany({
+    select:  { id: true, name: true, type: true, neighborhoods: { select: { id: true, name: true }, orderBy: { name: 'asc' } } },
+    orderBy: { name: 'asc' },
+  })
+
+  return comunas.map((c: { id: string; name: string; type: string; neighborhoods: { id: string; name: string }[] }) => ({
+    id: c.id, name: c.name, type: c.type, barrios: c.neighborhoods,
+  }))
+}
+
+export interface PuestoParaTestigo {
+  id:      string
+  name:    string
+  address: string
+  /** km en línea recta desde el barrio (o la comuna). null = puesto sin geocodificar. */
+  distanciaKm: number | null
+  mesas:   { id: string; number: number; ocupadaPor: string | null }[]
+}
+
+/**
+ * Puestos donde puede quedar un testigo de esta comuna, del más cercano al más
+ * lejano, con sus mesas y cuáles ya tienen testigo.
+ *
+ * La cercanía se mide desde el centro del BARRIO si se eligió uno, y si no
+ * desde el centro de la comuna. Es una propuesta, no una regla: la lista
+ * completa queda disponible y se puede escoger cualquiera.
+ *
+ * ponytail: un puesto SIN lat/lng no se puede ubicar en ninguna comuna, así que
+ * se devuelve igual (`distanciaKm: null`) en vez de desaparecer — hoy son 32 de
+ * 51. Correr `db:geocodificar-puestos-buga` los mete en su comuna y les da
+ * distancia real; mientras tanto siguen siendo elegibles.
+ */
+export async function puestosParaTestigo(
+  communeId: string,
+  neighborhoodId?: string,
+): Promise<PuestoParaTestigo[]> {
+  const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'])
+
+  // Todas las comunas, no solo la elegida: hace falta saber si un puesto
+  // pertenece a OTRA (y entonces se excluye) o a NINGUNA (y entonces entra acá,
+  // porque si no sería inalcanzable desde cualquier comuna — le pasa a la
+  // Cárcel de Buga, que está geocodificada fuera de todo polígono urbano).
+  const todas = await db.commune.findMany({ select: { id: true, boundary: true } })
+  const comuna = todas.find((c: { id: string }) => c.id === communeId)
+  if (!comuna) return []
+
+  const barrio = neighborhoodId
+    ? await db.neighborhood.findFirst({ where: { id: neighborhoodId, communeId }, select: { boundary: true } })
+    : null
+
+  const poligonoComuna = (comuna.boundary as [number, number][] | null) ?? []
+  const otras = todas
+    .filter((c: { id: string }) => c.id !== communeId)
+    .flatMap((c: { boundary: unknown }) => {
+      const pol = c.boundary as [number, number][] | null
+      return pol?.length ? [pol] : []
+    })
+  const ancla = centroDePoligono((barrio?.boundary as [number, number][] | null) ?? poligonoComuna)
+
+  const [puestos, asignadas] = await Promise.all([
+    db.votingStation.findMany({
+      select:  { id: true, name: true, address: true, lat: true, lng: true, tables: { select: { id: true, number: true }, orderBy: { number: 'asc' } } },
+      orderBy: { name: 'asc' },
+    }),
+    db.witnessAssignment.findMany({ where: { tenantId }, select: { votingTableId: true, userId: true } }),
+  ])
+
+  const ocupadas = new Map<string, string>(
+    asignadas.map((a: { votingTableId: string; userId: string }) => [a.votingTableId, a.userId]),
+  )
+  const nombres = await nombresDeTestigos([...new Set(ocupadas.values())], tenantId)
+
+  type PuestoDb = { id: string; name: string; address: string; lat: number | null; lng: number | null; tables: { id: string; number: number }[] }
+  const resultado: PuestoParaTestigo[] = []
+
+  for (const p of puestos as PuestoDb[]) {
+    const ubicado = p.lat != null && p.lng != null
+    // Solo se descarta lo que está probadamente en OTRA comuna. Lo que no se
+    // puede ubicar (sin coordenadas, o con coordenadas fuera de todo polígono)
+    // entra igual, para que ningún puesto quede inalcanzable.
+    if (ubicado && !puntoEnPoligono([p.lat!, p.lng!], poligonoComuna)) {
+      if (otras.some((pol: [number, number][]) => puntoEnPoligono([p.lat!, p.lng!], pol))) continue
+    }
+
+    resultado.push({
+      id: p.id, name: p.name, address: p.address,
+      distanciaKm: ubicado && ancla ? distanciaHaversineKm(ancla, { lat: p.lat!, lng: p.lng! }) : null,
+      mesas: p.tables.map(m => ({
+        id: m.id, number: m.number,
+        ocupadaPor: ocupadas.has(m.id) ? (nombres.get(ocupadas.get(m.id)!) ?? 'otro testigo') : null,
+      })),
+    })
+  }
+
+  // Más cerca primero; los que no se pueden ubicar, al final.
+  return resultado.sort((a, b) => {
+    if (a.distanciaKm === null) return b.distanciaKm === null ? 0 : 1
+    if (b.distanciaKm === null) return -1
+    return a.distanciaKm - b.distanciaKm
+  })
+}
+
+async function nombresDeTestigos(userIds: string[], tenantId: string): Promise<Map<string, string>> {
+  if (userIds.length === 0) return new Map()
+  const users = await superadminDb.user.findMany({
+    where:  { id: { in: userIds }, tenantId },
+    select: { id: true, name: true, email: true },
+  })
+  return new Map(users.map(u => [u.id, u.name ?? u.email]))
+}
+
 export async function assignWitness(
   witnessUserId: string,
   votingTableId: string,
   isPrimary: boolean,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'], 'DIA_E_ASIGNACIONES', 'edit')
+    // Sin screenKey: asignar dejó de ser una pantalla propia y ahora se hace al
+    // crear el testigo, en CORE. El módulo DIA_E y el rol siguen mandando.
+    const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'])
 
     // Verificar que el usuario es TESTIGO. Los User viven en la BD del
     // SUPERADMIN, no en la del tenant — contra la del tenant esto no
@@ -380,7 +505,7 @@ export async function assignWitness(
       create: { tenantId, userId: witnessUserId, votingTableId, isPrimary },
     })
 
-    revalidatePath('/dia-e/sala/asignaciones')
+    revalidatePath('/dia-e/sala')
     return { success: true }
   } catch (err) {
     console.error('[assignWitness]', err instanceof Error ? err.message : err)
@@ -391,7 +516,7 @@ export async function assignWitness(
 export async function listWitnessAssignments(filters?: {
   hasWitness?: boolean
 }): Promise<WitnessAssignmentView[]> {
-  const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'], 'DIA_E_ASIGNACIONES')
+  const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'], 'DIA_E_SALA')
 
   // Obtener todas las mesas con sus asignaciones
   const tables = await db.votingTable.findMany({
@@ -554,7 +679,7 @@ async function armarListadoPropuesto(
  * sin cédula y hay que corregirlo antes de radicar.
  */
 export async function exportarListadoPropuesto(): Promise<string> {
-  const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'], 'DIA_E_ASIGNACIONES')
+  const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'], 'DIA_E_SALA')
   const { propuestos, cedulasPorAssignment } = await armarListadoPropuesto(db, tenantId)
 
   const header = 'Cedula,Nombre,Puesto,Mesa,Email'
@@ -572,7 +697,7 @@ export async function compararConAprobado(formData: FormData): Promise<
   { success: true; resultado: ResultadoComparacion } | { success: false; error: string }
 > {
   try {
-    const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'], 'DIA_E_ASIGNACIONES')
+    const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'], 'DIA_E_SALA')
 
     const file = formData.get('archivo') as File | null
     if (!file || file.size === 0) return { success: false, error: 'Selecciona el archivo aprobado.' }
@@ -637,7 +762,7 @@ export async function aplicarCorreccionesRegistraduria(
   cambios: { assignmentId: string; tipo: TipoCambio; votingTableIdAprobado: string | null }[],
 ): Promise<{ success: boolean; aplicados: number; error?: string }> {
   try {
-    const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'], 'DIA_E_ASIGNACIONES', 'edit')
+    const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'], 'DIA_E_SALA', 'edit')
     const ahora = new Date()
 
     // Todas las asignaciones de una sola vez: antes era un findFirst por testigo
@@ -694,7 +819,7 @@ export async function aplicarCorreccionesRegistraduria(
       ...movidos,
     ])
 
-    revalidatePath('/dia-e/sala/asignaciones')
+    revalidatePath('/dia-e/sala')
     return { success: true, aplicados: sinCambio.length + rechazados.length + movidos.length }
   } catch (err) {
     console.error('[aplicarCorreccionesRegistraduria]', err instanceof Error ? err.message : err)

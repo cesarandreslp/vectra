@@ -4,6 +4,7 @@ import { AutoRefresh } from './_components/auto-refresh'
 import { TablaTransmisiones } from './_components/tabla-transmisiones'
 import { ChartVotacion } from './_components/chart-votacion'
 import { AlertaDisputas } from './_components/alerta-disputas'
+import { TramiteRegistraduria } from './_components/tramite-registraduria'
 
 export default async function SalaDeSituacionPage() {
   await requireModuleOrRedirect('DIA_E', ['ADMIN_CAMPANA', 'COORDINADOR'])
@@ -71,6 +72,11 @@ export default async function SalaDeSituacionPage() {
 
         {/* Tabla de transmisiones */}
         <TablaTransmisiones transmissions={transmissions} />
+
+        {/* Radicación ante la Registraduría. Vivía en Asignaciones, que se
+            eliminó cuando la mesa pasó a asignarse al crear el testigo — pero
+            el trámite sigue siendo obligatorio, así que se mudó acá. */}
+        <TramiteRegistraduria />
       </div>
     </AutoRefresh>
   )

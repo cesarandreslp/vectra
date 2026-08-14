@@ -20,6 +20,19 @@ export function puntoEnPoligono(punto: [number, number], poligono: [number, numb
   return dentro
 }
 
+/**
+ * Punto representativo de un polígono: el promedio de sus vértices.
+ *
+ * No es el centroide geométrico exacto (ese pondera por área), pero para
+ * "¿qué puesto le queda más cerca a alguien de este barrio?" la diferencia no
+ * cambia el orden, y el exacto costaría una fórmula que nadie va a revisar.
+ */
+export function centroDePoligono(poligono: [number, number][]): { lat: number; lng: number } | null {
+  if (!poligono?.length) return null
+  const suma = poligono.reduce((acc, [lat, lng]) => ({ lat: acc.lat + lat, lng: acc.lng + lng }), { lat: 0, lng: 0 })
+  return { lat: suma.lat / poligono.length, lng: suma.lng / poligono.length }
+}
+
 const RADIO_TIERRA_KM = 6371
 
 /** Distancia en línea recta entre dos puntos (lat, lng) — fórmula haversine. */

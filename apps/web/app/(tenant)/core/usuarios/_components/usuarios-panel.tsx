@@ -4,9 +4,11 @@ import { useState } from 'react'
 import { alternarUsuarioActivo, vincularUsuarioAElector, type UsuarioView } from '../../configuracion/actions-roles'
 import { type CustomRoleView } from '../../configuracion/actions-roles'
 import { FormNuevoUsuario, type VoterOption } from './form-nuevo-usuario'
+import type { ComunaConBarrios } from '../../../dia-e/actions'
 
-export function UsuariosPanel({ usuarios: usuariosIniciales, roles, electores }: {
+export function UsuariosPanel({ usuarios: usuariosIniciales, roles, electores, comunas }: {
   usuarios: UsuarioView[]; roles: CustomRoleView[]; electores: VoterOption[]
+  comunas: ComunaConBarrios[]
 }) {
   const [usuarios, setUsuarios] = useState(usuariosIniciales)
   const [creando, setCreando] = useState(false)
@@ -67,7 +69,7 @@ export function UsuariosPanel({ usuarios: usuariosIniciales, roles, electores }:
           + Nuevo usuario
         </button>
       ) : (
-        <FormNuevoUsuario roles={roles} electores={electores} onCancelar={() => setCreando(false)} />
+        <FormNuevoUsuario roles={roles} electores={electores} comunas={comunas} onCancelar={() => setCreando(false)} />
       )}
     </div>
   )

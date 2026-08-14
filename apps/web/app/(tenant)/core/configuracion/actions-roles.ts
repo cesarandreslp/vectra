@@ -14,6 +14,7 @@ import bcrypt from 'bcryptjs'
 import { type UserRole } from '@vectra/auth'
 import { SCREENS } from '@/lib/screens'
 import { createVoter } from '../actions'
+import { assignWitness } from '../../dia-e/actions'
 
 /** ELECTOR nunca tiene fila en User (solo de sesión) — un staff no puede tener ese rol. */
 export type StaffRole = Exclude<UserRole, 'ELECTOR'>
@@ -156,6 +157,10 @@ export interface CrearUsuarioInput {
   /** Cédula para crearle la ficha de elector al testigo nuevo. */
   cedula?:       string
   phone?:        string
+  /** Mesa que va a vigilar. Se asigna al crearlo, no en una pantalla aparte. */
+  votingTableId?: string
+  /** Además, dejar esa mesa como su mesa de votación. Opcional a propósito. */
+  tambienVotaAhi?: boolean
 }
 
 export async function crearUsuario(input: CrearUsuarioInput) {
@@ -216,8 +221,9 @@ export async function crearUsuario(input: CrearUsuarioInput) {
 
   const passwordHash = await bcrypt.hash(input.password, 12)
 
+  let usuarioId: string
   try {
-    await superadminDb.user.create({
+    const creado = await superadminDb.user.create({
       data: {
         tenantId,
         name:         nombre,
@@ -228,14 +234,31 @@ export async function crearUsuario(input: CrearUsuarioInput) {
         voterId,
         isActive:     true,
       },
+      select: { id: true },
     })
+    usuarioId = creado.id
   } catch {
     return { success: false, error: 'Ya existe una cuenta con ese correo.' }
   }
 
+  // La mesa va DESPUÉS de crear la cuenta porque assignWitness necesita el
+  // userId. Si falla, la cuenta queda creada y sin mesa: se avisa y se asigna
+  // de nuevo — mejor eso que perder el usuario recién creado.
+  let aviso: string | undefined
+  if (input.role === 'TESTIGO' && input.votingTableId) {
+    const asignada = await assignWitness(usuarioId, input.votingTableId, true)
+    if (!asignada.success) {
+      aviso = `La cuenta se creó, pero no se pudo asignar la mesa: ${asignada.error}`
+    } else if (input.tambienVotaAhi && voterId) {
+      const db = getTenantDb(await getTenantConnection(tenantId))
+      await db.voter.update({ where: { id: voterId }, data: { votingTableId: input.votingTableId } })
+    }
+  }
+
   revalidatePath('/core/usuarios')
   revalidatePath('/core/electores')
-  return { success: true }
+  revalidatePath('/dia-e/sala')
+  return { success: true, aviso }
 }
 
 /**

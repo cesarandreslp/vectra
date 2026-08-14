@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { crearUsuario, type CrearUsuarioInput } from '../../configuracion/actions-roles'
 import type { CustomRoleView } from '../../configuracion/actions-roles'
+import type { ComunaConBarrios } from '../../../dia-e/actions'
+import { SelectorMesa } from './selector-mesa'
 
 export interface VoterOption { id: string; name: string; zone: string | null }
 
@@ -20,8 +22,11 @@ const ROLES_FIJOS: { value: CrearUsuarioInput['role']; label: string }[] = [
  * arma la ficha de elector colgada del candidato. Escogerlo del padrón es el
  * camino secundario, para quien ya está cargado.
  */
-export function FormNuevoUsuario({ roles, electores, onCancelar }: {
-  roles: CustomRoleView[]; electores: VoterOption[]; onCancelar: () => void
+export function FormNuevoUsuario({ roles, electores, comunas, onCancelar }: {
+  roles: CustomRoleView[]; electores: VoterOption[]
+  /** Vacío = la campaña no tiene DIA_E activo: no hay mesas que asignar. */
+  comunas: ComunaConBarrios[]
+  onCancelar: () => void
 }) {
   const [guardando, setGuardando] = useState(false)
   const [name, setName]         = useState('')
@@ -33,6 +38,8 @@ export function FormNuevoUsuario({ roles, electores, onCancelar }: {
   const [cedula, setCedula]     = useState('')
   const [phone, setPhone]       = useState('')
   const [delPadron, setDelPadron] = useState(false)
+  const [votingTableId, setVotingTableId] = useState('')
+  const [tambienVotaAhi, setTambienVotaAhi] = useState(true)
 
   const esTestigo = role === 'TESTIGO'
 
@@ -53,7 +60,10 @@ export function FormNuevoUsuario({ roles, electores, onCancelar }: {
       voterId: delPadron ? (voterId || undefined) : undefined,
       cedula:  !delPadron && esTestigo ? cedula : undefined,
       phone:   !delPadron && esTestigo ? phone  : undefined,
+      votingTableId:  esTestigo ? (votingTableId || undefined) : undefined,
+      tambienVotaAhi: esTestigo && tambienVotaAhi,
     })
+    if (res.success && res.aviso) alert(res.aviso)
     if (!res.success) { alert(res.error); setGuardando(false); return }
     location.reload()
   }
@@ -108,6 +118,18 @@ export function FormNuevoUsuario({ roles, electores, onCancelar }: {
             </select>
           )}
         </div>
+      )}
+
+      {esTestigo && comunas.length > 0 && (
+        <>
+          <SelectorMesa comunas={comunas} onChange={setVotingTableId} />
+          {votingTableId && (
+            <label style={radioStyle}>
+              <input type="checkbox" checked={tambienVotaAhi} onChange={(e) => setTambienVotaAhi(e.target.checked)} />
+              También queda inscrito para votar en esa mesa
+            </label>
+          )}
+        </>
       )}
 
       {/* Para el resto de roles el elector es opcional: sin él no salen en los

@@ -6,8 +6,8 @@ import {
   exportarListadoPropuesto,
   compararConAprobado,
   aplicarCorreccionesRegistraduria,
-} from '../../../actions'
-import type { ResultadoComparacion } from '../../../_lib/registraduria'
+} from '../../actions'
+import type { ResultadoComparacion } from '../../_lib/registraduria'
 
 const COLOR_TIPO: Record<string, { bg: string; text: string }> = {
   SIN_CAMBIO:    { bg: '#dcfce7', text: '#166534' },
