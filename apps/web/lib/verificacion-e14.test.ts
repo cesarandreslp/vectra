@@ -68,8 +68,8 @@ function main() {
   // comparación cruza cuids contra nombres, no coincide ninguno y TODA mesa
   // fotografiada salía DISCREPANCIA con el mismo conteo en las tres fuentes.
   const candidatos = [
-    { id: 'cmsq1aaa0001', name: 'Splinter Adolfo Petro Libreros' },
-    { id: 'cmsq1bbb0002', name: 'Ana María Rivas' },
+    { id: 'cmsq1aaa0001', name: 'Splinter Adolfo Petro Libreros', order: 1 },
+    { id: 'cmsq1bbb0002', name: 'Ana María Rivas',                order: 2 },
   ]
   const manualReal = [
     { candidateId: 'cmsq1aaa0001', votes: 87 },
@@ -116,6 +116,36 @@ function main() {
   // se conserva para que aparezca como discrepancia a revisar.
   const conIntruso = normalizarClavesE14([{ candidateId: 'Candidato Fantasma', votes: 9 }], candidatos)
   assert.deepEqual(conIntruso, [{ candidateId: 'Candidato Fantasma', votes: 9 }])
+
+  // ── REGRESIÓN: el nombre mal escrito no puede romper el cruce ──────────────
+  // Verificado contra las APIs: los modelos coinciden en los números del
+  // tarjetón pero escriben distinto los nombres ("OYTHER" / "Oytther",
+  // "ELIEZER" / "ELIECER"). Cruzando por nombre eso daba discrepancias falsas;
+  // el número del renglón tiene que mandar sobre el nombre.
+  const conNombreMalEscrito = normalizarClavesE14(
+    [{ candidateId: 'ESPLINTER ADOLFO PEDRO LIBRERO', votes: 87, numero: 1 },
+     { candidateId: 'Ana Marilla Ribas',              votes: 52, numero: 2 },
+     { candidateId: 'Votos en blanco',                votes: 5,  numero: null }],
+    candidatos,
+  )
+  assert.deepEqual(conNombreMalEscrito, manualReal,
+    'el número del tarjetón debe cruzar aunque la IA escriba mal el nombre')
+
+  // Y al revés: sin número legible, el nombre sigue sirviendo de respaldo.
+  const sinNumero = normalizarClavesE14(
+    [{ candidateId: 'SPLINTER ADOLFO PETRO LIBREROS', votes: 87, numero: null }],
+    candidatos,
+  )
+  assert.deepEqual(sinNumero, [{ candidateId: 'cmsq1aaa0001', votes: 87 }])
+
+  // Un candidato sin número de tarjetón asignado (order 0, el valor por
+  // defecto) no puede capturar los renglones que la IA no supo numerar.
+  const sinTarjeton = [{ id: 'cmsq1ccc0003', name: 'Aún Sin Número', order: 0 }]
+  assert.deepEqual(
+    normalizarClavesE14([{ candidateId: 'Otro', votes: 3, numero: 0 }], sinTarjeton),
+    [{ candidateId: 'Otro', votes: 3 }],
+    'order 0 es "sin número asignado", no un número de tarjetón real',
+  )
 
   console.log('verificacion-e14: OK')
 }

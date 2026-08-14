@@ -11,9 +11,16 @@ export { extractE14WithMistral } from './mistral'
 export { consensoE14 }         from './e14-consensus'
 export type { ConsensoResult } from './e14-consensus'
 
+export { E14_SYSTEM_PROMPT } from './e14-prompt'
+
 /** Resultado de extracción de un formulario E-14 por visión IA */
 export interface E14ExtractionResult {
-  candidatos: { nombre: string; votos: number | null }[]
+  /**
+   * `numero` es el del renglón del tarjetón, y es la identidad fiable del
+   * candidato: los modelos coinciden en el número pero escriben el nombre
+   * distinto. Puede venir null si el renglón no se pudo leer.
+   */
+  candidatos: { numero: number | null; nombre: string; votos: number | null }[]
   totalVotos: number | null
   mesaNumero: string | null
   rawResponse: string // para auditoría

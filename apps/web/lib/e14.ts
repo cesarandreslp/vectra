@@ -87,30 +87,46 @@ export const VOTOS_NULOS  = 'VOTOS_NULOS'
  * Lleva los votos de una fuente a la MISMA llave que usan las otras dos.
  *
  * El testigo y la carga de la Registraduría mandan `Candidate.id`; la IA que lee
- * la foto solo puede devolver el NOMBRE impreso en el acta. Sin traducir eso a
- * id, la verificación cruzada compara cuids contra nombres, no cruza ninguno y
- * declara DISCREPANCIA aunque las tres fuentes traigan exactamente lo mismo.
+ * la foto devuelve lo que está impreso en el acta. Sin traducir eso a id, la
+ * verificación cruzada compara cuids contra nombres, no cruza ninguno y declara
+ * DISCREPANCIA aunque las tres fuentes traigan exactamente lo mismo.
+ *
+ * Orden de resolución, del más firme al más frágil:
+ *   1. Ya viene con `Candidate.id` — nada que hacer.
+ *   2. NÚMERO del renglón contra `Candidate.order` (el número del tarjetón).
+ *      Es el cruce bueno: los modelos leen igual las cifras y difieren en la
+ *      ortografía de los nombres ("OYTHER" / "Oytther").
+ *   3. Nombre normalizado, para cuando el número no se pudo leer.
+ *   4. Votos en blanco / nulos, que no son candidatos del tarjetón.
  *
  * Un renglón que no corresponda a ningún candidato conocido se deja tal cual:
  * es preferible que salga como discrepancia a revisar que desaparecer un voto.
  */
 export function normalizarClavesE14(
-  datos:      { candidateId: string; votes: number }[],
-  candidatos: { id: string; name: string }[],
+  datos:      { candidateId: string; votes: number; numero?: number | null }[],
+  candidatos: { id: string; name: string; order: number }[],
 ): { candidateId: string; votes: number }[] {
   const ids       = new Set(candidatos.map(c => c.id))
   const porNombre = new Map(candidatos.map(c => [clave(c.name), c.id]))
+  // order 0 es el valor por defecto de un candidato al que todavía no le
+  // pusieron número de tarjetón: no identifica a nadie, no sirve para cruzar.
+  const porNumero = new Map(candidatos.filter(c => c.order > 0).map(c => [c.order, c.id]))
 
-  return datos.map(d => {
-    if (ids.has(d.candidateId)) return d // ya viene con Candidate.id
+  return datos.map(({ candidateId, votes, numero }) => {
+    if (ids.has(candidateId)) return { candidateId, votes }
 
-    const k  = clave(d.candidateId)
+    if (numero != null) {
+      const porNro = porNumero.get(numero)
+      if (porNro) return { candidateId: porNro, votes }
+    }
+
+    const k  = clave(candidateId)
     const id = porNombre.get(k)
-    if (id) return { candidateId: id, votes: d.votes }
+    if (id) return { candidateId: id, votes }
 
-    if (k.includes('blanco')) return { candidateId: VOTOS_BLANCO, votes: d.votes }
-    if (k.includes('nulo'))   return { candidateId: VOTOS_NULOS,  votes: d.votes }
+    if (k.includes('blanco')) return { candidateId: VOTOS_BLANCO, votes }
+    if (k.includes('nulo'))   return { candidateId: VOTOS_NULOS,  votes }
 
-    return d
+    return { candidateId, votes }
   })
 }

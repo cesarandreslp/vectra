@@ -837,33 +837,36 @@ export async function submitPhotoE14(
 
     // Consenso con dos lecturas; si solo hubo una (falló una principal Y el
     // respaldo), se usa esa sola y la confianza baja a MEDIA.
-    let extractedData: { candidateId: string; votes: number }[]
     let confidence: string
     let discrepanciesArr: string[]
+    let leidos: { numero: number | null; nombre: string; votos: number | null }[]
 
     if (lecturas.length >= 2) {
       const consenso = consensoE14(lecturas[0], lecturas[1])
-      extractedData  = consenso.data.candidatos
-        .filter(c => c.votos !== null)
-        .map(c => ({ candidateId: c.nombre, votes: c.votos! }))
-      confidence     = consenso.confidence
+      leidos           = consenso.data.candidatos
+      confidence       = consenso.confidence
       discrepanciesArr = consenso.discrepancies
     } else {
-      extractedData  = lecturas[0].candidatos
-        .filter(c => c.votos !== null)
-        .map(c => ({ candidateId: c.nombre, votes: c.votos! }))
-      confidence     = 'MEDIA'
+      leidos           = lecturas[0].candidatos
+      confidence       = 'MEDIA'
       discrepanciesArr = []
     }
 
-    // La IA devuelve el NOMBRE leído del acta; el testigo y la Registraduría
-    // mandan Candidate.id. Se traduce ACÁ, al escribir, para que las tres
-    // fuentes queden con la misma llave y la verificación pueda cruzarlas.
+    // La IA devuelve lo impreso en el acta; el testigo y la Registraduría mandan
+    // Candidate.id. Se traduce ACÁ, al escribir, para que las tres fuentes
+    // queden con la misma llave y la verificación pueda cruzarlas. Se pasa el
+    // número del renglón porque es el cruce firme: los modelos coinciden en el
+    // número y difieren en cómo escriben el nombre.
     const candidatosTenant = await db.candidate.findMany({
       where:  { tenantId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, order: true },
     })
-    extractedData = normalizarClavesE14(extractedData, candidatosTenant)
+    let extractedData = normalizarClavesE14(
+      leidos
+        .filter(c => c.votos !== null)
+        .map(c => ({ candidateId: c.nombre, votes: c.votos!, numero: c.numero })),
+      candidatosTenant,
+    )
 
     const extractedTotal = extractedData.reduce((sum, v) => sum + v.votes, 0)
 

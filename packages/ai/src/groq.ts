@@ -10,6 +10,7 @@
  */
 
 import type { E14ExtractionResult } from './index'
+import { E14_SYSTEM_PROMPT, parsearRespuestaE14 } from './e14-prompt'
 
 const BASE_URL     = 'https://api.groq.com/openai/v1/chat/completions'
 const MODEL        = 'llama-3.3-70b-versatile' // verificado 2026-08-14: responde 200
@@ -84,12 +85,6 @@ export async function chatGroq(
   return content
 }
 
-const E14_SYSTEM_PROMPT = `Eres un sistema de extracción de datos de formularios electorales colombianos. El formulario E-14 contiene los votos por candidato en una mesa de votación.
-Extrae TODOS los candidatos y sus votos del formulario.
-Responde SOLO con JSON válido en este formato exacto:
-{ "candidatos": [{ "nombre": "string", "votos": number }], "totalVotos": number, "mesaNumero": "string" }
-Si no puedes leer algún valor con certeza, usa null.
-No inventes datos — solo extrae lo que es legible.`
 
 /**
  * Extrae datos del formulario E-14 de una imagen usando Groq Vision.
@@ -142,22 +137,5 @@ export async function extractE14WithGroq(
   const data = (await res.json()) as GroqResponse
   const rawResponse = data.choices?.[0]?.message?.content ?? ''
 
-  try {
-    // Extraer JSON de la respuesta (puede venir envuelto en markdown)
-    const jsonMatch = rawResponse.match(/\{[\s\S]*\}/)
-    const parsed = JSON.parse(jsonMatch?.[0] ?? rawResponse)
-    return {
-      candidatos:  parsed.candidatos ?? [],
-      totalVotos:  parsed.totalVotos ?? null,
-      mesaNumero:  parsed.mesaNumero ?? null,
-      rawResponse,
-    }
-  } catch {
-    return {
-      candidatos:  [],
-      totalVotos:  null,
-      mesaNumero:  null,
-      rawResponse,
-    }
-  }
+  return parsearRespuestaE14(rawResponse)
 }

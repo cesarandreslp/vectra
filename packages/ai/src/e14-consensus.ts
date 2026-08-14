@@ -1,6 +1,9 @@
 /**
- * Función de consenso para resultados de extracción del E-14.
- * Compara los resultados de Groq y Zhipu y determina el nivel de confianza.
+ * Consenso entre dos lecturas del E-14.
+ *
+ * Antes recibía siempre Groq y Zhipu; ahora la segunda puede ser el respaldo
+ * (Mistral) cuando una principal falla, así que los parámetros se llaman A y B.
+ * A es la lectura primaria: es la que se usa tal cual si la confianza es baja.
  */
 
 import type { E14ExtractionResult } from './index'
@@ -11,102 +14,111 @@ export interface ConsensoResult {
   discrepancies: string[]
 }
 
+type Fila = E14ExtractionResult['candidatos'][number]
+
 /** Normaliza un nombre para comparación: trim, lowercase, sin acentos */
 function normalize(name: string): string {
   return name
     .trim()
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\p{Diacritic}/gu, '')
 }
 
 /**
- * Determina el consenso entre dos resultados de extracción de E-14.
+ * Clave con la que se cruzan las dos lecturas.
  *
- * - Si todos los candidatos coinciden en votos → ALTA
- * - Si difieren en 1 candidato → MEDIA (promedio redondeado)
- * - Si difieren en 2+ candidatos → BAJA (usa Groq como primario)
+ * El NÚMERO del renglón manda: es lo que ambos modelos leen igual. El nombre
+ * queda de respaldo para cuando el número no se pudo leer. Cruzar por nombre
+ * era el defecto que hundía la confianza — dos modelos escriben "OYTHER" y
+ * "Oytther", y un acta con los votos idénticos salía entera en discrepancia.
+ */
+function clave(c: Fila): string {
+  return c.numero !== null ? `n:${c.numero}` : `t:${normalize(c.nombre)}`
+}
+
+/** Etiqueta legible del renglón, para la lista de discrepancias. */
+function etiqueta(c: Fila): string {
+  return c.numero !== null ? `${c.numero}. ${c.nombre}` : c.nombre
+}
+
+/**
+ * Determina el consenso entre dos lecturas de un E-14.
+ *
+ * - Si todos los renglones coinciden en votos → ALTA
+ * - Si difieren en 1 → MEDIA (promedio redondeado en ese renglón)
+ * - Si difieren en 2+ → BAJA (se usa la lectura A tal cual)
  */
 export function consensoE14(
-  groqResult: E14ExtractionResult,
-  zhipuResult: E14ExtractionResult,
+  lecturaA: E14ExtractionResult,
+  lecturaB: E14ExtractionResult,
 ): ConsensoResult {
-  // Mapear candidatos de Zhipu por nombre normalizado
-  const zhipuMap = new Map<string, number | null>()
-  for (const c of zhipuResult.candidatos) {
-    zhipuMap.set(normalize(c.nombre), c.votos)
-  }
+  const mapaB = new Map<string, Fila>()
+  for (const c of lecturaB.candidatos) mapaB.set(clave(c), c)
 
   const discrepancies: string[] = []
-  const mergedCandidatos: { nombre: string; votos: number | null }[] = []
+  const mergedCandidatos: Fila[] = []
 
-  for (const gc of groqResult.candidatos) {
-    const normalizedName = normalize(gc.nombre)
-    const zhipuVotos     = zhipuMap.get(normalizedName)
+  for (const a of lecturaA.candidatos) {
+    const b = mapaB.get(clave(a))
 
-    if (zhipuVotos !== undefined && gc.votos !== null && zhipuVotos !== null) {
-      if (gc.votos === zhipuVotos) {
-        // Coinciden
-        mergedCandidatos.push({ nombre: gc.nombre, votos: gc.votos })
+    if (b && a.votos !== null && b.votos !== null) {
+      if (a.votos === b.votos) {
+        mergedCandidatos.push(a)
       } else {
-        // Difieren
-        discrepancies.push(gc.nombre)
-        mergedCandidatos.push({
-          nombre: gc.nombre,
-          votos:  Math.round((gc.votos + zhipuVotos) / 2),
-        })
+        discrepancies.push(etiqueta(a))
+        mergedCandidatos.push({ ...a, votos: Math.round((a.votos + b.votos) / 2) })
       }
     } else {
-      // Solo Groq tiene este candidato, o uno tiene null
-      mergedCandidatos.push({ nombre: gc.nombre, votos: gc.votos })
-      if (gc.votos !== null && zhipuVotos === undefined) {
-        discrepancies.push(gc.nombre)
-      }
+      // Solo A tiene este renglón, o alguna de las dos no pudo leer los votos.
+      mergedCandidatos.push(a)
+      if (a.votos !== null && !b) discrepancies.push(etiqueta(a))
     }
   }
 
-  // Candidatos que solo Zhipu detectó
-  for (const zc of zhipuResult.candidatos) {
-    const normalizedName = normalize(zc.nombre)
-    const yaIncluido     = groqResult.candidatos.some(
-      gc => normalize(gc.nombre) === normalizedName,
-    )
-    if (!yaIncluido) {
-      mergedCandidatos.push({ nombre: zc.nombre, votos: zc.votos })
-      discrepancies.push(zc.nombre)
-    }
+  // Renglones que solo vio B.
+  const clavesA = new Set(lecturaA.candidatos.map(clave))
+  for (const b of lecturaB.candidatos) {
+    if (clavesA.has(clave(b))) continue
+    mergedCandidatos.push(b)
+    discrepancies.push(etiqueta(b))
   }
 
-  // Determinar confianza
-  let confidence: 'ALTA' | 'MEDIA' | 'BAJA'
-  let finalData: E14ExtractionResult
+  const totalVotos = lecturaA.totalVotos ?? lecturaB.totalVotos
+  const mesaNumero = lecturaA.mesaNumero ?? lecturaB.mesaNumero
 
   if (discrepancies.length === 0) {
-    confidence = 'ALTA'
-    finalData = {
-      candidatos:  mergedCandidatos,
-      totalVotos:  groqResult.totalVotos ?? zhipuResult.totalVotos,
-      mesaNumero:  groqResult.mesaNumero ?? zhipuResult.mesaNumero,
-      rawResponse: `consenso:ALTA groq:${groqResult.rawResponse.slice(0, 100)}`,
-    }
-  } else if (discrepancies.length === 1) {
-    confidence = 'MEDIA'
-    finalData = {
-      candidatos:  mergedCandidatos,
-      totalVotos:  groqResult.totalVotos ?? zhipuResult.totalVotos,
-      mesaNumero:  groqResult.mesaNumero ?? zhipuResult.mesaNumero,
-      rawResponse: `consenso:MEDIA disc:${discrepancies[0]}`,
-    }
-  } else {
-    confidence = 'BAJA'
-    // Groq como primario cuando la confianza es baja
-    finalData = {
-      candidatos:  groqResult.candidatos,
-      totalVotos:  groqResult.totalVotos,
-      mesaNumero:  groqResult.mesaNumero,
-      rawResponse: `consenso:BAJA disc:${discrepancies.join(',')}`,
+    return {
+      confidence: 'ALTA',
+      discrepancies,
+      data: {
+        candidatos: mergedCandidatos, totalVotos, mesaNumero,
+        rawResponse: `consenso:ALTA a:${lecturaA.rawResponse.slice(0, 100)}`,
+      },
     }
   }
 
-  return { data: finalData, confidence, discrepancies }
+  if (discrepancies.length === 1) {
+    return {
+      confidence: 'MEDIA',
+      discrepancies,
+      data: {
+        candidatos: mergedCandidatos, totalVotos, mesaNumero,
+        rawResponse: `consenso:MEDIA disc:${discrepancies[0]}`,
+      },
+    }
+  }
+
+  return {
+    confidence: 'BAJA',
+    discrepancies,
+    // Con dos o más renglones en disputa no se promedia nada: se deja la
+    // lectura A entera y que la resuelva el testigo contra el acta física.
+    data: {
+      candidatos:  lecturaA.candidatos,
+      totalVotos:  lecturaA.totalVotos,
+      mesaNumero:  lecturaA.mesaNumero,
+      rawResponse: `consenso:BAJA disc:${discrepancies.join(',')}`,
+    },
+  }
 }

@@ -16,6 +16,7 @@
  */
 
 import type { E14ExtractionResult } from './index'
+import { E14_SYSTEM_PROMPT, parsearRespuestaE14 } from './e14-prompt'
 
 const BASE_URL     = 'https://api.mistral.ai/v1/chat/completions'
 const VISION_MODEL = 'mistral-small-latest'
@@ -24,12 +25,6 @@ interface MistralResponse {
   choices: { message: { role: string; content: string } }[]
 }
 
-const E14_SYSTEM_PROMPT = `Eres un sistema de extracción de datos de formularios electorales colombianos. El formulario E-14 contiene los votos por candidato en una mesa de votación.
-Extrae TODOS los candidatos y sus votos del formulario.
-Responde SOLO con JSON válido en este formato exacto:
-{ "candidatos": [{ "nombre": "string", "votos": number }], "totalVotos": number, "mesaNumero": "string" }
-Si no puedes leer algún valor con certeza, usa null.
-No inventes datos — solo extrae lo que es legible.`
 
 /**
  * Extrae datos del formulario E-14 de una imagen usando Mistral Vision.
@@ -76,21 +71,5 @@ export async function extractE14WithMistral(
   const data = (await res.json()) as MistralResponse
   const rawResponse = data.choices?.[0]?.message?.content ?? ''
 
-  try {
-    const jsonMatch = rawResponse.match(/\{[\s\S]*\}/)
-    const parsed = JSON.parse(jsonMatch?.[0] ?? rawResponse)
-    return {
-      candidatos:  parsed.candidatos ?? [],
-      totalVotos:  parsed.totalVotos ?? null,
-      mesaNumero:  parsed.mesaNumero ?? null,
-      rawResponse,
-    }
-  } catch {
-    return {
-      candidatos:  [],
-      totalVotos:  null,
-      mesaNumero:  null,
-      rawResponse,
-    }
-  }
+  return parsearRespuestaE14(rawResponse)
 }
