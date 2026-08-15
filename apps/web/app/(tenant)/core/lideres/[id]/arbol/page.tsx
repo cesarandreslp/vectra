@@ -77,7 +77,7 @@ export default async function ArbolCaptacionPage({ params }: Props) {
   const nivelProfundo = electores.filter((e) => e.captureDepth > 3).length
 
   return (
-    <div style={{ maxWidth: '800px' }}>
+    <div>
       {/* Navegación */}
       <Link href={`/core/lideres/${id}`} style={{ color: '#64748b', fontSize: '0.875rem', textDecoration: 'none' }}>
         ← Ficha del líder

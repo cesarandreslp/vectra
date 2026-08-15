@@ -12,7 +12,7 @@ export default async function TesoreriaPage() {
   const data = await getTesoreria()
 
   return (
-    <div style={{ maxWidth: '760px' }}>
+    <div>
       <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.35rem' }}>
         Tesorería
       </h1>

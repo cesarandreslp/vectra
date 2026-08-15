@@ -111,7 +111,7 @@ export default function QrPage() {
   const liderNombre = (id: string) => lideres.find(l => l.id === id)?.name ?? id
 
   return (
-    <div style={{ maxWidth: '900px' }}>
+    <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>QR de captación</h1>
         <div style={{ display: 'flex', gap: '0.5rem' }}>

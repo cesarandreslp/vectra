@@ -6,17 +6,19 @@ import type { ComunaConBarrios, MesaDeTestigo } from '../../../dia-e/actions'
 import type { VoterOption } from './form-nuevo-usuario'
 
 /** Una cuenta del equipo. Ocupa toda la celda que le da la grilla del panel. */
-export function TarjetaUsuario({ u, electores, comunas, mesa, onAlternar, onVincular }: {
+export function TarjetaUsuario({ u, electores, comunas, mesa, accent, onAlternar, onVincular }: {
   u: UsuarioView
   electores: VoterOption[]
   comunas: ComunaConBarrios[]
   /** Mesa que vigila, si es testigo y ya tiene. */
   mesa?: MesaDeTestigo
+  /** Color del puesto (vista "Por puesto"): franja izquierda para agrupar de un vistazo. */
+  accent?: string
   onAlternar: (id: string, activo: boolean) => void
   onVincular: (id: string, voterId: string | null) => void
 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '0.6rem', border: '1px solid #e2e8f0', borderRadius: 8, padding: '0.75rem 0.9rem', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '0.6rem', border: '1px solid #e2e8f0', borderLeft: accent ? `4px solid ${accent}` : '1px solid #e2e8f0', borderRadius: 8, padding: '0.75rem 0.9rem', height: '100%' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
           <div style={{ minWidth: 0 }}>

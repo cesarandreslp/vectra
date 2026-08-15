@@ -20,7 +20,7 @@ export default async function LogisticaPage({ searchParams }: Props) {
   const totalReuniones = datos.convocatorias.length + datos.reclutamiento.length
 
   return (
-    <div style={{ maxWidth: '900px' }}>
+    <div>
       <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.25rem' }}>Logística</h1>
       <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1.25rem' }}>
         Reuniones del día — cuántas hay, dónde, cuántos asisten y qué comida hace falta.

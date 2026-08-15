@@ -31,7 +31,7 @@ export default async function TerritorioPage({ searchParams }: Props) {
     : [[], [], [], null]
 
   return (
-    <div style={{ maxWidth: '800px' }}>
+    <div>
       <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.35rem' }}>Territorio</h1>
       <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
         Comunas, corregimientos, barrios y puestos de votación de tu municipio.

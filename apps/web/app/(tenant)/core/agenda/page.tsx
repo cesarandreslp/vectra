@@ -13,7 +13,7 @@ export default async function AgendaAdminPage() {
   ])
 
   return (
-    <div style={{ maxWidth: '1000px' }}>
+    <div>
       <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.25rem' }}>Agenda</h1>
       <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
         Agenda y convocatorias del candidato y jefes de debate, y las reuniones de reclutamiento que organizan los electores.

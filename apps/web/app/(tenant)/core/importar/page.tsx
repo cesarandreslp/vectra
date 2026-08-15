@@ -102,7 +102,7 @@ export default function ImportarPage() {
   }
 
   return (
-    <div style={{ maxWidth: '800px' }}>
+    <div>
       <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem' }}>Importar electores</h1>
       <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
         Descarga la plantilla, complétala y súbela. Las cédulas se cifran automáticamente.

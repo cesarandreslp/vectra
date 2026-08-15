@@ -43,7 +43,7 @@ export default async function FichaLiderPage({ params }: Props) {
   }, {})
 
   return (
-    <div style={{ maxWidth: '900px' }}>
+    <div>
       {/* Encabezado */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
         <div>

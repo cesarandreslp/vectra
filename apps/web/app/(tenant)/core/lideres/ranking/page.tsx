@@ -9,7 +9,7 @@ export default async function RankingLideresPage() {
   const ranking = await getLeaderRanking()
 
   return (
-    <div style={{ maxWidth: '700px' }}>
+    <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem' }}>
         <Link href="/core" style={{ fontSize: '0.85rem', color: '#1e40af', textDecoration: 'none' }}>← Dashboard</Link>
       </div>

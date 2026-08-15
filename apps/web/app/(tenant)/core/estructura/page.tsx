@@ -11,7 +11,7 @@ export default async function EstructuraPage() {
   const data = await getEstructura()
 
   return (
-    <div style={{ maxWidth: '760px' }}>
+    <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
         <div>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.35rem' }}>

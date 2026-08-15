@@ -14,6 +14,10 @@ const grid: React.CSSProperties = {
   gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
 }
 
+/** Un color por puesto en la vista "Por puesto", para ver de un golpe dónde
+ * termina un grupo y empieza el siguiente. Se cicla si hay más puestos que colores. */
+const PALETA = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#db2777', '#65a30d', '#ea580c', '#4f46e5', '#0d9488', '#b45309']
+
 export function UsuariosPanel({ usuarios: usuariosIniciales, roles, electores, comunas, mesas }: {
   usuarios: UsuarioView[]; roles: CustomRoleView[]; electores: VoterOption[]
   comunas: ComunaConBarrios[]
@@ -39,9 +43,9 @@ export function UsuariosPanel({ usuarios: usuariosIniciales, roles, electores, c
     setUsuarios((prev) => prev.map((u) => (u.id === id ? { ...u, voterId } : u)))
   }
 
-  const tarjeta = (u: UsuarioView) => (
+  const tarjeta = (u: UsuarioView, accent?: string) => (
     <TarjetaUsuario key={u.id} u={u} electores={electores} comunas={comunas}
-      mesa={mesas[u.id]} onAlternar={onAlternar} onVincular={onVincular} />
+      mesa={mesas[u.id]} accent={accent} onAlternar={onAlternar} onVincular={onVincular} />
   )
 
   const grupos = useMemo(() => agruparPorPuesto(usuarios, mesas), [usuarios, mesas])
@@ -75,16 +79,21 @@ export function UsuariosPanel({ usuarios: usuariosIniciales, roles, electores, c
       )}
 
       {vista === 'lista' || !hayAsignadas ? (
-        <div style={grid}>{usuarios.map(tarjeta)}</div>
+        <div style={grid}>{usuarios.map((u) => tarjeta(u))}</div>
       ) : (
-        grupos.map((g) => (
-          <section key={g.titulo}>
-            <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155', margin: '0.25rem 0 0.6rem' }}>
-              {g.titulo} <span style={{ color: '#94a3b8', fontWeight: 500 }}>· {g.usuarios.length}</span>
-            </h3>
-            <div style={grid}>{g.usuarios.map(tarjeta)}</div>
-          </section>
-        ))
+        grupos.map((g, i) => {
+          // Color solo a los grupos de puesto (van primero); "sin puesto" y "otras" neutros.
+          const color = g.esPuesto ? PALETA[i % PALETA.length] : undefined
+          return (
+            <section key={g.titulo}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 700, color: '#334155', margin: '0.25rem 0 0.6rem' }}>
+                {color && <span style={{ width: 10, height: 10, borderRadius: 3, background: color, flexShrink: 0 }} />}
+                {g.titulo} <span style={{ color: '#94a3b8', fontWeight: 500 }}>· {g.usuarios.length}</span>
+              </h3>
+              <div style={grid}>{g.usuarios.map((u) => tarjeta(u, color))}</div>
+            </section>
+          )
+        })
       )}
     </div>
   )
@@ -107,10 +116,11 @@ function agruparPorPuesto(usuarios: UsuarioView[], mesas: Record<string, MesaDeT
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([puesto, us]) => ({
       titulo: puesto,
+      esPuesto: true,
       usuarios: us.sort((a, b) => (mesas[a.id]!.numero - mesas[b.id]!.numero)),
     }))
 
-  if (sinPuesto.length) grupos.push({ titulo: 'Testigos sin puesto asignado', usuarios: sinPuesto })
-  if (otros.length)     grupos.push({ titulo: 'Otras cuentas (no testigos)', usuarios: otros })
+  if (sinPuesto.length) grupos.push({ titulo: 'Testigos sin puesto asignado', esPuesto: false, usuarios: sinPuesto })
+  if (otros.length)     grupos.push({ titulo: 'Otras cuentas (no testigos)', esPuesto: false, usuarios: otros })
   return grupos
 }
