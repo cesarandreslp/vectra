@@ -102,7 +102,7 @@ export default function FichaElectorPwaPage() {
   }
 
   return (
-    <div style={{ maxWidth: '480px', margin: '0 auto', padding: '1rem', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ maxWidth: '560px', margin: '0 auto', padding: '1rem', fontFamily: 'system-ui, sans-serif' }}>
 
       {/* Navegación */}
       <button

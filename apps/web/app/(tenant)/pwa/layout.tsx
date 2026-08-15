@@ -46,7 +46,7 @@ export default async function PwaLayout({ children }: { children: React.ReactNod
       <div
         style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '0.75rem 1rem 0', maxWidth: '480px', margin: '0 auto', boxSizing: 'border-box',
+          padding: '0.75rem 1rem 0', maxWidth: '960px', margin: '0 auto', boxSizing: 'border-box',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

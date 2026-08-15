@@ -14,7 +14,7 @@ export default function PwaPerfilPage() {
   }, [])
 
   return (
-    <div style={{ maxWidth: '480px', margin: '0 auto', padding: '1rem', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ maxWidth: '560px', margin: '0 auto', padding: '1rem', fontFamily: 'system-ui, sans-serif' }}>
       <h1 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 0.25rem' }}>Mi perfil</h1>
       <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0 0 1rem' }}>
         Contá qué sabés hacer y cuándo podés. Así, cuando la campaña arme una actividad, sabe a quién llamar.

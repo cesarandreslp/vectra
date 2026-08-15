@@ -43,7 +43,7 @@ export function NavBar({ mostrarEncuestas, mostrarActividades }: NavBarProps) {
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
     >
-      <div style={{ maxWidth: '480px', margin: '0 auto', display: 'flex' }}>
+      <div style={{ maxWidth: '960px', margin: '0 auto', display: 'flex' }}>
         {tabs.map((tab) => {
           const Icon = tab.icon
           return (

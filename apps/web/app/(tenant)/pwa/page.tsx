@@ -89,7 +89,7 @@ export default function PwaHomePage() {
   const deMiGente = conProfundidad ? electores.filter((e) => (e.depth ?? 0) >= 2) : []
 
   return (
-    <div style={{ maxWidth: '480px', margin: '0 auto', padding: '1rem', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ maxWidth: '960px', margin: '0 auto', padding: '1rem', fontFamily: 'system-ui, sans-serif' }}>
 
       {/* Encabezado */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
@@ -177,7 +177,7 @@ function ListaElectores({ titulo, electores, router }: {
       <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: '0.5rem' }}>
         {titulo} ({electores.length})
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '0.5rem' }}>
         {electores.map((elector) => (
           <TarjetaElector key={elector.id} elector={elector} router={router} />
         ))}
