@@ -6,7 +6,7 @@ import type { CustomRoleView } from '../../configuracion/actions-roles'
 import type { ComunaConBarrios } from '../../../dia-e/actions'
 import { SelectorMesa } from './selector-mesa'
 
-export interface VoterOption { id: string; name: string; zone: string | null }
+export interface VoterOption { id: string; name: string; zone: string | null; tieneFecha: boolean }
 
 const ROLES_FIJOS: { value: CrearUsuarioInput['role']; label: string }[] = [
   { value: 'ADMIN_CAMPANA', label: 'Admin de campaña' },
@@ -43,6 +43,12 @@ export function FormNuevoUsuario({ roles, electores, comunas, onCancelar }: {
   const [tambienVotaAhi, setTambienVotaAhi] = useState(true)
 
   const esTestigo = role === 'TESTIGO'
+
+  // La fecha solo se pide si de verdad falta: para un testigo nuevo siempre, y
+  // para uno del padrón solo si su ficha todavía no la tiene (ya está sembrada
+  // para casi todos). Así no se pide un dato que el sistema ya tiene.
+  const electorSel = electores.find((v) => v.id === voterId)
+  const pideFecha  = esTestigo && (!delPadron || (Boolean(voterId) && !electorSel?.tieneFecha))
 
   // Del padrón el nombre ya está en la ficha del elector: pedirlo otra vez es
   // pedir un dato que el sistema ya tiene, y da lugar a que queden distintos.
@@ -120,16 +126,18 @@ export function FormNuevoUsuario({ roles, electores, comunas, onCancelar }: {
             </select>
           )}
 
-          <label style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', fontSize: '0.75rem', color: '#334155' }}>
-            Fecha de nacimiento
-            <input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
-              required={!delPadron} max={hoyISO()} style={inputStyle} />
-            <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
-              {delPadron
-                ? 'Solo si su ficha todavía no la tiene. Debe ser mayor de edad (18+).'
-                : 'Define si es apto para votar (18+) y es parte de su acceso como testigo.'}
-            </span>
-          </label>
+          {pideFecha && (
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', fontSize: '0.75rem', color: '#334155' }}>
+              Fecha de nacimiento
+              <input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
+                required max={hoyISO()} style={inputStyle} />
+              <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
+                {delPadron
+                  ? 'Su ficha aún no la tiene. Debe ser mayor de edad (18+).'
+                  : 'Define si es apto para votar (18+) y es parte de su acceso como testigo.'}
+              </span>
+            </label>
+          )}
         </div>
       )}
 

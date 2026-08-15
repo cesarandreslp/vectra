@@ -55,6 +55,8 @@ export interface VoterOption {
   id:   string
   name: string
   zone: string | null
+  /** Si ya tiene fecha de nacimiento en su ficha — el alta de testigo no la vuelve a pedir. */
+  tieneFecha: boolean
 }
 
 export interface LeaderSummary {
@@ -529,11 +531,12 @@ export async function listVoterOptions(): Promise<VoterOption[]> {
   const session = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR'], ['CORE_ELECTORES', 'CORE_TERRITORIO'])
   const db      = await obtenerDbTenant(session.user.tenantId)
 
-  return db.voter.findMany({
+  const voters = await db.voter.findMany({
     where:   { tenantId: session.user.tenantId },
-    select:  { id: true, name: true, zone: true },
+    select:  { id: true, name: true, zone: true, birthDate: true },
     orderBy: { name: 'asc' },
   })
+  return voters.map((v) => ({ id: v.id, name: v.name, zone: v.zone, tieneFecha: v.birthDate != null }))
 }
 
 // ── Acciones de electores ─────────────────────────────────────────────────────
