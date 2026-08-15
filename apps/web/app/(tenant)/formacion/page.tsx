@@ -64,7 +64,7 @@ export default async function FormacionMaterialesPage() {
           >
             <h3 style={{ margin: 0, fontSize: '0.95rem', color: '#334155' }}>Nuevo material</h3>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                 <label htmlFor="title" style={labelStyle}>Título</label>
                 <input id="title" name="title" required style={inputStyle} />
@@ -82,7 +82,7 @@ export default async function FormacionMaterialesPage() {
               <input id="description" name="description" style={inputStyle} />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                 <label htmlFor="file" style={labelStyle}>Archivo</label>
                 <input id="file" name="file" type="file" style={inputStyle} />

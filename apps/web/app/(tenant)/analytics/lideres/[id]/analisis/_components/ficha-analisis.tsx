@@ -102,7 +102,7 @@ export function FichaAnalisis({
       </div>
 
       {/* Radar + señales lado a lado */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
         <ChartRadar dimensiones={analisis.radarDimensiones} />
 
         {/* Señales detectadas */}

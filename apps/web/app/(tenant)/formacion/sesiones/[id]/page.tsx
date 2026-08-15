@@ -48,7 +48,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
       <div style={{
         background: '#fff', borderRadius: '12px', padding: '1.25rem',
         boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem',
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem',
       }}>
         <InfoItem label="Fecha" value={fecha.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} />
         <InfoItem label="Hora" value={fecha.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })} />

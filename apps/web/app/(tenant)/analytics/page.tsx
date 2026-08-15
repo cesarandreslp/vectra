@@ -45,7 +45,7 @@ export default async function AnalyticsDashboardPage() {
       </div>
 
       {/* Gráficos */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
         <ChartRegistros  data={kpi.serieTemporal} />
         <ChartCompromiso data={kpi.distribucion} />
       </div>

@@ -39,7 +39,7 @@ export default async function NuevaSesionPage() {
           <input id="description" name="description" style={inputStyle} />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             <label htmlFor="date" style={labelStyle}>Fecha y hora</label>
             <input id="date" name="date" type="datetime-local" required style={inputStyle} />
