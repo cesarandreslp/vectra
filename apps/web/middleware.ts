@@ -11,6 +11,7 @@ const RUTAS_PUBLICAS = [
   '/superadmin/login',
   '/registro/',
   '/electores/login',
+  '/testigo/login',
   '/no-autorizado',
   '/api/auth',
   '/api/resolve-tenant',

@@ -86,6 +86,8 @@ export function screensPorModulo(): Record<string, { key: string; label: string 
  */
 export function destinoPostLogin(role: string, customPermissions: Record<string, { canView: boolean; canEdit: boolean }>): string {
   if (role === 'SUPERADMIN') return '/superadmin'
+  // El testigo entra a su mesa, no al panel: es su única superficie de trabajo.
+  if (role === 'TESTIGO')    return '/dia-e/testigo'
   if (role !== 'PERSONALIZADO') return '/core'
 
   const primeraPermitida = Object.entries(SCREENS).find(([key]) => customPermissions[key]?.canView)

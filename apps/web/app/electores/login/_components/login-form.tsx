@@ -133,6 +133,11 @@ export function LoginElectorForm({ slug, tenantName, logoUrl, primaryColor }: Pr
             {isPending ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
+
+        <a href={`/testigo/login?c=${slug}`}
+          style={{ display: 'block', textAlign: 'center', marginTop: '1rem', fontSize: '0.8rem', color: '#64748b', textDecoration: 'none' }}>
+          ¿Sos testigo? Entra por el acceso de testigos →
+        </a>
       </div>
     </div>
   )

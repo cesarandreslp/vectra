@@ -102,6 +102,11 @@ async function autenticarUsuario(email: string, password: string, soloSuperadmin
 
   if (!usuario || !usuario.isActive) return null
 
+  // El testigo tiene UN solo acceso: /testigo/login con cédula + fecha de
+  // nacimiento. Correo+contraseña es para el staff (admin/coordinador/líder),
+  // así que acá se rechaza — que no haya dos puertas para el mismo rol.
+  if (usuario.role === 'TESTIGO') return null
+
   const esSuperadmin = usuario.tenantId === SUPERADMIN_TENANT_ID
   if (esSuperadmin !== soloSuperadmin) return null
 
@@ -190,6 +195,15 @@ async function autenticarElector(slug: string, cedula: string, telefono: string)
   const voter = await db.voter.findFirst({ where: { tenantId: tenant.id, cedulaHash } })
   if (!voter || !voter.phone) return null
 
+  // Un testigo NO entra por acá. Es elector, sí, pero su acceso es /testigo/login
+  // (cédula + fecha de nacimiento). Dejarlo entrar como elector simple es lo que
+  // el día E lo dejaría sin ver sus accesos de testigo — el bug que esto cierra.
+  const esTestigo = await superadminDb.user.findFirst({
+    where:  { tenantId: tenant.id, voterId: voter.id, role: 'TESTIGO', isActive: true },
+    select: { id: true },
+  })
+  if (esTestigo) return null
+
   let telefonoGuardado: string
   try {
     telefonoGuardado = decrypt(voter.phone)
@@ -203,6 +217,57 @@ async function autenticarElector(slug: string, cedula: string, telefono: string)
     email:             '',
     name:              voter.apodo?.trim() || voter.name,
     role:              'ELECTOR',
+    tenantId:          tenant.id,
+    tenantSlug:        tenant.slug,
+    tenantName:        tenant.name,
+    activeModules:     tenant.modules.map((m) => m.moduleKey),
+    voterId:           voter.id,
+    customPermissions: {},
+  }
+}
+
+// ── Autenticación de testigos (cédula + fecha de nacimiento) ──────────────────
+// Acceso propio del testigo, distinto del de electores (cédula+teléfono) y del de
+// staff (correo+contraseña). La fecha de nacimiento es su segundo factor y a la
+// vez el dato que lo hace apto para votar/vigilar. Misma advertencia que el login
+// de electores: es conocimiento, no un secreto fuerte — coherente con ese modelo.
+async function autenticarTestigo(slug: string, cedula: string, fechaNac: string): Promise<ResultadoAuth | null> {
+  const tenant = await superadminDb.tenant.findUnique({
+    where: { slug },
+    include: { modules: { where: { isActive: true }, select: { moduleKey: true } } },
+  })
+  if (!tenant || !tenant.isActive) return null
+
+  let connectionString: string
+  try {
+    connectionString = decrypt(tenant.connectionString)
+  } catch {
+    return null
+  }
+  const db = getTenantDb(connectionString)
+
+  const cedulaHash = createHash('sha256').update(cedula.trim()).digest('hex')
+  const voter = await db.voter.findFirst({
+    where:  { tenantId: tenant.id, cedulaHash },
+    select: { id: true, name: true, apodo: true, birthDate: true },
+  })
+  if (!voter || !voter.birthDate) return null
+
+  // Comparar solo la fecha (YYYY-MM-DD), sin hora. Se guarda a medianoche UTC.
+  if (voter.birthDate.toISOString().slice(0, 10) !== fechaNac.trim()) return null
+
+  // Tiene que existir la cuenta TESTIGO activa vinculada a ese elector.
+  const usuario = await superadminDb.user.findFirst({
+    where:  { tenantId: tenant.id, voterId: voter.id, role: 'TESTIGO', isActive: true },
+    select: { id: true },
+  })
+  if (!usuario) return null
+
+  return {
+    id:                usuario.id,
+    email:             '',
+    name:              voter.apodo?.trim() || voter.name,
+    role:              'TESTIGO',
     tenantId:          tenant.id,
     tenantSlug:        tenant.slug,
     tenantName:        tenant.name,
@@ -270,6 +335,27 @@ const nextAuth: NextAuthResult = NextAuth({
         if (!slug || !cedula || !telefono) return null
 
         return autenticarElector(slug, cedula, telefono)
+      },
+    }),
+
+    // Login de testigos por cédula + fecha de nacimiento — provider separado
+    // (id: "testigo") para que un testigo nunca entre por el de electores.
+    Credentials({
+      id:   'testigo',
+      name: 'testigo',
+      credentials: {
+        slug:      { label: 'Campaña',            type: 'text' },
+        cedula:    { label: 'Cédula',             type: 'text' },
+        birthDate: { label: 'Fecha de nacimiento', type: 'text' },
+      },
+      async authorize(credentials) {
+        const slug      = credentials?.slug      as string | undefined
+        const cedula    = credentials?.cedula    as string | undefined
+        const birthDate = credentials?.birthDate as string | undefined
+
+        if (!slug || !cedula || !birthDate) return null
+
+        return autenticarTestigo(slug, cedula, birthDate)
       },
     }),
   ],
