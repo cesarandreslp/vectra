@@ -146,7 +146,7 @@ export function CampaignWizard({ templates }: { templates: TemplateView[] }) {
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
               <label style={labelStyle}>Canal</label>
               <select
@@ -212,7 +212,7 @@ export function CampaignWizard({ templates }: { templates: TemplateView[] }) {
             Paso 2 — Segmentación de destinatarios
           </h2>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
               <label style={labelStyle}>Zona (opcional)</label>
               <input
@@ -240,7 +240,7 @@ export function CampaignWizard({ templates }: { templates: TemplateView[] }) {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
               <label style={labelStyle}>ID del líder (opcional)</label>
               <input

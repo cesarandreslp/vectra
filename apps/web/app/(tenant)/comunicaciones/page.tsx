@@ -8,7 +8,7 @@ export default async function ComunicacionesDashboardPage() {
   const metrics = await getDashboardMetrics()
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '900px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#0f172a' }}>
         Comunicaciones
       </h1>

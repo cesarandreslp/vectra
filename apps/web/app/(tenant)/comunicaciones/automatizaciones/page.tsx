@@ -28,7 +28,7 @@ export default async function AutomatizacionesPage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '800px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#0f172a' }}>
         Automatizaciones
       </h1>
@@ -51,7 +51,7 @@ export default async function AutomatizacionesPage() {
           Nueva automatización
         </h2>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             <label htmlFor="name" style={labelStyle}>Nombre</label>
             <input id="name" name="name" required style={inputStyle}
@@ -67,7 +67,7 @@ export default async function AutomatizacionesPage() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             <label htmlFor="channel" style={labelStyle}>Canal</label>
             <select id="channel" name="channel" required style={inputStyle}>

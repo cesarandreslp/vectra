@@ -8,7 +8,7 @@ export default async function CampanasPage() {
   const campaigns = await listCampaigns()
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '900px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#0f172a' }}>
           Campañas de mensajes

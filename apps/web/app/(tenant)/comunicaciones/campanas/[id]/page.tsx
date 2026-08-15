@@ -14,7 +14,7 @@ export default async function CampanaDetallePage({ params }: { params: Promise<{
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '800px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <Link href="/comunicaciones/campanas"
@@ -52,7 +52,7 @@ export default async function CampanaDetallePage({ params }: { params: Promise<{
         boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
       }}>
         <h2 style={{ margin: '0 0 1rem', fontSize: '1rem', color: '#334155' }}>Detalles</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', fontSize: '0.85rem' }}>
           <div><strong>Canal:</strong> {campaign.channel}</div>
           <div><strong>Estado:</strong> {campaign.status}</div>
           <div><strong>Plantilla:</strong> {campaign.templateName}</div>
