@@ -1256,9 +1256,14 @@ export interface TestigoGeo {
   /** Dónde VIVE. null si su dirección no está geocodificada. */
   lat:    number | null
   lng:    number | null
-  /** Dónde VIGILA. null si no tiene mesa, o si su puesto no está geocodificado. */
+  /**
+   * Dónde VIGILA. null si no tiene mesa. Si el puesto está geocodificado son sus
+   * coordenadas reales; si no, es el centroide de sus votantes (ver `puestoAprox`).
+   */
   puestoLat: number | null
   puestoLng: number | null
+  /** El punto del puesto es aproximado (centroide de votantes), no la sede real. */
+  puestoAprox: boolean
   /** Mesa que vigila. null = todavía sin asignar. */
   mesa:   string | null
   puesto: string | null
@@ -1314,9 +1319,17 @@ export async function getTestigosGeo(): Promise<TestigosGeoResult> {
   const mesas = asignaciones.length > 0
     ? await db.votingTable.findMany({
         where:  { id: { in: asignaciones.map((a) => a.votingTableId) } },
-        select: { id: true, number: true, station: { select: { name: true, lat: true, lng: true } } },
+        select: { id: true, number: true, station: { select: { id: true, name: true, lat: true, lng: true } } },
       })
     : []
+
+  // Puestos SIN coordenadas: 32 de 51 no están geocodificados, y son justo los
+  // urbanos donde vive el grueso de los testigos. Para que el modo "por puesto"
+  // no quede vacío, se los ubica en el centroide de sus propios votantes — no es
+  // la sede exacta, pero cae en el barrio correcto (`puestoAprox`). Correr
+  // db:geocodificar-puestos-buga los reemplaza por la coordenada real.
+  const sinCoords = [...new Set(mesas.filter((m) => m.station.lat == null).map((m) => m.station.id))]
+  const centroide = await centroidesDeVotantesPorPuesto(db, tenantId, sinCoords)
 
   const mesaPorId   = new Map(mesas.map((m) => [m.id, m]))
   const mesaPorUser = new Map(asignaciones.map((a) => [a.userId, mesaPorId.get(a.votingTableId)]))
@@ -1328,11 +1341,14 @@ export async function getTestigosGeo(): Promise<TestigosGeoResult> {
     const elector = voterPorId.get(u.voterId!)
     if (!elector) continue
 
-    const mesa = mesaPorUser.get(u.id)
+    const mesa   = mesaPorUser.get(u.id)
+    const est    = mesa?.station
+    const aprox  = est && est.lat == null ? centroide.get(est.id) ?? null : null
     testigos.push({
       id: elector.id, name: elector.name, lat: elector.lat, lng: elector.lng,
-      puestoLat: mesa?.station.lat ?? null,
-      puestoLng: mesa?.station.lng ?? null,
+      puestoLat:   est?.lat ?? aprox?.lat ?? null,
+      puestoLng:   est?.lng ?? aprox?.lng ?? null,
+      puestoAprox: est != null && est.lat == null && aprox != null,
       mesa:   mesa ? `Mesa ${mesa.number}` : null,
       puesto: mesa ? mesa.station.name : null,
       neighborhoodId: elector.neighborhoodId,
@@ -1340,6 +1356,35 @@ export async function getTestigosGeo(): Promise<TestigosGeoResult> {
   }
 
   return { testigos }
+}
+
+/**
+ * Centroide (promedio simple) de los votantes de cada puesto, para ubicar los
+ * puestos sin coordenadas en el mapa de testigos sin inventar una sede. Solo
+ * cuenta votantes con lat/lng; un puesto sin ninguno queda fuera del Map.
+ */
+async function centroidesDeVotantesPorPuesto(
+  db: Awaited<ReturnType<typeof obtenerDbTenant>>,
+  tenantId: string,
+  stationIds: string[],
+): Promise<Map<string, { lat: number; lng: number }>> {
+  const out = new Map<string, { lat: number; lng: number }>()
+  if (stationIds.length === 0) return out
+
+  const votantes = await db.voter.findMany({
+    where:  { tenantId, lat: { not: null }, lng: { not: null }, votingTable: { stationId: { in: stationIds } } },
+    select: { lat: true, lng: true, votingTable: { select: { stationId: true } } },
+  })
+
+  const acum = new Map<string, { lat: number; lng: number; n: number }>()
+  for (const v of votantes) {
+    const sid = v.votingTable!.stationId
+    const a = acum.get(sid) ?? { lat: 0, lng: 0, n: 0 }
+    a.lat += v.lat!; a.lng += v.lng!; a.n++
+    acum.set(sid, a)
+  }
+  for (const [sid, a] of acum) out.set(sid, { lat: a.lat / a.n, lng: a.lng / a.n })
+  return out
 }
 
 /**

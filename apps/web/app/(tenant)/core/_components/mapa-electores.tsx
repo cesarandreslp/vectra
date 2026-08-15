@@ -92,12 +92,17 @@ function dibujarCapaTestigos(L: typeof import('leaflet'), capa: import('leaflet'
     const lng = ubicarPor === 'puesto' ? t.puestoLng : t.lng
     if (lat == null || lng == null) continue
     const color = t.mesa ? COLOR_TESTIGO.conMesa : COLOR_TESTIGO.sinMesa
+    // En modo puesto, un punto aproximado (centroide de votantes) se dibuja
+    // punteado, para no hacerlo pasar por la sede real.
+    const aprox = ubicarPor === 'puesto' && t.puestoAprox
     L.circleMarker([lat, lng], {
-      radius: 9, weight: 2, color: '#fff', fillOpacity: 1, fillColor: color,
+      radius: 9, weight: 2, color: '#fff', fillOpacity: aprox ? 0.55 : 1, fillColor: color,
+      dashArray: aprox ? '3' : undefined,
     })
       .bindPopup(
         `<b>${t.name}</b><br>` +
-        (t.mesa ? `${t.mesa} · ${t.puesto}` : '<i>Sin mesa asignada</i>'),
+        (t.mesa ? `${t.mesa} · ${t.puesto}` : '<i>Sin mesa asignada</i>') +
+        (aprox ? '<br><i>Puesto sin geocodificar — ubicación aproximada</i>' : ''),
       )
       .addTo(capa)
   }
