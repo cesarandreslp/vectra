@@ -102,7 +102,7 @@ export function ExpenseForm({ topeGastos }: ExpenseFormProps) {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
         <label style={labelStyle}>
           Categoría *
           <select name="category" required style={inputStyle}>
@@ -124,7 +124,7 @@ export function ExpenseForm({ topeGastos }: ExpenseFormProps) {
         <input name="description" required style={inputStyle} placeholder="Descripción del gasto" />
       </label>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
         <label style={labelStyle}>
           Fecha *
           <input name="date" type="date" required style={inputStyle} />
@@ -136,7 +136,7 @@ export function ExpenseForm({ topeGastos }: ExpenseFormProps) {
         </label>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
         <label style={labelStyle}>
           N° Factura
           <input name="invoiceNumber" style={inputStyle} placeholder="Número de factura" />

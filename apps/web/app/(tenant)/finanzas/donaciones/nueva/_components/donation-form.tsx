@@ -105,7 +105,7 @@ export function DonationForm({ topeGastos }: DonationFormProps) {
         <input name="donorName" required style={inputStyle} placeholder="Nombre completo o razón social" />
       </label>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
         <label style={labelStyle}>
           Cédula o NIT (opcional, se cifra)
           <input name="donorId" style={inputStyle} placeholder="Se almacena cifrado" />
@@ -124,7 +124,7 @@ export function DonationForm({ topeGastos }: DonationFormProps) {
         </label>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
         <label style={labelStyle}>
           Monto (COP) *
           <input
@@ -156,7 +156,7 @@ export function DonationForm({ topeGastos }: DonationFormProps) {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
         <label style={labelStyle}>
           Método de pago
           <select name="paymentMethod" style={inputStyle}>

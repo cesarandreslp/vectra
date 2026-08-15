@@ -76,7 +76,7 @@ export function FinanceConfigForm({ initialConfig, electores }: FinanceConfigFor
         actualizado del tope aplicable a su campaña.
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
         <label style={labelStyle}>
           Fecha inicio de campaña
           <input
