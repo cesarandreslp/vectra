@@ -30,11 +30,11 @@ export default async function UsuariosPage() {
   const testigos = usuarios.filter(u => u.role === 'TESTIGO').length
 
   return (
-    <div style={{ maxWidth: '640px' }}>
+    <div>
       <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.35rem' }}>
         Usuarios y testigos
       </h1>
-      <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+      <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1.5rem', maxWidth: '640px' }}>
         Cuentas con acceso al panel y a la app del testigo. Hoy hay{' '}
         <strong>{testigos}</strong> testigo(s). Un testigo se crea acá y después
         se le asigna su mesa en Día E → Asignaciones.

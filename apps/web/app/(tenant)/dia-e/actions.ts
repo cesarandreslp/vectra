@@ -373,7 +373,13 @@ export async function comunasParaTestigo(): Promise<ComunaConBarrios[]> {
  * Va aparte de `listarUsuarios` porque los User viven en la BD del superadmin y
  * las asignaciones en la del tenant: no hay join posible, se cruzan por id.
  */
-export async function mesasDeTestigos(): Promise<Record<string, string>> {
+/** Mesa que vigila un testigo, estructurada para poder agrupar por puesto. */
+export interface MesaDeTestigo {
+  numero: number
+  puesto: string
+}
+
+export async function mesasDeTestigos(): Promise<Record<string, MesaDeTestigo>> {
   const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'])
 
   // WitnessAssignment.votingTableId es un id suelto (sin relación en el schema),
@@ -390,13 +396,13 @@ export async function mesasDeTestigos(): Promise<Record<string, string>> {
   })
   const porId = new Map(
     (mesas as { id: string; number: number; station: { name: string } }[])
-      .map(m => [m.id, `Mesa ${m.number} · ${m.station.name}`]),
+      .map(m => [m.id, { numero: m.number, puesto: m.station.name }]),
   )
 
-  const salida: Record<string, string> = {}
+  const salida: Record<string, MesaDeTestigo> = {}
   for (const a of asignaciones as { userId: string; votingTableId: string }[]) {
-    const etiqueta = porId.get(a.votingTableId)
-    if (etiqueta) salida[a.userId] = etiqueta
+    const mesa = porId.get(a.votingTableId)
+    if (mesa) salida[a.userId] = mesa
   }
   return salida
 }

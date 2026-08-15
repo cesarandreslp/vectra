@@ -1,20 +1,31 @@
 'use client'
 
-import { useState } from 'react'
-import { alternarUsuarioActivo, vincularUsuarioAElector, type UsuarioView } from '../../configuracion/actions-roles'
-import { type CustomRoleView } from '../../configuracion/actions-roles'
+import { useMemo, useState } from 'react'
+import { alternarUsuarioActivo, vincularUsuarioAElector, type UsuarioView, type CustomRoleView } from '../../configuracion/actions-roles'
 import { FormNuevoUsuario, type VoterOption } from './form-nuevo-usuario'
-import { AsignarMesa } from './asignar-mesa'
-import type { ComunaConBarrios } from '../../../dia-e/actions'
+import { TarjetaUsuario } from './tarjeta-usuario'
+import type { ComunaConBarrios, MesaDeTestigo } from '../../../dia-e/actions'
+
+type Vista = 'lista' | 'puesto'
+
+/** Grilla que se reparte sola por el ancho: nunca una columna fija. */
+const grid: React.CSSProperties = {
+  display: 'grid', gap: '0.75rem',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+}
 
 export function UsuariosPanel({ usuarios: usuariosIniciales, roles, electores, comunas, mesas }: {
   usuarios: UsuarioView[]; roles: CustomRoleView[]; electores: VoterOption[]
   comunas: ComunaConBarrios[]
-  /** userId → mesa que vigila, ya legible. Sin entrada = sin mesa asignada. */
-  mesas: Record<string, string>
+  /** userId → mesa que vigila. Sin entrada = sin mesa asignada. */
+  mesas: Record<string, MesaDeTestigo>
 }) {
   const [usuarios, setUsuarios] = useState(usuariosIniciales)
   const [creando, setCreando] = useState(false)
+  const [vista, setVista] = useState<Vista>('lista')
+
+  // Agrupar por puesto solo tiene sentido si hay testigos con mesa.
+  const hayAsignadas = usuarios.some((u) => mesas[u.id])
 
   async function onAlternar(id: string, activo: boolean) {
     const res = await alternarUsuarioActivo(id, !activo)
@@ -28,61 +39,78 @@ export function UsuariosPanel({ usuarios: usuariosIniciales, roles, electores, c
     setUsuarios((prev) => prev.map((u) => (u.id === id ? { ...u, voterId } : u)))
   }
 
+  const tarjeta = (u: UsuarioView) => (
+    <TarjetaUsuario key={u.id} u={u} electores={electores} comunas={comunas}
+      mesa={mesas[u.id]} onAlternar={onAlternar} onVincular={onVincular} />
+  )
+
+  const grupos = useMemo(() => agruparPorPuesto(usuarios, mesas), [usuarios, mesas])
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-      {usuarios.map((u) => (
-        <div key={u.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.75rem 1rem' }}>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{u.name ?? u.email}</div>
-            <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-              {u.email} · {u.role === 'PERSONALIZADO' ? u.customRoleName : u.role}
-              {!u.isActive && ' · Inactivo'}
-            </div>
-            {/* Sin elector no aparece en los desplegables de líder ni entra al PWA. */}
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.35rem', fontSize: '0.72rem', color: '#64748b' }}>
-              Elector:
-              <select
-                value={u.voterId ?? ''}
-                onChange={(e) => onVincular(u.id, e.target.value || null)}
-                style={{ border: '1px solid #cbd5e1', borderRadius: 4, padding: '0.15rem 0.3rem', fontSize: '0.72rem', maxWidth: 220 }}
-              >
-                <option value="">— sin vincular —</option>
-                {electores.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-              </select>
-            </label>
-
-            {/* Solo a los testigos: es el único rol que vigila una mesa. */}
-            {u.role === 'TESTIGO' && comunas.length > 0 && (
-              mesas[u.id]
-                ? <div style={{ fontSize: '0.72rem', color: '#166534', marginTop: '0.35rem', fontWeight: 600 }}>
-                    {mesas[u.id]}
-                  </div>
-                : <AsignarMesa userId={u.id} voterId={u.voterId} comunas={comunas} />
-            )}
-          </div>
-          <button
-            onClick={() => onAlternar(u.id, u.isActive)}
-            style={{
-              border: '1px solid ' + (u.isActive ? '#fecaca' : '#bbf7d0'),
-              background: u.isActive ? '#fef2f2' : '#f0fdf4', color: u.isActive ? '#991b1b' : '#166534',
-              borderRadius: '6px', padding: '0.3rem 0.7rem', fontSize: '0.75rem', cursor: 'pointer',
-            }}
-          >
-            {u.isActive ? 'Desactivar' : 'Activar'}
-          </button>
-        </div>
-      ))}
-
-      {!creando ? (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      {/* Acción pegajosa: crear y cambiar de vista sin scrollear los 330. */}
+      <div style={{ position: 'sticky', top: 0, zIndex: 5, background: '#f8fafc', padding: '0.6rem 0', display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0' }}>
         <button
-          onClick={() => setCreando(true)}
-          style={{ alignSelf: 'flex-start', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.4rem 0.9rem', fontSize: '0.8rem', cursor: 'pointer' }}
+          onClick={() => setCreando((v) => !v)}
+          style={{ background: creando ? '#e2e8f0' : '#0f172a', color: creando ? '#475569' : '#fff', border: 'none', borderRadius: 6, padding: '0.45rem 1rem', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
         >
-          + Nuevo usuario
+          {creando ? 'Cerrar' : '+ Nuevo usuario'}
         </button>
-      ) : (
+
+        {hayAsignadas && (
+          <div style={{ display: 'inline-flex', gap: '0.25rem', fontSize: '0.8rem' }}>
+            {(['lista', 'puesto'] as const).map((v) => (
+              <button key={v} onClick={() => setVista(v)}
+                style={{ padding: '0.35rem 0.8rem', borderRadius: 999, border: '1px solid #e2e8f0', cursor: 'pointer', fontWeight: 600,
+                  background: vista === v ? '#0f172a' : '#f1f5f9', color: vista === v ? '#fff' : '#475569' }}>
+                {v === 'lista' ? 'Lista' : 'Por puesto'}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {creando && (
         <FormNuevoUsuario roles={roles} electores={electores} comunas={comunas} onCancelar={() => setCreando(false)} />
+      )}
+
+      {vista === 'lista' || !hayAsignadas ? (
+        <div style={grid}>{usuarios.map(tarjeta)}</div>
+      ) : (
+        grupos.map((g) => (
+          <section key={g.titulo}>
+            <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155', margin: '0.25rem 0 0.6rem' }}>
+              {g.titulo} <span style={{ color: '#94a3b8', fontWeight: 500 }}>· {g.usuarios.length}</span>
+            </h3>
+            <div style={grid}>{g.usuarios.map(tarjeta)}</div>
+          </section>
+        ))
       )}
     </div>
   )
+}
+
+/** Testigos bajo su puesto (ordenados por mesa), luego los sin puesto, luego el resto. */
+function agruparPorPuesto(usuarios: UsuarioView[], mesas: Record<string, MesaDeTestigo>) {
+  const porPuesto = new Map<string, UsuarioView[]>()
+  const sinPuesto: UsuarioView[] = []
+  const otros: UsuarioView[] = []
+
+  for (const u of usuarios) {
+    if (u.role !== 'TESTIGO') { otros.push(u); continue }
+    const m = mesas[u.id]
+    if (!m) { sinPuesto.push(u); continue }
+    porPuesto.set(m.puesto, [...(porPuesto.get(m.puesto) ?? []), u])
+  }
+
+  const grupos = [...porPuesto.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([puesto, us]) => ({
+      titulo: puesto,
+      usuarios: us.sort((a, b) => (mesas[a.id]!.numero - mesas[b.id]!.numero)),
+    }))
+
+  if (sinPuesto.length) grupos.push({ titulo: 'Testigos sin puesto asignado', usuarios: sinPuesto })
+  if (otros.length)     grupos.push({ titulo: 'Otras cuentas (no testigos)', usuarios: otros })
+  return grupos
 }
