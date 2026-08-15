@@ -78,6 +78,7 @@ export interface CreateVoterInput {
   name:             string
   apodo?:           string
   phone?:           string
+  birthDate?:       Date
   address?:         string
   leaderId?:        string
   votingTableId?:   string
@@ -589,6 +590,7 @@ export async function createVoter(
         name:             data.name,
         apodo:            data.apodo?.trim() || undefined,
         phone:            phoneCifrado,
+        birthDate:        data.birthDate,
         address:          data.address?.trim() || undefined,
         leaderId:         data.leaderId,
         votingTableId:    data.votingTableId,

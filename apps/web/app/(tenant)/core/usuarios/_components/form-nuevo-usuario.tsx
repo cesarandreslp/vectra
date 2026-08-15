@@ -37,6 +37,7 @@ export function FormNuevoUsuario({ roles, electores, comunas, onCancelar }: {
   const [voterId, setVoterId]   = useState('')
   const [cedula, setCedula]     = useState('')
   const [phone, setPhone]       = useState('')
+  const [birthDate, setBirthDate] = useState('')
   const [delPadron, setDelPadron] = useState(false)
   const [votingTableId, setVotingTableId] = useState('')
   const [tambienVotaAhi, setTambienVotaAhi] = useState(true)
@@ -60,6 +61,7 @@ export function FormNuevoUsuario({ roles, electores, comunas, onCancelar }: {
       voterId: delPadron ? (voterId || undefined) : undefined,
       cedula:  !delPadron && esTestigo ? cedula : undefined,
       phone:   !delPadron && esTestigo ? phone  : undefined,
+      birthDate: esTestigo ? (birthDate || undefined) : undefined,
       votingTableId:  esTestigo ? (votingTableId || undefined) : undefined,
       tambienVotaAhi: esTestigo && tambienVotaAhi,
     })
@@ -117,6 +119,17 @@ export function FormNuevoUsuario({ roles, electores, comunas, onCancelar }: {
               {electores.map((v) => <option key={v.id} value={v.id}>{v.name}{v.zone ? ` · ${v.zone}` : ''}</option>)}
             </select>
           )}
+
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', fontSize: '0.75rem', color: '#334155' }}>
+            Fecha de nacimiento
+            <input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
+              required={!delPadron} max={hoyISO()} style={inputStyle} />
+            <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
+              {delPadron
+                ? 'Solo si su ficha todavía no la tiene. Debe ser mayor de edad (18+).'
+                : 'Define si es apto para votar (18+) y es parte de su acceso como testigo.'}
+            </span>
+          </label>
         </div>
       )}
 
@@ -176,3 +189,6 @@ const inputStyle: React.CSSProperties = {
 const radioStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: '#334155',
 }
+
+/** Hoy en YYYY-MM-DD, para topar el date input y no admitir fechas futuras. */
+const hoyISO = () => new Date().toISOString().slice(0, 10)

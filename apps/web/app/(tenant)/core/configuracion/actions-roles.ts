@@ -13,6 +13,7 @@ import { revalidatePath } from 'next/cache'
 import bcrypt from 'bcryptjs'
 import { type UserRole } from '@vectra/auth'
 import { SCREENS } from '@/lib/screens'
+import { esMayorDeEdad } from '@/lib/edad'
 import { createVoter } from '../actions'
 import { assignWitness } from '../../dia-e/actions'
 
@@ -157,6 +158,9 @@ export interface CrearUsuarioInput {
   /** Cédula para crearle la ficha de elector al testigo nuevo. */
   cedula?:       string
   phone?:        string
+  /** Fecha de nacimiento (YYYY-MM-DD). Obligatoria para testigos: define si es
+   *  apto (18+) y es parte de su credencial de acceso. */
+  birthDate?:    string
   /** Mesa que va a vigilar. Se asigna al crearlo, no en una pantalla aparte. */
   votingTableId?: string
   /** Además, dejar esa mesa como su mesa de votación. Opcional a propósito. */
@@ -175,13 +179,22 @@ export async function crearUsuario(input: CrearUsuarioInput) {
   }
   if (input.role === 'SUPERADMIN') return { success: false, error: 'No puedes crear cuentas SUPERADMIN desde aquí.' }
 
+  // La fecha se valida de formato acá; que sea OBLIGATORIA y 18+ depende del rol
+  // (solo testigos), y eso se decide en cada rama de abajo.
+  let birthDate: Date | undefined
+  if (input.birthDate?.trim()) {
+    const d = new Date(input.birthDate)
+    if (isNaN(d.getTime())) return { success: false, error: 'La fecha de nacimiento no es válida.' }
+    birthDate = d
+  }
+
   let voterId = input.voterId || null
   let nombre  = input.name.trim()
 
   if (voterId) {
     // Viene del padrón: el nombre ya está en su ficha, no se vuelve a digitar.
     const db      = getTenantDb(await getTenantConnection(tenantId))
-    const elector = await db.voter.findFirst({ where: { id: voterId, tenantId }, select: { name: true } })
+    const elector = await db.voter.findFirst({ where: { id: voterId, tenantId }, select: { name: true, birthDate: true } })
     if (!elector) return { success: false, error: 'Ese elector no existe en esta campaña.' }
     if (!nombre) nombre = elector.name
 
@@ -193,12 +206,25 @@ export async function crearUsuario(input: CrearUsuarioInput) {
     })
     if (ocupado) return { success: false, error: `Ese elector ya está vinculado a ${ocupado.email}.` }
 
+    // Testigo desde el padrón: exige fecha (la de su ficha, o una nueva si no la
+    // tenía) y que sea mayor de edad. La fecha nueva se guarda en su ficha.
+    if (input.role === 'TESTIGO') {
+      const fecha = elector.birthDate ?? birthDate
+      if (!fecha) return { success: false, error: 'Falta la fecha de nacimiento del testigo.' }
+      if (!esMayorDeEdad(fecha)) return { success: false, error: 'El testigo debe ser mayor de edad (18+) para votar y vigilar una mesa.' }
+      if (!elector.birthDate && birthDate) {
+        await db.voter.update({ where: { id: voterId }, data: { birthDate } })
+      }
+    }
+
   } else if (input.role === 'TESTIGO') {
     // Testigo nuevo: se le crea la ficha de elector colgada del candidato. Va
     // ANTES de crear la cuenta — si la cédula está repetida, preferible no
     // dejar un User huérfano sin elector.
     if (!input.cedula?.trim()) return { success: false, error: TESTIGO_NECESITA_ELECTOR }
     if (!nombre) return { success: false, error: 'Falta el nombre.' }
+    if (!birthDate) return { success: false, error: 'La fecha de nacimiento es obligatoria para un testigo.' }
+    if (!esMayorDeEdad(birthDate)) return { success: false, error: 'El testigo debe ser mayor de edad (18+) para votar y vigilar una mesa.' }
 
     const db        = getTenantDb(await getTenantConnection(tenantId))
     const candidato = await db.voter.findFirst({
@@ -210,6 +236,7 @@ export async function crearUsuario(input: CrearUsuarioInput) {
       name:   nombre,
       cedula: input.cedula.trim(),
       phone:  input.phone?.trim() || undefined,
+      birthDate,
       // Sin candidato marcado queda en la raíz del árbol, no bloquea.
       leaderId: candidato?.id,
     })

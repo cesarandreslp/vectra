@@ -203,6 +203,10 @@ model Voter {
   apodo            String? // Como le dicen normalmente — para mensajes de invitación más cercanos
   // CIFRADO: campo PII — se cifra con AES-256 antes de persistir. Ver lib/crypto.ts
   phone            String?
+  // Fecha de nacimiento. Da la edad → apto para votar (18+). Para un TESTIGO es
+  // además su credencial de acceso (cédula + fecha de nacimiento), por eso el
+  // alta de testigo la exige; para el resto del padrón es opcional.
+  birthDate        DateTime?
   address          String? // Dirección física del elector
   lat              Float? // Coordenada geocodificada desde address (para el mapa)
   lng              Float?
