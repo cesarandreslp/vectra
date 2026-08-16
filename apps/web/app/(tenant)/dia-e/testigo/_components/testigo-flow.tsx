@@ -55,6 +55,7 @@ export function TestigoFlow({
     return (
       <FotoE14
         votingTableId={assignment.votingTableId}
+        countHecho={countDone}
         onExtracted={handlePhotoExtracted}
         onCancel={() => setStep('idle')}
         onManualFallback={() => setStep('manual')}

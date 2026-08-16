@@ -11,11 +11,14 @@ interface ExtractedResult {
 
 export function FotoE14({
   votingTableId,
+  countHecho,
   onExtracted,
   onCancel,
   onManualFallback,
 }: {
   votingTableId: string
+  /** Si el testigo ya digitó el conteo. Si no, enviar solo la foto pide confirmación. */
+  countHecho: boolean
   onExtracted: (result: ExtractedResult) => void
   onCancel: () => void
   onManualFallback: () => void
@@ -24,8 +27,16 @@ export function FotoE14({
   const [file, setFile]           = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [processing, setProcessing] = useState(false)
+  const [advertencia, setAdvertencia] = useState(false)
   const [error, setError]         = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // El conteo es obligatorio. Si falta y quiere mandar solo la foto, se le
+  // advierte y tiene que confirmar antes de subir nada.
+  function intentarEnviar() {
+    if (!countHecho) { setAdvertencia(true); return }
+    void handleSubmit()
+  }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
@@ -135,7 +146,7 @@ export function FotoE14({
             />
           </div>
 
-          {!uploading && !processing && (
+          {!uploading && !processing && !advertencia && (
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button onClick={handleRetake} style={{
                 flex: 1, padding: '0.75rem', fontSize: '0.875rem', borderRadius: '8px',
@@ -144,13 +155,38 @@ export function FotoE14({
               }}>
                 Retomar
               </button>
-              <button onClick={handleSubmit} style={{
+              <button onClick={intentarEnviar} style={{
                 flex: 2, padding: '0.75rem', fontSize: '0.875rem', borderRadius: '8px',
                 border: 'none', background: '#1e40af', color: '#fff',
                 cursor: 'pointer', fontWeight: 600,
               }}>
                 Usar esta foto
               </button>
+            </div>
+          )}
+
+          {advertencia && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ fontSize: '0.85rem', color: '#991b1b', lineHeight: 1.5 }}>
+                <strong>Falta digitar el conteo.</strong> La digitación de los resultados
+                del conteo de la mesa es obligatoria. Transmitir solo la foto del E-14,
+                sin esos datos, genera dudas sobre tu desempeño como testigo en esta mesa.
+                ¿Deseas continuar con el envío de todas formas?
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button onClick={() => { setAdvertencia(false); onCancel() }} style={{
+                  flex: 2, padding: '0.7rem', fontSize: '0.85rem', borderRadius: '8px',
+                  border: 'none', background: '#16a34a', color: '#fff', cursor: 'pointer', fontWeight: 700,
+                }}>
+                  Hacer el conteo primero
+                </button>
+                <button onClick={() => { setAdvertencia(false); void handleSubmit() }} style={{
+                  flex: 1, padding: '0.7rem', fontSize: '0.85rem', borderRadius: '8px',
+                  border: '1px solid #ef4444', background: '#fff', color: '#991b1b', cursor: 'pointer', fontWeight: 600,
+                }}>
+                  Enviar solo la foto
+                </button>
+              </div>
             </div>
           )}
         </>
