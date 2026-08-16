@@ -1012,9 +1012,13 @@ model SurveyCargo {
 
 /// Tipo de pregunta en la encuesta
 enum SurveyPreguntaType {
-  FREE_TEXT
-  BOOLEAN
-  SINGLE_CHOICE
+  FREE_TEXT       // abierta, la IA identifica un candidato entre los del cargo
+  BOOLEAN         // sí / no
+  SINGLE_CHOICE   // una opción entre varias (radio)
+  MULTIPLE_CHOICE // varias opciones (checkboxes)
+  DROPDOWN        // una opción, en lista desplegable
+  PARAGRAPH       // texto libre largo, SIN IA
+  SCALE           // escala numérica (scaleMin..scaleMax), ej. 1-5
 }
 
 /// Pregunta asociada a un cargo en la encuesta
@@ -1024,6 +1028,9 @@ model SurveyPregunta {
   text          String
   order         Int                @default(0)
   type          SurveyPreguntaType @default(FREE_TEXT)
+  // Solo para type = SCALE. Rango de la escala (ej. 1..5). Null en el resto.
+  scaleMin      Int?
+  scaleMax      Int?
 
   cargo     SurveyCargo      @relation(fields: [surveyCargoId], references: [id], onDelete: Cascade)
   responses SurveyResponse[]

@@ -48,8 +48,12 @@ export function FormularioEncuesta() {
 function TarjetaPregunta({ pregunta, onRespondida }: { pregunta: PreguntaPendiente; onRespondida: (id: string) => void }) {
   const [texto, setTexto] = useState('')
   const [opcionId, setOpcionId] = useState('')
+  const [opcionIds, setOpcionIds] = useState<string[]>([])
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState('')
+
+  const toggleOpcion = (id: string) =>
+    setOpcionIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])
 
   async function enviar(respuesta: Parameters<typeof responderPreguntaApp>[1]) {
     setEnviando(true)
@@ -126,7 +130,68 @@ function TarjetaPregunta({ pregunta, onRespondida }: { pregunta: PreguntaPendien
         </div>
       )}
 
+      {pregunta.type === 'PARAGRAPH' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <textarea
+            value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Tu respuesta..." disabled={enviando} rows={3}
+            style={{ border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0.5rem 0.75rem', fontSize: '0.85rem', resize: 'vertical' }}
+          />
+          <button onClick={() => texto.trim() && enviar({ type: 'PARAGRAPH', text: texto })} disabled={enviando || !texto.trim()}
+            style={{ alignSelf: 'flex-end', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '8px', padding: '0.5rem 1rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+            Enviar
+          </button>
+        </div>
+      )}
+
+      {pregunta.type === 'DROPDOWN' && (
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <select value={opcionId} onChange={(e) => setOpcionId(e.target.value)} disabled={enviando}
+            style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}>
+            <option value="">Elige una opción…</option>
+            {pregunta.opciones.map((o) => <option key={o.id} value={o.id}>{o.text}</option>)}
+          </select>
+          <button onClick={() => opcionId && enviar({ type: 'DROPDOWN', opcionId })} disabled={enviando || !opcionId}
+            style={{ background: '#0f172a', color: '#fff', border: 'none', borderRadius: '8px', padding: '0 1rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+            Enviar
+          </button>
+        </div>
+      )}
+
+      {pregunta.type === 'MULTIPLE_CHOICE' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+          {pregunta.opciones.map((o) => (
+            <label key={o.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+              <input type="checkbox" checked={opcionIds.includes(o.id)} onChange={() => toggleOpcion(o.id)} />
+              {o.text}
+            </label>
+          ))}
+          <button onClick={() => opcionIds.length > 0 && enviar({ type: 'MULTIPLE_CHOICE', opcionIds })} disabled={enviando || opcionIds.length === 0}
+            style={{ marginTop: '0.4rem', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '8px', padding: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+            Enviar
+          </button>
+        </div>
+      )}
+
+      {pregunta.type === 'SCALE' && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+          {escala(pregunta.scaleMin, pregunta.scaleMax).map((n) => (
+            <button key={n} onClick={() => enviar({ type: 'SCALE', value: n })} disabled={enviando}
+              style={{ width: 40, height: 40, borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer' }}>
+              {n}
+            </button>
+          ))}
+        </div>
+      )}
+
       {error && <div style={{ color: '#dc2626', fontSize: '0.75rem', marginTop: '0.5rem' }}>{error}</div>}
     </div>
   )
+}
+
+/** Números min..max de una escala; por defecto 1..5 si no vinieron. */
+function escala(min: number | null, max: number | null): number[] {
+  const lo = min ?? 1
+  const hi = max ?? 5
+  if (hi < lo) return [lo]
+  return Array.from({ length: hi - lo + 1 }, (_, i) => lo + i)
 }

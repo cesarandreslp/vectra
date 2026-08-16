@@ -63,16 +63,22 @@ export function ResultadosPorPregunta({ rawResponsesGrouped, rawResponsesByText,
 
   rawResponsesByText.forEach((group) => {
     const rbp = resultsByPregunta[group.surveyPreguntaId]
-    if (rbp && rbp.pregunta.type !== 'FREE_TEXT') {
-      const etiqueta = group.text === 'SI' ? 'Sí' : group.text === 'NO' ? 'No' : group.text
+    if (!rbp || rbp.pregunta.type === 'FREE_TEXT') return
+
+    // Opción múltiple: el texto trae varias opciones unidas (ver SEP_MULTIPLE en
+    // pwa/encuestas/actions) — se cuenta cada una por separado. El total suma
+    // RESPONDENTES (una vez por fila), no selecciones, así que puede pasar 100%.
+    const partes = rbp.pregunta.type === 'MULTIPLE_CHOICE' ? group.text.split('\n') : [group.text]
+    for (const parte of partes) {
+      const etiqueta = parte === 'SI' ? 'Sí' : parte === 'NO' ? 'No' : parte
       let opcion = rbp.candidatos.find((c) => c.name === etiqueta)
       if (!opcion) {
         opcion = { id: `texto-${etiqueta}`, name: etiqueta, count: 0 }
         rbp.candidatos.push(opcion)
       }
       opcion.count += group._count.id
-      rbp.total += group._count.id
     }
+    rbp.total += group._count.id
   })
 
   const resultados = Object.values(resultsByPregunta)

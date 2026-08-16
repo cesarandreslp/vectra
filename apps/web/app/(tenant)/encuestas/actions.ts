@@ -63,12 +63,16 @@ export async function createSurveyCampaign(data: {
     preguntas: {
       text: string
       order: number
-      type: 'FREE_TEXT' | 'BOOLEAN' | 'SINGLE_CHOICE'
+      type: 'FREE_TEXT' | 'BOOLEAN' | 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE' | 'DROPDOWN' | 'PARAGRAPH' | 'SCALE'
       opciones?: string[]
+      scaleMin?: number
+      scaleMax?: number
     }[]
-    candidatos: { name: string; code?: string }[]
+    candidatos?: { name: string; code?: string }[]
   }[]
 }) {
+  // Tipos que llevan opciones propias (radio / checkbox / desplegable).
+  const CON_OPCIONES = ['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'DROPDOWN']
   try {
     const session = await requireModuleOrScreen('ENCUESTAS', ['ADMIN_CAMPANA'], 'ENCUESTAS_CAMPANAS', 'edit')
     const db = getTenantDb(await getTenantConnection(session.user.tenantId))
@@ -89,13 +93,15 @@ export async function createSurveyCampaign(data: {
                 text: pregunta.text,
                 order: pregunta.order,
                 type: pregunta.type,
-                opciones: pregunta.type === 'SINGLE_CHOICE'
+                scaleMin: pregunta.type === 'SCALE' ? (pregunta.scaleMin ?? 1) : null,
+                scaleMax: pregunta.type === 'SCALE' ? (pregunta.scaleMax ?? 5) : null,
+                opciones: CON_OPCIONES.includes(pregunta.type)
                   ? { create: (pregunta.opciones ?? []).map((text, i) => ({ text, order: i })) }
                   : undefined,
               }))
             },
             candidatos: {
-              create: cargo.candidatos.map(candidato => ({
+              create: (cargo.candidatos ?? []).map(candidato => ({
                 name: candidato.name,
                 code: candidato.code
               }))

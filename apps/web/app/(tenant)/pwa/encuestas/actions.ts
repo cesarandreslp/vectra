@@ -7,13 +7,22 @@ import { getTenantConnection } from '@/lib/tenant'
 import { getTenantAiKeys } from '@/lib/tenant-ai'
 import { candidateMatcher } from '@/lib/encuestas/candidate-matcher'
 
+export type TipoPregunta =
+  'FREE_TEXT' | 'PARAGRAPH' | 'BOOLEAN' | 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE' | 'DROPDOWN' | 'SCALE'
+
+/** Separador de opciones marcadas en una respuesta de opción múltiple (una sola
+ *  fila por el constraint único voter+pregunta). Improbable en el texto de una opción. */
+export const SEP_MULTIPLE = '\n'
+
 export interface PreguntaPendiente {
   id:       string
   text:     string
-  type:     'FREE_TEXT' | 'BOOLEAN' | 'SINGLE_CHOICE'
+  type:     TipoPregunta
   cargo:    string
   campania: string
   opciones: { id: string; text: string }[]
+  scaleMin: number | null
+  scaleMax: number | null
 }
 
 /**
@@ -58,6 +67,8 @@ export async function getEncuestaPendiente(): Promise<PreguntaPendiente[]> {
         cargo:    cargo.name,
         campania: campania.name,
         opciones: pregunta.opciones.map((o) => ({ id: o.id, text: o.text })),
+        scaleMin: pregunta.scaleMin,
+        scaleMax: pregunta.scaleMax,
       })
     }
   }
@@ -66,8 +77,12 @@ export async function getEncuestaPendiente(): Promise<PreguntaPendiente[]> {
 
 type Respuesta =
   | { type: 'FREE_TEXT'; text: string }
+  | { type: 'PARAGRAPH'; text: string }
   | { type: 'BOOLEAN'; text: 'SI' | 'NO' }
   | { type: 'SINGLE_CHOICE'; opcionId: string }
+  | { type: 'DROPDOWN'; opcionId: string }
+  | { type: 'MULTIPLE_CHOICE'; opcionIds: string[] }
+  | { type: 'SCALE'; value: number }
 
 /** Guarda la respuesta del elector logueado a una pregunta de encuesta. */
 export async function responderPreguntaApp(preguntaId: string, respuesta: Respuesta) {
@@ -94,9 +109,26 @@ export async function responderPreguntaApp(preguntaId: string, respuesta: Respue
       const { groq } = await getTenantAiKeys(session.user.tenantId)
       surveyCandidatoId = await candidateMatcher.matchCandidate(text, pregunta.cargo.candidatos, groq)
     }
+  } else if (respuesta.type === 'PARAGRAPH') {
+    text = respuesta.text.trim()
+    if (!text) return { success: false, error: 'Respuesta vacía.' }
   } else if (respuesta.type === 'BOOLEAN') {
     text = respuesta.text
+  } else if (respuesta.type === 'SCALE') {
+    const min = pregunta.scaleMin ?? 1
+    const max = pregunta.scaleMax ?? 5
+    if (!Number.isFinite(respuesta.value) || respuesta.value < min || respuesta.value > max) {
+      return { success: false, error: 'Valor fuera de la escala.' }
+    }
+    text = String(respuesta.value)
+  } else if (respuesta.type === 'MULTIPLE_CHOICE') {
+    // Varias opciones en una sola fila (constraint único voter+pregunta): se
+    // guardan los textos unidos; surveyOpcionId queda null por ser varias.
+    const elegidas = pregunta.opciones.filter((o) => respuesta.opcionIds.includes(o.id))
+    if (elegidas.length === 0) return { success: false, error: 'Elige al menos una opción.' }
+    text = elegidas.map((o) => o.text).join(SEP_MULTIPLE)
   } else {
+    // SINGLE_CHOICE | DROPDOWN: una opción.
     const opcion = pregunta.opciones.find((o) => o.id === respuesta.opcionId)
     if (!opcion) return { success: false, error: 'Opción inválida.' }
     text = opcion.text
