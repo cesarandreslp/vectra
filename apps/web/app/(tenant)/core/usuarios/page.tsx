@@ -5,6 +5,7 @@ import { comunasParaTestigo, coberturaDeMesas, mesasDeTestigos } from '../../dia
 import { UsuariosPanel } from './_components/usuarios-panel'
 import { CoberturaMesas } from './_components/cobertura-mesas'
 import { ImportarTestigos } from './_components/importar-testigos'
+import { ImportadorExcel } from '@/app/_components/importador-excel'
 
 export const metadata = { title: 'Usuarios y testigos' }
 
@@ -42,11 +43,16 @@ export default async function UsuariosPage() {
       </p>
       {cobertura && <CoberturaMesas cobertura={cobertura} />}
 
-      {conDiaE && (
-        <div style={{ margin: '0 0 1rem' }}>
-          <ImportarTestigos />
-        </div>
-      )}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', margin: '0 0 1rem' }}>
+        {conDiaE && <ImportarTestigos />}
+        <ImportadorExcel
+          plantillaUrl="/api/core/plantilla-staff"
+          importarUrl="/api/core/importar-staff"
+          titulo="Importar equipo (coordinadores y líderes)"
+          botonAbrir="⬆ Importar equipo (Excel)"
+          descripcion={<>Columnas: <code>nombre, email, rol, cedula, telefono, zona, meta_votos, password</code>. Rol = <strong>COORDINADOR</strong> o <strong>LIDER</strong> (los admins no se crean por bulk). El líder necesita cédula (es también elector) y trae su zona + meta. La contraseña inicial por defecto es la cédula — debe cambiarse en el primer ingreso.</>}
+        />
+      </div>
 
       <UsuariosPanel usuarios={usuarios} roles={roles} electores={electores} comunas={comunas} mesas={mesas} />
     </div>
