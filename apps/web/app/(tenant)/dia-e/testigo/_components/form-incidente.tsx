@@ -116,13 +116,17 @@ export function FormIncidente({
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
         <label style={labelStyle}>Foto (opcional)</label>
+        {/* Sin `capture`: el selector del teléfono ofrece tomar la foto en el
+            momento o subir una de la galería. El testigo elige. */}
         <input
           type="file"
           accept="image/*"
-          capture="environment"
           onChange={e => setPhotoFile(e.target.files?.[0] ?? null)}
           style={inputStyle}
         />
+        <span style={{ fontSize: '0.72rem', color: photoFile ? '#166534' : '#94a3b8' }}>
+          {photoFile ? `✓ Adjunta: ${photoFile.name}` : 'Puedes tomarla con la cámara o subir una existente.'}
+        </span>
       </div>
 
       <button

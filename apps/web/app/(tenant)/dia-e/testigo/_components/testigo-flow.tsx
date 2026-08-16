@@ -104,12 +104,14 @@ export function TestigoFlow({
 
       <TareaBtn
         done={countDone}
+        icono="🔢"
         titulo="Conteo de la mesa"
         detalle="Digita los votos por candidato que cantaron los jurados"
         onClick={() => setStep('manual')}
       />
       <TareaBtn
         done={photoDone}
+        icono="📷"
         titulo="Foto del E-14"
         detalle="Captura y envía el acta oficial de la mesa"
         onClick={() => setStep('photo')}
@@ -125,10 +127,10 @@ export function TestigoFlow({
   )
 }
 
-/** Botón de una obligación, con su estado (pendiente / hecho). Siempre clickeable
- *  — permite rehacerla (re-transmitir el conteo, retomar la foto). */
-function TareaBtn({ done, titulo, detalle, onClick }: {
-  done: boolean; titulo: string; detalle: string; onClick: () => void
+/** Botón de una obligación, con su ícono y estado (pendiente / hecho). Siempre
+ *  clickeable — permite rehacerla (re-transmitir el conteo, retomar la foto). */
+function TareaBtn({ done, icono, titulo, detalle, onClick }: {
+  done: boolean; icono: string; titulo: string; detalle: string; onClick: () => void
 }) {
   return (
     <button
@@ -141,18 +143,18 @@ function TareaBtn({ done, titulo, detalle, onClick }: {
       }}
     >
       <div style={{
-        width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', fontWeight: 700,
-        background: done ? '#16a34a' : '#e2e8f0', color: done ? '#fff' : '#64748b',
+        width: 40, height: 40, borderRadius: '10px', flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem',
+        background: done ? '#dcfce7' : '#f1f5f9',
       }}>
-        {done ? '✓' : '!'}
+        {icono}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a' }}>{titulo}</div>
         <div style={{ fontSize: '0.78rem', color: '#64748b' }}>{detalle}</div>
       </div>
-      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: done ? '#166534' : '#b45309', flexShrink: 0 }}>
-        {done ? 'Hecho · editar' : 'Pendiente'}
+      <div style={{ fontSize: '0.75rem', fontWeight: 700, flexShrink: 0, color: done ? '#166534' : '#b45309' }}>
+        {done ? '✓ Hecho' : 'Pendiente'}
       </div>
     </button>
   )
