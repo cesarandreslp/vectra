@@ -14,6 +14,13 @@ interface ExtractedResult {
   discrepancies: string[]
 }
 
+/**
+ * Las dos obligaciones del testigo en la app, SEPARADAS (ninguna reemplaza a la
+ * otra): digitar el conteo de la mesa (siempre) y capturar la foto del E-14
+ * (siempre). La foto, además, pre-llena el conteo por comodidad, pero el conteo
+ * se puede digitar igual sin ella. Se completa solo cuando están las dos. Aparte,
+ * puede reportar un incidente a la Sala.
+ */
 export function TestigoFlow({
   assignment,
   candidates,
@@ -25,58 +32,23 @@ export function TestigoFlow({
 }) {
   const [step, setStep] = useState<Step>('idle')
   const [extracted, setExtracted] = useState<ExtractedResult | null>(null)
-  const [transmitted, setTransmitted] = useState(!!initialTransmission?.finalData)
+  const [countDone, setCountDone] = useState(!!initialTransmission?.manualSubmittedAt)
+  const [photoDone, setPhotoDone] = useState(!!initialTransmission?.photoSubmittedAt)
 
-  const status = initialTransmission?.verificationStatus ?? 'PENDIENTE'
+  const status   = initialTransmission?.verificationStatus ?? 'PENDIENTE'
+  const completo = countDone && photoDone
 
   function handlePhotoExtracted(result: ExtractedResult) {
     setExtracted(result)
-    setStep('manual') // Ir al formulario para verificar
+    setPhotoDone(true)
+    // Si el conteo aún no está, se pasa al formulario ya pre-llenado con lo que
+    // leyó la IA; si ya estaba, se vuelve al inicio.
+    setStep(countDone ? 'idle' : 'manual')
   }
 
-  function handleTransmitted() {
-    setTransmitted(true)
+  function handleCountDone() {
+    setCountDone(true)
     setStep('idle')
-  }
-
-  // Si ya transmitió, mostrar estado
-  if (transmitted && (step === 'idle' || step === 'incident')) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <StatusCard status={status} transmission={initialTransmission} />
-
-        <button
-          onClick={() => { setTransmitted(false); setStep('idle') }}
-          style={{
-            padding: '0.75rem', fontSize: '0.875rem', borderRadius: '8px',
-            border: '1px solid #cbd5e1', background: '#fff', color: '#334155',
-            cursor: 'pointer', fontWeight: 500,
-          }}
-        >
-          Volver a transmitir
-        </button>
-
-        {step === 'idle' && (
-          <button
-            onClick={() => setStep('incident')}
-            style={{
-              padding: '0.75rem', fontSize: '0.875rem', borderRadius: '8px',
-              border: '1px solid #fecaca', background: '#fff', color: '#ef4444',
-              cursor: 'pointer', fontWeight: 500,
-            }}
-          >
-            Reportar incidente
-          </button>
-        )}
-
-        {step === 'incident' && (
-          <FormIncidente
-            votingTableId={assignment.votingTableId}
-            onClose={() => setStep('idle')}
-          />
-        )}
-      </div>
-    )
   }
 
   if (step === 'photo') {
@@ -104,7 +76,7 @@ export function TestigoFlow({
         candidates={candidates}
         extractedData={extracted?.data ?? null}
         extractedConfidence={extracted?.confidence ?? null}
-        onTransmitted={handleTransmitted}
+        onTransmitted={handleCountDone}
         onBack={() => setStep('idle')}
       />
     )
@@ -119,49 +91,70 @@ export function TestigoFlow({
     )
   }
 
-  // Estado idle — pantalla principal con los 3 pasos
+  // ── Inicio: las dos obligaciones + reportar incidente ───────────────────────
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      {/* Paso 1: Fotografiar */}
-      <button
-        onClick={() => setStep('photo')}
-        style={{
-          padding: '1.5rem', fontSize: '1.1rem', borderRadius: '12px',
-          border: 'none', background: '#1e40af', color: '#fff',
-          cursor: 'pointer', fontWeight: 700, textAlign: 'center',
-        }}
-      >
-        <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>&#128247;</div>
-        Fotografía el acta E-14
-        <div style={{ fontSize: '0.8rem', fontWeight: 400, opacity: 0.8, marginTop: '0.25rem' }}>
-          Paso 1 de 3 — Toma una foto clara del formulario
-        </div>
-      </button>
+      {completo
+        ? <StatusCard status={status} transmission={initialTransmission} />
+        : (
+          <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '10px', padding: '0.75rem 1rem', fontSize: '0.85rem', color: '#92400e', fontWeight: 600 }}>
+            Falta {[!countDone && 'digitar el conteo', !photoDone && 'la foto del E-14'].filter(Boolean).join(' y ')}.
+          </div>
+        )}
 
-      {/* Enlace secundario para digitación manual */}
-      <button
+      <TareaBtn
+        done={countDone}
+        titulo="Conteo de la mesa"
+        detalle="Digita los votos por candidato que cantaron los jurados"
         onClick={() => setStep('manual')}
-        style={{
-          padding: '0.75rem', fontSize: '0.85rem', borderRadius: '8px',
-          border: '1px solid #cbd5e1', background: '#fff', color: '#64748b',
-          cursor: 'pointer',
-        }}
-      >
-        ¿Problemas con la foto? Digita los datos manualmente
-      </button>
+      />
+      <TareaBtn
+        done={photoDone}
+        titulo="Foto del E-14"
+        detalle="Captura y envía el acta oficial de la mesa"
+        onClick={() => setStep('photo')}
+      />
 
-      {/* Reportar incidente */}
       <button
         onClick={() => setStep('incident')}
-        style={{
-          padding: '0.75rem', fontSize: '0.85rem', borderRadius: '8px',
-          border: '1px solid #fecaca', background: '#fff', color: '#ef4444',
-          cursor: 'pointer',
-        }}
+        style={{ padding: '0.75rem', fontSize: '0.85rem', borderRadius: '8px', border: '1px solid #fecaca', background: '#fff', color: '#ef4444', cursor: 'pointer', fontWeight: 500 }}
       >
         Reportar incidente
       </button>
     </div>
+  )
+}
+
+/** Botón de una obligación, con su estado (pendiente / hecho). Siempre clickeable
+ *  — permite rehacerla (re-transmitir el conteo, retomar la foto). */
+function TareaBtn({ done, titulo, detalle, onClick }: {
+  done: boolean; titulo: string; detalle: string; onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', gap: '0.75rem', textAlign: 'left',
+        padding: '1rem', borderRadius: '12px', cursor: 'pointer',
+        border: `1px solid ${done ? '#bbf7d0' : '#cbd5e1'}`,
+        background: done ? '#f0fdf4' : '#fff',
+      }}
+    >
+      <div style={{
+        width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', fontWeight: 700,
+        background: done ? '#16a34a' : '#e2e8f0', color: done ? '#fff' : '#64748b',
+      }}>
+        {done ? '✓' : '!'}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a' }}>{titulo}</div>
+        <div style={{ fontSize: '0.78rem', color: '#64748b' }}>{detalle}</div>
+      </div>
+      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: done ? '#166534' : '#b45309', flexShrink: 0 }}>
+        {done ? 'Hecho · editar' : 'Pendiente'}
+      </div>
+    </button>
   )
 }
 
@@ -180,25 +173,22 @@ function StatusCard({ status, transmission }: {
   const c = colors[status] ?? colors.PENDIENTE
 
   const labels: Record<string, string> = {
-    VERIFICADO:     'Verificado — datos manual y foto coinciden',
-    SOLO_MANUAL:    'Transmitido — solo datos manuales',
-    SOLO_FOTO:      'Transmitido — solo foto procesada por IA',
-    ADVERTENCIA:    'Advertencia — hay diferencias entre manual y foto',
-    BAJA_CONFIANZA: 'Confianza baja — se requiere revisión manual',
-    PENDIENTE:      'Pendiente de transmisión',
+    VERIFICADO:     'Transmisión completa — conteo y foto coinciden',
+    SOLO_MANUAL:    'Transmitido — falta que se procese la foto',
+    SOLO_FOTO:      'Foto procesada — falta confirmar el conteo',
+    ADVERTENCIA:    'Atención — hay diferencias entre el conteo y la foto',
+    BAJA_CONFIANZA: 'Confianza baja en la foto — revisa el conteo',
+    PENDIENTE:      'Transmisión completa',
   }
 
   return (
-    <div style={{
-      background: c.bg, border: `2px solid ${c.border}`, borderRadius: '12px',
-      padding: '1.25rem',
-    }}>
+    <div style={{ background: c.bg, border: `2px solid ${c.border}`, borderRadius: '12px', padding: '1.25rem' }}>
       <div style={{ fontWeight: 700, fontSize: '1rem', color: c.text }}>
         {labels[status] ?? status}
       </div>
       {transmission?.manualSubmittedAt && (
         <div style={{ fontSize: '0.8rem', color: c.text, opacity: 0.8, marginTop: '0.25rem' }}>
-          Manual: {new Date(transmission.manualSubmittedAt).toLocaleTimeString('es-CO')}
+          Conteo: {new Date(transmission.manualSubmittedAt).toLocaleTimeString('es-CO')}
         </div>
       )}
       {transmission?.photoSubmittedAt && (
