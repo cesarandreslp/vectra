@@ -75,8 +75,6 @@ interface Recipient {
   type:             'USER' | 'VOTER'
   name:             string
   decryptedContact: string
-  /** Token del QR de captación del votante — para la variable {{qr}} del mensaje. */
-  qrToken:          string | null
 }
 
 export interface AutomationView {
@@ -179,7 +177,6 @@ async function resolveRecipients(
         type: 'USER',
         name: u.name ?? u.email,
         decryptedContact: u.email, // email no está cifrado en User
-        qrToken: null, // el staff no capta con QR
       })
     }
   }
@@ -218,14 +215,6 @@ async function resolveRecipients(
       select: { id: true, name: true, phone: true },
     })
 
-    // El token del QR propio vive en QrRegistration (leaderId = el votante), no
-    // en Voter. Se trae en lote y se cruza para la variable {{qr}}.
-    const qrs = await db.qrRegistration.findMany({
-      where:  { tenantId, leaderId: { in: voters.map(v => v.id) } },
-      select: { leaderId: true, token: true },
-    })
-    const tokenPorVoter = new Map(qrs.flatMap(q => (q.leaderId ? [[q.leaderId, q.token] as const] : [])))
-
     for (const v of voters) {
       if (!v.phone) continue
       try {
@@ -234,7 +223,6 @@ async function resolveRecipients(
           type: 'VOTER',
           name: v.name,
           decryptedContact: decrypt(v.phone),
-          qrToken: tokenPorVoter.get(v.id) ?? null,
         })
       } catch {
         // Si falla el descifrado, omitir este destinatario
@@ -447,12 +435,7 @@ export async function previewSegment(
 }
 
 export async function sendCampaign(campaignId: string): Promise<void> {
-  const { db, tenantId, session } = await getDbAndSession(['ADMIN_CAMPANA'], 'COMUNICACIONES_CAMPANAS', 'edit')
-  // Para la variable {{qr}}: enlace de captación del destinatario. Slug en ?c=
-  // para no depender del subdominio, base absoluta para que sea clickeable en
-  // WhatsApp. Mismo patrón que /core/qr y la PWA (Invitar).
-  const slug     = session.user.tenantSlug ?? ''
-  const baseUrl  = (process.env.NEXTAUTH_URL ?? '').replace(/\/$/, '')
+  const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA'], 'COMUNICACIONES_CAMPANAS', 'edit')
 
   // Verificar que la campaña existe y está en estado válido para envío
   const campaign = await db.messageCampaign.findFirst({
@@ -495,16 +478,9 @@ export async function sendCampaign(campaignId: string): Promise<void> {
   const messageIds: string[] = []
 
   for (const r of recipients) {
-    // Datos para renderizar el template. {{qr}} = enlace de captación propio del
-    // destinatario (abre su página de registro/QR). Vacío para quien no tenga
-    // token (staff). Alias {{link_captacion}} por si lo escriben así.
-    const linkCaptacion = (r.qrToken && slug && baseUrl)
-      ? `${baseUrl}/registro/${r.qrToken}?c=${slug}`
-      : ''
+    // Datos para renderizar el template
     const templateData: Record<string, string> = {
       nombre: r.name,
-      qr: linkCaptacion,
-      link_captacion: linkCaptacion,
     }
 
     const renderedBody = renderTemplate(template.body, templateData)

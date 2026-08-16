@@ -10,8 +10,6 @@ const SAMPLE_DATA: Record<string, string> = {
   lider: 'María García',
   estado_compromiso: 'Comprometido',
   candidato: 'Carlos López',
-  // Enlace de captación propio del destinatario (abre su QR/página de registro).
-  qr: 'https://tu-campaña.co/registro/abc123?c=tu-campaña',
 }
 
 const AVAILABLE_VARS = Object.keys(SAMPLE_DATA)
