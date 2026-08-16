@@ -114,19 +114,31 @@ export function FormIncidente({
         />
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
         <label style={labelStyle}>Foto (opcional)</label>
-        {/* Sin `capture`: el selector del teléfono ofrece tomar la foto en el
-            momento o subir una de la galería. El testigo elige. */}
-        <input
-          type="file"
-          accept="image/*"
-          onChange={e => setPhotoFile(e.target.files?.[0] ?? null)}
-          style={inputStyle}
-        />
-        <span style={{ fontSize: '0.72rem', color: photoFile ? '#166534' : '#94a3b8' }}>
-          {photoFile ? `✓ Adjunta: ${photoFile.name}` : 'Puedes tomarla con la cámara o subir una existente.'}
-        </span>
+        {/* Dos caminos explícitos. "Tomar foto" lleva `capture` → abre la cámara
+            del teléfono directo; "Subir" abre galería/archivos. En escritorio,
+            donde no hay cámara, ambos caen en el diálogo de archivos. */}
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <label style={botonFoto}>
+            📷 Tomar foto
+            <input type="file" accept="image/*" capture="environment"
+              onChange={e => setPhotoFile(e.target.files?.[0] ?? null)} style={{ display: 'none' }} />
+          </label>
+          <label style={botonFoto}>
+            🖼️ Subir imagen
+            <input type="file" accept="image/*"
+              onChange={e => setPhotoFile(e.target.files?.[0] ?? null)} style={{ display: 'none' }} />
+          </label>
+        </div>
+        {photoFile && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={URL.createObjectURL(photoFile)} alt="" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 6, border: '1px solid #e2e8f0' }} />
+            <span style={{ fontSize: '0.72rem', color: '#166534', fontWeight: 600 }}>✓ {photoFile.name}</span>
+            <button type="button" onClick={() => setPhotoFile(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#ef4444', fontSize: '0.75rem', cursor: 'pointer' }}>Quitar</button>
+          </div>
+        )}
       </div>
 
       <button
@@ -155,4 +167,9 @@ const labelStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   padding: '0.5rem 0.75rem', fontSize: '0.875rem', borderRadius: '6px',
   border: '1px solid #cbd5e1', width: '100%', boxSizing: 'border-box',
+}
+const botonFoto: React.CSSProperties = {
+  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem',
+  padding: '0.6rem', fontSize: '0.85rem', fontWeight: 600, color: '#334155',
+  border: '1px solid #cbd5e1', borderRadius: '8px', background: '#f8fafc', cursor: 'pointer',
 }
