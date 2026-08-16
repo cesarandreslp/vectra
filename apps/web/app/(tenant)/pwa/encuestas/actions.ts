@@ -11,8 +11,10 @@ export type TipoPregunta =
   'FREE_TEXT' | 'PARAGRAPH' | 'BOOLEAN' | 'SINGLE_CHOICE' | 'MULTIPLE_CHOICE' | 'DROPDOWN' | 'SCALE'
 
 /** Separador de opciones marcadas en una respuesta de opción múltiple (una sola
- *  fila por el constraint único voter+pregunta). Improbable en el texto de una opción. */
-export const SEP_MULTIPLE = '\n'
+ *  fila por el constraint único voter+pregunta). Improbable en el texto de una
+ *  opción. No se exporta: en un archivo 'use server' solo van funciones async.
+ *  Los resultados usan el mismo '\n' literal (resultados-por-pregunta.tsx). */
+const SEP_MULTIPLE = '\n'
 
 export interface PreguntaPendiente {
   id:       string
