@@ -15,6 +15,7 @@ import { useRouter }       from 'next/navigation'
 import { IconPhone }       from '@/app/_components/icons'
 import { SuscripcionPush } from './_components/suscripcion-push'
 import { Invitar }         from './_components/invitar'
+import { ImportarMiGente } from './_components/importar-mi-gente'
 import { BannerEncuesta }  from './encuestas/_components/banner-encuesta'
 
 // Leaflet toca `window` — debe cargar solo en cliente, nunca en el render del servidor.
@@ -125,6 +126,8 @@ export default function PwaHomePage() {
           />
         </div>
       )}
+
+      <ImportarMiGente />
 
       {/* Estado de carga / error */}
       {isLoading && (

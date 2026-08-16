@@ -106,6 +106,23 @@ export function generarPlantillaExcel(): Buffer {
   return Buffer.from(buffer)
 }
 
+/** Columnas de la plantilla que llena un ELECTOR desde su PWA — sin lider_id
+ *  (queda bajo él) ni puesto/mesa (que no maneja). */
+const COLUMNAS_ELECTOR = ['nombre', 'cedula', 'telefono', 'direccion', 'fecha_nacimiento']
+
+/** Plantilla simple para que un elector suba a su propia gente desde la PWA. */
+export function generarPlantillaElector(): Buffer {
+  const wb = XLSX.utils.book_new()
+  const datos = [
+    COLUMNAS_ELECTOR,
+    ['María García López', '1234567890', '3001234567', 'Cra 45 #23-10', '1990-05-14'],
+  ]
+  const ws = XLSX.utils.aoa_to_sheet(datos)
+  ws['!cols'] = COLUMNAS_ELECTOR.map(() => ({ wch: 22 }))
+  XLSX.utils.book_append_sheet(wb, ws, 'Mi gente')
+  return Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }))
+}
+
 // ── Parsear preview ───────────────────────────────────────────────────────────
 
 /**
