@@ -195,14 +195,9 @@ async function autenticarElector(slug: string, cedula: string, telefono: string)
   const voter = await db.voter.findFirst({ where: { tenantId: tenant.id, cedulaHash } })
   if (!voter || !voter.phone) return null
 
-  // Un testigo NO entra por acá. Es elector, sí, pero su acceso es /testigo/login
-  // (cédula + fecha de nacimiento). Dejarlo entrar como elector simple es lo que
-  // el día E lo dejaría sin ver sus accesos de testigo — el bug que esto cierra.
-  const esTestigo = await superadminDb.user.findFirst({
-    where:  { tenantId: tenant.id, voterId: voter.id, role: 'TESTIGO', isActive: true },
-    select: { id: true },
-  })
-  if (esTestigo) return null
+  // Un testigo TAMBIÉN es elector: puede entrar por acá con cédula+teléfono a la
+  // PWA de electores. Es otra puerta, a otra superficie. Sus deberes de día E van
+  // por /testigo/login (cédula+fecha) → su mesa. Las dos conviven sin chocar.
 
   let telefonoGuardado: string
   try {
