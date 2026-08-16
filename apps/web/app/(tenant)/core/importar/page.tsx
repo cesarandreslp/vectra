@@ -128,11 +128,11 @@ export default function ImportarPage() {
       <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.75rem 1rem', marginBottom: '1.5rem' }}>
         <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569', marginBottom: '0.4rem' }}>Columnas del Excel (en este orden):</div>
         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-          {['nombre', 'cedula', 'telefono', 'direccion', 'lider_id', 'puesto_id', 'mesa_id'].map((c) => (
+          {['nombre', 'cedula', 'telefono', 'direccion', 'fecha_nacimiento', 'lider_id', 'puesto_id', 'mesa_id'].map((c) => (
             <code key={c} style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.78rem' }}>{c}</code>
           ))}
         </div>
-        <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.4rem' }}>Solo nombre y cedula son obligatorios.</div>
+        <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.4rem' }}>Solo nombre y cedula son obligatorios. fecha_nacimiento (AAAA-MM-DD o DD/MM/AAAA) define quién es apto para votar (18+).</div>
       </div>
 
       {/* Selector de líder asignado */}
