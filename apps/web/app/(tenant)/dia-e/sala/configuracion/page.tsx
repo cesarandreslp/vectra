@@ -4,6 +4,7 @@ import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 import { requiereFotoYAgrupacion } from '@/lib/e14'
 import { getTenantConnection } from '@/lib/tenant'
 import { getTenantDb } from '@vectra/db'
+import { ImportadorExcel } from '@/app/_components/importador-excel'
 
 export default async function ConfiguracionDiaEPage() {
   const session = await requireModuleOrRedirect('DIA_E', ['ADMIN_CAMPANA'])
@@ -109,6 +110,14 @@ export default async function ConfiguracionDiaEPage() {
         }}
       >
         <h2 style={{ margin: 0, fontSize: '1rem', color: '#334155' }}>Agregar candidato rival</h2>
+
+        <ImportadorExcel
+          plantillaUrl="/api/dia-e/plantilla-candidatos"
+          importarUrl="/api/dia-e/importar-candidatos"
+          titulo="Importar candidatos (Excel)"
+          botonAbrir="⬆ Importar varios (Excel)"
+          descripcion={<>Columnas: <code>nombre, agrupacion, numero</code>. Crea los rivales de golpe (útil para concejo/JAL). Las fotos y logos se completan luego, uno por uno. Reimportar no duplica (se omite por nombre).</>}
+        />
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '1rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
