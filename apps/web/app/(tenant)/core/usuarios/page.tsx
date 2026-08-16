@@ -4,6 +4,7 @@ import { listVoterOptions } from '../actions'
 import { comunasParaTestigo, coberturaDeMesas, mesasDeTestigos } from '../../dia-e/actions'
 import { UsuariosPanel } from './_components/usuarios-panel'
 import { CoberturaMesas } from './_components/cobertura-mesas'
+import { ImportarTestigos } from './_components/importar-testigos'
 
 export const metadata = { title: 'Usuarios y testigos' }
 
@@ -40,6 +41,12 @@ export default async function UsuariosPage() {
         se le asigna su mesa en Día E → Asignaciones.
       </p>
       {cobertura && <CoberturaMesas cobertura={cobertura} />}
+
+      {conDiaE && (
+        <div style={{ margin: '0 0 1rem' }}>
+          <ImportarTestigos />
+        </div>
+      )}
 
       <UsuariosPanel usuarios={usuarios} roles={roles} electores={electores} comunas={comunas} mesas={mesas} />
     </div>

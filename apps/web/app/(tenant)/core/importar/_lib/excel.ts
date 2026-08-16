@@ -45,7 +45,7 @@ const COLUMNAS_EXCEL = [
  * DD/MM/YYYY / DD/MM/YY). Devuelve undefined si está vacía o no se entiende —
  * es opcional, no rompe la fila.
  */
-function parsearFechaNacimiento(valor: unknown): Date | undefined {
+export function parsearFechaNacimiento(valor: unknown): Date | undefined {
   if (valor == null || valor === '') return undefined
   if (valor instanceof Date) return isNaN(valor.getTime()) ? undefined : valor
 
