@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { requireAuthOrRedirect } from '@/lib/auth-helpers'
 import { getBranding } from '@/lib/branding'
@@ -17,8 +16,11 @@ import { getTenantConnection } from '@/lib/tenant'
  * genérica de Vectra.
  */
 export default async function PwaLayout({ children }: { children: React.ReactNode }) {
+  // El TESTIGO no entra a la PWA de electores: el día E su superficie es solo su
+  // mesa (ver dia-e/layout). Se lo excluye a propósito — un testigo no viene acá
+  // a mirar a sus electores.
   const session = await requireAuthOrRedirect(
-    ['ADMIN_CAMPANA', 'COORDINADOR', 'LIDER', 'TESTIGO', 'ELECTOR'],
+    ['ADMIN_CAMPANA', 'COORDINADOR', 'LIDER', 'ELECTOR'],
     '/login',
   )
 
@@ -27,7 +29,6 @@ export default async function PwaLayout({ children }: { children: React.ReactNod
   }
 
   const esElector = session.user.role === 'ELECTOR'
-  const esTestigo = session.user.role === 'TESTIGO'
   const { logoUrl, primaryColor } = await getBranding()
 
   // La pestaña de actividades solo tiene sentido para quien responde por alguna:
@@ -62,21 +63,9 @@ export default async function PwaLayout({ children }: { children: React.ReactNod
         </div>
         <LogoutButton
           tono="claro"
-          redirectTo={
-            esTestigo ? `/testigo/login?c=${session.user.tenantSlug ?? ''}`
-            : esElector ? `/electores/login?c=${session.user.tenantSlug ?? ''}`
-            : '/login'
-          }
+          redirectTo={esElector ? `/electores/login?c=${session.user.tenantSlug ?? ''}` : '/login'}
         />
       </div>
-      {/* El testigo está de visita en "Mis electores": siempre a un toque de su mesa. */}
-      {esTestigo && (
-        <div style={{ maxWidth: '960px', margin: '0 auto', padding: '0 1rem' }}>
-          <Link href="/dia-e/testigo" style={{ display: 'block', textAlign: 'center', padding: '0.5rem', margin: '0.5rem 0', borderRadius: 8, background: '#0f172a', color: '#fff', fontSize: '0.85rem', fontWeight: 600, textDecoration: 'none' }}>
-            ← Volver a Mi mesa (testigo)
-          </Link>
-        </div>
-      )}
       {children}
       <NavBar mostrarEncuestas={session.user.activeModules.includes('ENCUESTAS')} mostrarActividades={esDoliente} />
     </div>
