@@ -90,6 +90,9 @@ export interface MyAssignment {
   tableNumber:   number
   stationName:   string
   stationAddress: string
+  /** Zona electoral del puesto — parte del identificador del E-14. null si el puesto aún no la tiene. */
+  zonaCode:      string | null
+  zonaName:      string | null
   municipality:  string
   department:    string
   // Códigos DIVIPOLA — el E-14 físico los imprime junto al nombre
@@ -779,7 +782,7 @@ export async function getMyAssignment(): Promise<MyAssignment | null> {
       where:   { id: assignment.votingTableId },
       include: {
         station: {
-          include: { municipality: { include: { department: true } } },
+          include: { municipality: { include: { department: true } }, zona: true },
         },
       },
     }),
@@ -796,6 +799,8 @@ export async function getMyAssignment(): Promise<MyAssignment | null> {
     tableNumber:    table.number,
     stationName:    table.station.name,
     stationAddress: table.station.address,
+    zonaCode:       table.station.zona?.code ?? null,
+    zonaName:       table.station.zona?.name ?? null,
     municipality:   table.station.municipality.name,
     department:     table.station.municipality.department.name,
     departmentCode:       table.station.municipality.department.code,

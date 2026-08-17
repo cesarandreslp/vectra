@@ -14,6 +14,7 @@ import * as XLSX from 'xlsx'
 import type { PrismaClient } from '@vectra/db'
 
 export interface ImportTerritorioResult {
+  zonas:   { created: number }
   comunas: { created: number; skipped: number }
   barrios: { created: number; skipped: number }
   puestos: { created: number; skipped: number }
@@ -24,7 +25,9 @@ export interface ImportTerritorioResult {
 const HOJAS = {
   comunas: { nombre: 'Comunas', columnas: ['nombre', 'tipo'] },
   barrios: { nombre: 'Barrios', columnas: ['nombre', 'comuna'] },
-  puestos: { nombre: 'Puestos', columnas: ['nombre', 'direccion', 'lat', 'lng', 'especial'] },
+  // `zona` es la zona electoral de la Registraduría (parte del identificador del
+  // E-14: depto+municipio+zona+puesto+mesa). Obligatoria para un puesto nuevo.
+  puestos: { nombre: 'Puestos', columnas: ['nombre', 'zona', 'direccion', 'lat', 'lng', 'especial'] },
   mesas:   { nombre: 'Mesas',   columnas: ['puesto', 'numero', 'capacidad'] },
 } as const
 
@@ -43,7 +46,7 @@ export function generarPlantillaTerritorioExcel(): Buffer {
     ]],
     [HOJAS.puestos.nombre, [
       [...HOJAS.puestos.columnas],
-      ['Institución Educativa San José', 'Cra 10 # 5-20', '3.9021', '-76.2987', ''],
+      ['Institución Educativa San José', '01', 'Cra 10 # 5-20', '3.9021', '-76.2987', ''],
     ]],
     [HOJAS.mesas.nombre, [
       [...HOJAS.mesas.columnas],
@@ -83,6 +86,7 @@ export async function procesarImportTerritorioExcel(
 ): Promise<ImportTerritorioResult> {
   const wb = XLSX.read(buffer, { type: 'buffer' })
   const resultado: ImportTerritorioResult = {
+    zonas:   { created: 0 },
     comunas: { created: 0, skipped: 0 },
     barrios: { created: 0, skipped: 0 },
     puestos: { created: 0, skipped: 0 },
@@ -120,7 +124,11 @@ export async function procesarImportTerritorioExcel(
     resultado.barrios.created++
   }
 
-  // 3. Puestos de votación
+  // 3. Puestos de votación — con su ZONA electoral (parte del ID del E-14).
+  const zonasCache = new Map<string, string>()
+  for (const z of await db.zona.findMany({ where: { municipalityId }, select: { id: true, code: true } })) {
+    zonasCache.set(z.code.toLowerCase(), z.id)
+  }
   for (const fila of leerHoja(wb, HOJAS.puestos.nombre)) {
     const nombre = fila.nombre
     if (!nombre) continue
@@ -130,11 +138,23 @@ export async function procesarImportTerritorioExcel(
       where: { municipalityId, name: { equals: nombre, mode: 'insensitive' } },
     })
     if (existe) { resultado.puestos.skipped++; continue }
+
+    const zonaCode = fila.zona
+    if (!zonaCode) { resultado.errors.push(`Puesto "${nombre}": falta la zona (es parte del identificador del E-14).`); continue }
+    // La zona se crea sola la primera vez que aparece en el municipio.
+    let zonaId = zonasCache.get(zonaCode.toLowerCase())
+    if (!zonaId) {
+      const z = await db.zona.create({ data: { municipalityId, code: zonaCode } })
+      zonaId = z.id
+      zonasCache.set(zonaCode.toLowerCase(), zonaId)
+      resultado.zonas.created++
+    }
+
     const lat = Number(fila.lat)
     const lng = Number(fila.lng)
     await db.votingStation.create({
       data: {
-        name: nombre, address: direccion, municipalityId,
+        name: nombre, address: direccion, municipalityId, zonaId,
         lat: fila.lat && Number.isFinite(lat) ? lat : undefined,
         lng: fila.lng && Number.isFinite(lng) ? lng : undefined,
         specialLabel: fila.especial || undefined,

@@ -21,6 +21,7 @@ export function FormManualE14({
   votingTableId,
   tableNumber,
   stationName,
+  zonaCode,
   municipality,
   department,
   departmentCode,
@@ -34,6 +35,7 @@ export function FormManualE14({
   votingTableId: string
   tableNumber: number
   stationName: string
+  zonaCode: string | null
   municipality: string
   department: string
   departmentCode: string
@@ -129,6 +131,7 @@ export function FormManualE14({
       <div style={{ border: '1.5px solid #000', margin: '0.5rem', padding: '0.4rem 0.6rem', fontSize: '0.8rem', fontWeight: 600, lineHeight: 1.6 }}>
         <div>DEPARTAMENTO: <strong>{departmentCode} - {department.toUpperCase()}</strong></div>
         <div>MUNICIPIO: <strong>{municipalityDivipola} - {municipality.toUpperCase()}</strong></div>
+        <div>ZONA: <strong>{zonaCode ?? '—'}</strong></div>
         <div>PUESTO: <strong>{stationName.toUpperCase()}</strong></div>
         <div>MESA: <strong>{String(tableNumber).padStart(3, '0')}</strong></div>
       </div>

@@ -367,6 +367,7 @@ model Municipality {
 
   department     Department      @relation(fields: [departmentId], references: [id])
   communes       Commune[]
+  zonas          Zona[]
   votingStations VotingStation[]
 }
 
@@ -401,16 +402,34 @@ model Neighborhood {
 }
 
 /// Puesto de votación. Lugar físico donde se instalan las mesas.
+/// Zona electoral: subdivisión que la Registraduría hace del municipio. Es parte
+/// del identificador del formulario E-14 (depto + municipio + ZONA + puesto + mesa).
+/// OJO: distinta de Commune (comuna/corregimiento administrativo, capa social).
+model Zona {
+  id             String @id @default(cuid())
+  municipalityId String
+  code           String  // "01", "02"… como la reporta la Registraduría
+  name           String? // opcional, descriptivo
+
+  municipality Municipality    @relation(fields: [municipalityId], references: [id])
+  stations     VotingStation[]
+
+  // No se repite un código de zona dentro del mismo municipio.
+  @@unique([municipalityId, code])
+}
+
 model VotingStation {
   id             String  @id @default(cuid())
   name           String // Ej: "Institución Educativa San José"
   address        String
   municipalityId String
+  zonaId         String? // Zona electoral a la que pertenece (parte del ID del E-14)
   lat            Float? // Latitud para mapa de calor
   lng            Float? // Longitud para mapa de calor
   specialLabel   String? // null = puesto normal. Con texto = especial: "Cárcel", "Base militar", etc.
 
   municipality Municipality  @relation(fields: [municipalityId], references: [id])
+  zona         Zona?         @relation(fields: [zonaId], references: [id])
   tables       VotingTable[]
 }
 

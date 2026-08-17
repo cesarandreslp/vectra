@@ -10,6 +10,7 @@ import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface ImportResult {
+  zonas?:  { created: number }
   comunas: { created: number; skipped: number }
   barrios: { created: number; skipped: number }
   puestos: { created: number; skipped: number }
@@ -105,8 +106,9 @@ export function ImportarPanel({ municipalityId }: { municipalityId: string }) {
       {resultado && (
         <div style={{ marginTop: '1rem' }}>
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
-            <Stat label="Comunas/zonas" r={resultado.comunas} />
+            <Stat label="Comunas" r={resultado.comunas} />
             <Stat label="Barrios" r={resultado.barrios} />
+            {resultado.zonas && <Stat label="Zonas electorales" r={{ created: resultado.zonas.created, skipped: 0 }} />}
             <Stat label="Puestos" r={resultado.puestos} />
             <Stat label="Mesas" r={resultado.mesas} />
           </div>

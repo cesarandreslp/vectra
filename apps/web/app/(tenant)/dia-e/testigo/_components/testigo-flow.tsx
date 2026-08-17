@@ -69,6 +69,7 @@ export function TestigoFlow({
         votingTableId={assignment.votingTableId}
         tableNumber={assignment.tableNumber}
         stationName={assignment.stationName}
+        zonaCode={assignment.zonaCode}
         municipality={assignment.municipality}
         department={assignment.department}
         departmentCode={assignment.departmentCode}
