@@ -3,6 +3,7 @@ import { auth }                       from '@vectra/auth'
 import { getTenantConnection }         from '@/lib/tenant'
 import { getTenantDb }                from '@vectra/db'
 import { parsearPreviewExcel, procesarImportExcel } from '@/app/(tenant)/core/importar/_lib/excel'
+import { censoEnSegundoPlano } from '@/lib/censo'
 
 /**
  * POST /api/core/importar-excel
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest) {
       session.user.tenantId,
       db as any,
     )
+    if (resultado.created > 0) censoEnSegundoPlano(db, session.user.tenantId)
 
     return NextResponse.json(resultado)
   } catch (err) {

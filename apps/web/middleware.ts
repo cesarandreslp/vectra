@@ -15,6 +15,9 @@ const RUTAS_PUBLICAS = [
   '/no-autorizado',
   '/api/auth',
   '/api/resolve-tenant',
+  // Llamadas de servidor a servidor (Meta, API del censo): no traen sesión y
+  // cada ruta verifica su propia firma/token.
+  '/api/webhooks/',
 ]
 
 /** La landing en `/` es siempre pública. La página decide si redirigir. */

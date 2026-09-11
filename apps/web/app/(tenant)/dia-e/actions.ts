@@ -11,6 +11,7 @@ import { getTenantConnection } from '@/lib/tenant'
 import { getTenantDb, Prisma, superadminDb, decrypt } from '@vectra/db'
 import * as XLSX                from 'xlsx'
 import { calcularCedulaHash }   from '@/lib/cedula-hash'
+import { censoConfigurado }     from '@/lib/censo'
 import { normalizarClavesE14, actaEsDeLaMesa, actaEsDelPuesto } from '@/lib/e14'
 import { puntoEnPoligono, distanciaHaversineKm, centroDePoligono } from '@/lib/geometry'
 import {
@@ -814,6 +815,34 @@ export async function getMyAssignment(): Promise<MyAssignment | null> {
 // ── TRÁMITE ANTE LA REGISTRADURÍA (propuesto → aprobado → corregido) ─────────
 
 /** Junta testigo (User, DB superadmin) con su elector (Voter, DB del tenant) para tener la cédula. */
+/**
+ * Testigos cuya cédula no está confirmada en el censo electoral (ver lib/censo).
+ * Sin la integración configurada no hay nada que confirmar: lista vacía, para
+ * no alarmar con "sin verificar" a campañas que no la usan.
+ */
+export async function getTestigosSinCenso(): Promise<{ nombre: string; estado: string | null }[]> {
+  if (!censoConfigurado()) return []
+  const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA', 'COORDINADOR'], 'DIA_E_SALA')
+
+  const asignaciones = await db.witnessAssignment.findMany({ where: { tenantId }, select: { userId: true } })
+  if (asignaciones.length === 0) return []
+
+  const usuarios = await superadminDb.user.findMany({
+    where:  { id: { in: [...new Set(asignaciones.map(a => a.userId))] }, tenantId },
+    select: { name: true, email: true, voterId: true },
+  })
+  const voterIds = usuarios.map(u => u.voterId).filter((v): v is string => Boolean(v))
+  const voters   = await db.voter.findMany({
+    where:  { tenantId, id: { in: voterIds } },
+    select: { id: true, censoEstado: true },
+  })
+  const estadoPorVoter = new Map(voters.map(v => [v.id, v.censoEstado]))
+
+  return usuarios
+    .map(u => ({ nombre: u.name ?? u.email, estado: u.voterId ? estadoPorVoter.get(u.voterId) ?? null : null }))
+    .filter(t => t.estado !== 'ENCONTRADO')
+}
+
 async function armarListadoPropuesto(
   db: ReturnType<typeof getTenantDb>,
   tenantId: string,

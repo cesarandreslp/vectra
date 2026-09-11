@@ -6,6 +6,7 @@ import { getCoberturaPropiaEncuesta } from '@/app/(tenant)/encuestas/actions'
 import { SelectorEstado } from '../_components/selector-estado'
 import { BotonJefeDebate } from '../../_components/boton-jefe-debate'
 import { VeredictoCompromiso } from '@/app/(tenant)/_components/veredicto-compromiso'
+import { FichaCenso } from '../_components/censo'
 
 export const metadata = { title: 'Ficha de elector' }
 
@@ -87,6 +88,10 @@ export default async function FichaElectorPage({ params }: Props) {
           valor={elector.lastContact ? new Date(elector.lastContact).toLocaleDateString('es-CO') : null}
         />
         {elector.notes && <Campo label="Notas" valor={elector.notes} />}
+        <FichaCenso
+          voterId={elector.id} estado={elector.censoEstado} lugar={elector.censoLugar}
+          puedeVerificar={['ADMIN_CAMPANA', 'COORDINADOR'].includes(session?.user?.role ?? '')}
+        />
 
         <div>
           <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.35rem' }}>Actualizar estado</div>

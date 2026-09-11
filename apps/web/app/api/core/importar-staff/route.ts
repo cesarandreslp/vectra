@@ -4,6 +4,7 @@ import { getTenantConnection }        from '@/lib/tenant'
 import { getTenantDb }               from '@vectra/db'
 import { parsearPreviewExcel }       from '@/app/(tenant)/core/importar/_lib/excel'
 import { procesarImportStaff }       from '@/app/(tenant)/core/usuarios/_lib/excel-staff'
+import { censoEnSegundoPlano }       from '@/lib/censo'
 
 /** POST /api/core/importar-staff — carga masiva de coordinadores y líderes. */
 export async function POST(request: NextRequest) {
@@ -30,6 +31,7 @@ export async function POST(request: NextRequest) {
     const db = getTenantDb(await getTenantConnection(session.user.tenantId))
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const resultado = await procesarImportStaff(buffer, session.user.tenantId, db as any)
+    censoEnSegundoPlano(db, session.user.tenantId)
     return NextResponse.json(resultado)
   } catch (err) {
     console.error('[POST /api/core/importar-staff]', err instanceof Error ? err.message : err)

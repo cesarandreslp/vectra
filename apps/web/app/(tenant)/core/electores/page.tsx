@@ -2,6 +2,7 @@ import Link                        from 'next/link'
 import { auth }                    from '@vectra/auth'
 import { listVoters, listLeaders } from '../actions'
 import { SelectorEstado }          from './_components/selector-estado'
+import { BotonCenso }              from './_components/censo'
 
 export const metadata = { title: 'Electores' }
 
@@ -34,6 +35,7 @@ export default async function ElectoresPage({ searchParams }: Props) {
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           {esAdmin && (
             <>
+              <BotonCenso />
               <Link
                 href="/core/importar"
                 style={{

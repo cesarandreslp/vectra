@@ -17,6 +17,7 @@ import { superadminDb, getTenantDb, encrypt } from '@vectra/db'
 import { getTenantConnection }    from '@/lib/tenant'
 import { crearAlertaDuplicado }   from '@/app/(tenant)/core/actions'
 import { crearQrPropio }          from '@/lib/qr'
+import { censoEnSegundoPlano }    from '@/lib/censo'
 import { verificarRateLimit }     from './_lib/rate-limit'
 
 export interface RegistroQRInput {
@@ -169,6 +170,7 @@ export async function registrarseConQR(
   // Su propio QR queda listo de inmediato para que, si a su vez capta a
   // alguien, esa persona quede bajo él — sin esperar a que "sea líder".
   const qrTokenPropio = await crearQrPropio(nuevoElector.id, tenantId, db)
+  censoEnSegundoPlano(db, tenantId)
 
   // Incrementar contador de registros del QR
   await db.qrRegistration.update({

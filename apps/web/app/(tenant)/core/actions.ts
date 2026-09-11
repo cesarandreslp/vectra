@@ -17,6 +17,7 @@ import { resolverBarrios }            from '@/lib/barrios'
 import { puntoEnPoligono }            from '@/lib/geometry'
 import { coloresPorZona }             from '@/lib/colores-comuna'
 import { crearQrPropio }              from '@/lib/qr'
+import { censoEnSegundoPlano }        from '@/lib/censo'
 import { calcularIndiceCompromiso }   from '@/lib/compromiso'
 import { titulosDe, type TituloLider } from '@/lib/lideres'
 import { chatGroq }                   from '@vectra/ai'
@@ -601,6 +602,7 @@ export async function createVoter(
       },
     })
     await crearQrPropio(elector.id, session.user.tenantId, db)
+    censoEnSegundoPlano(db, session.user.tenantId)
 
     revalidatePath('/core/electores')
     return { success: true, voterId: elector.id }
@@ -920,6 +922,8 @@ export interface VoterDetalle {
   leaderName:       string | null
   isCandidate:      boolean
   tieneAgenda:      boolean
+  censoEstado:      string | null
+  censoLugar:       Record<string, unknown> | null
 }
 
 /** Ficha de un elector puntual — para /core/electores/[id]. */
@@ -939,6 +943,7 @@ export async function getVoterDetalle(id: string): Promise<VoterDetalle | null> 
       id: true, name: true, apodo: true, phone: true, address: true,
       commitmentStatus: true, lastContact: true, notes: true,
       leaderId: true, isCandidate: true, tieneAgenda: true,
+      censoEstado: true, censoLugar: true,
       leader: { select: { name: true } },
     },
   })
@@ -958,6 +963,7 @@ export async function getVoterDetalle(id: string): Promise<VoterDetalle | null> 
     commitmentStatus: v.commitmentStatus, lastContact: v.lastContact, notes: v.notes,
     leaderId: v.leaderId, leaderName: v.leader?.name ?? null, isCandidate: v.isCandidate,
     tieneAgenda: v.tieneAgenda,
+    censoEstado: v.censoEstado, censoLugar: v.censoLugar as Record<string, unknown> | null,
   }
 }
 
@@ -1052,6 +1058,7 @@ export async function importVoters(rows: ImportVoterRow[]): Promise<ImportResult
     }
   }
 
+  if (created > 0) censoEnSegundoPlano(db, tenantId)
   revalidatePath('/core/electores')
   return { created, skipped, errors }
 }

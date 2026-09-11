@@ -249,6 +249,14 @@ model Voter {
   qrTokenUsed      String? // Token del QR que usó para registrarse
   createdAt        DateTime         @default(now())
 
+  // Verificación contra el censo electoral (API externa, ver lib/censo.ts).
+  // null = nunca verificado · PENDIENTE = encolado, espera webhook · ENCONTRADO
+  // · NO_ENCONTRADO · ERROR (la API no respondió; se reintenta en el próximo lote).
+  censoEstado       String?
+  censoJobId        String?
+  censoLugar        Json? // Lugar de votación tal cual lo devuelve la API
+  censoVerificadoEn DateTime?
+
   // Módulo Encuestas
   conversationState  ConversationState  @default(PENDIENTE)
   consent            Boolean            @default(false)
@@ -295,6 +303,8 @@ model Voter {
   @@index([tenantId, leaderId])
   @@index([tenantId, commitmentStatus])
   @@index([tenantId, neighborhoodId])
+  @@index([tenantId, censoEstado])
+  @@index([censoJobId])
 }
 
 /// QR de captación generado por un líder. El token genera la URL pública de registro.
