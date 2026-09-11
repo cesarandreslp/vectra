@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import 'leaflet/dist/leaflet.css'
 import { type ItemRuta } from '../actions'
 import { usePantallaCompleta, BotonPantallaCompleta, ESTILO_MAPA } from '@/app/(tenant)/_components/pantalla-completa'
+import { useLimiteMapa, aplicarLimite } from '@/app/(tenant)/_components/limite-mapa'
 
 interface Props {
   items: ItemRuta[]
@@ -16,6 +17,8 @@ export function MapaRutas({ items, onToggleCumplido }: Props) {
   const mapaRef     = useRef<import('leaflet').Map | null>(null)
   const capaRef      = useRef<import('leaflet').FeatureGroup | null>(null)
   const pantalla     = usePantallaCompleta(mapaRef)
+  const limite       = useLimiteMapa()
+  const mascaraRef   = useRef<import('leaflet').LayerGroup | null>(null)
 
   const ubicados = items.filter((i): i is ItemRuta & { lat: number; lng: number } => i.lat !== null && i.lng !== null)
 
@@ -33,6 +36,7 @@ export function MapaRutas({ items, onToggleCumplido }: Props) {
         }).addTo(mapaRef.current)
       }
       const mapa = mapaRef.current
+      aplicarLimite(L, mapa, limite, mascaraRef)
 
       capaRef.current?.remove()
       const capa = L.featureGroup().addTo(mapa)
@@ -62,7 +66,7 @@ export function MapaRutas({ items, onToggleCumplido }: Props) {
       mapa.fitBounds(L.latLngBounds(puntos).pad(0.25))
     })()
     return () => { cancelado = true }
-  }, [items]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [items, limite]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (ubicados.length === 0) {
     return (

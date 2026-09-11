@@ -11,6 +11,7 @@ import { useEffect, useRef } from 'react'
 import 'leaflet/dist/leaflet.css'
 import { intensidadDeEstado, COLOR_TEMPERATURA, ETIQUETA_TEMPERATURA, GRADIENTE_CALOR } from '@/lib/temperatura'
 import { usePantallaCompleta, BotonPantallaCompleta, ESTILO_MAPA } from '@/app/(tenant)/_components/pantalla-completa'
+import { useLimiteMapa, aplicarLimite } from '@/app/(tenant)/_components/limite-mapa'
 
 export interface PuntoCalor {
   id:               string
@@ -26,6 +27,8 @@ export function MapaCalor({ puntos }: { puntos: PuntoCalor[] }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const capaRef     = useRef<any>(null)
   const pantalla    = usePantallaCompleta(mapaRef)
+  const limite      = useLimiteMapa()
+  const mascaraRef  = useRef<import('leaflet').LayerGroup | null>(null)
 
   useEffect(() => {
     let cancelado = false
@@ -46,6 +49,7 @@ export function MapaCalor({ puntos }: { puntos: PuntoCalor[] }) {
         }).addTo(mapaRef.current)
       }
       const mapa = mapaRef.current
+      aplicarLimite(L, mapa, limite, mascaraRef)
 
       capaRef.current?.remove() // saca la capa de la corrida anterior antes de dibujar la nueva
 
@@ -63,7 +67,7 @@ export function MapaCalor({ puntos }: { puntos: PuntoCalor[] }) {
     })()
 
     return () => { cancelado = true }
-  }, [puntos])
+  }, [puntos, limite])
 
   useEffect(() => () => {
     if (mapaRef.current) { mapaRef.current.remove(); mapaRef.current = null }

@@ -18,6 +18,7 @@ import { puntoEnPoligono }            from '@/lib/geometry'
 import { coloresPorZona }             from '@/lib/colores-comuna'
 import { crearQrPropio }              from '@/lib/qr'
 import { censoEnSegundoPlano }        from '@/lib/censo'
+import { CARGOS_NACIONALES, CARGOS_DEPARTAMENTALES, CARGOS_MUNICIPALES } from '@/lib/jurisdiccion'
 import { calcularIndiceCompromiso }   from '@/lib/compromiso'
 import { titulosDe, type TituloLider } from '@/lib/lideres'
 import { chatGroq }                   from '@vectra/ai'
@@ -1487,9 +1488,6 @@ export async function geocodificarPendientes(): Promise<{ geocodificados: number
 
 type EstadoJurisdiccion = 'CUENTA' | 'NO_CUENTA' | 'SIN_VERIFICAR'
 
-const CARGOS_NACIONALES      = ['SENADOR', 'PRESIDENTE']
-const CARGOS_DEPARTAMENTALES = ['GOBERNADOR', 'DIPUTADO', 'REPRESENTANTE']
-const CARGOS_MUNICIPALES     = ['ALCALDE', 'CONCEJAL']
 
 function resolverJurisdiccion(
   cfg: { office: Cargo | null; departmentCode: string | null; municipalityDivipola: string | null },

@@ -525,6 +525,13 @@ model TenantConfig {
   electionDepartmentCode       String? // Department.code
   electionMunicipalityDivipola String? // Municipality.divipola
 
+  // Contorno de la jurisdicción (municipio, departamento o país según el cargo)
+  // para acotar los mapas. Se trae UNA vez de OpenStreetMap y se guarda acá;
+  // mapaLimiteClave dice a qué alcance corresponde ("M:76111", "D:76", "CO"),
+  // así un cambio de cargo o de municipio lo invalida solo. Ver lib/jurisdiccion.
+  mapaLimite      Json?
+  mapaLimiteClave String?
+
   // Sede de campaña. Va acá y no en su propio modelo porque una campaña de
   // municipio pequeño tiene UNA sola: es el techo de la cadena territorial
   // (sede → líder de comuna → líder de barrio), no una entidad que se repita.

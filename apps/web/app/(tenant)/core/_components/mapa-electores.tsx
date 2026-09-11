@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css'
 import { geocodificarPendientes, type VoterGeo, type GeoStats, type StationGeo, type ComunaGeo, type BarrioGeo, type TestigosGeoResult, type CentroMunicipio } from '../actions'
 import { intensidadDeEstado, COLOR_TEMPERATURA, ETIQUETA_TEMPERATURA, GRADIENTE_CALOR } from '@/lib/temperatura'
 import { usePantallaCompleta, BotonPantallaCompleta, ESTILO_MAPA } from '@/app/(tenant)/_components/pantalla-completa'
+import { useLimiteMapa, aplicarLimite } from '@/app/(tenant)/_components/limite-mapa'
 
 const COLOR_ESTADO: Record<string, string> = {
   SIN_CONTACTAR: '#94a3b8',
@@ -149,6 +150,8 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
   const pantalla = usePantallaCompleta(mapaRef)
+  const limite = useLimiteMapa()
+  const mascaraRef = useRef<import('leaflet').LayerGroup | null>(null)
 
   // Los barrios salen de los propios puntos: los que no tienen a nadie ubicado
   // no sirven de filtro acá, solo alargan la lista.
@@ -202,6 +205,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
         }).addTo(mapaRef.current)
       }
       const mapa = mapaRef.current
+      aplicarLimite(L, mapa, limite, mascaraRef)
 
       // Sacar la capa de la vista anterior (de cualquiera de los dos tipos) antes de dibujar la nueva.
       capaRef.current?.remove();     capaRef.current = null
@@ -217,6 +221,9 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
         } else if (centro) {
           // Ni puestos ni comunas cargadas: al menos el municipio configurado.
           mapa.setView([centro.lat, centro.lng], ZOOM_MUNICIPIO)
+        } else if (limite) {
+          // Campaña departamental o nacional todavía sin datos: su territorio entero.
+          mapa.fitBounds(L.latLngBounds(limite.anillos.flat()))
         }
       }
 
@@ -249,7 +256,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
     return () => {
       cancelado = true
     }
-  }, [vista, ubicarPor, visibles, puestos, comunas, barriosVisibles, testigosVisibles, centro])
+  }, [vista, ubicarPor, visibles, puestos, comunas, barriosVisibles, testigosVisibles, centro, limite])
 
   useEffect(() => () => {
     if (mapaRef.current) { mapaRef.current.remove(); mapaRef.current = null }
