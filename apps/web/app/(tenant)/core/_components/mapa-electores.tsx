@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import 'leaflet/dist/leaflet.css'
 import { geocodificarPendientes, type VoterGeo, type GeoStats, type StationGeo, type ComunaGeo, type BarrioGeo, type TestigosGeoResult, type CentroMunicipio } from '../actions'
 import { intensidadDeEstado, COLOR_TEMPERATURA, ETIQUETA_TEMPERATURA, GRADIENTE_CALOR } from '@/lib/temperatura'
+import { usePantallaCompleta, BotonPantallaCompleta, ESTILO_MAPA } from '@/app/(tenant)/_components/pantalla-completa'
 
 const COLOR_ESTADO: Record<string, string> = {
   SIN_CONTACTAR: '#94a3b8',
@@ -147,6 +148,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
   const [msg, setMsg] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
+  const pantalla = usePantallaCompleta(mapaRef)
 
   // Los barrios salen de los propios puntos: los que no tienen a nadie ubicado
   // no sirven de filtro acá, solo alargan la lista.
@@ -263,7 +265,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
   }
 
   return (
-    <div>
+    <div ref={pantalla.contenedorRef} style={pantalla.estiloContenedor}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
         {(['residencia', 'puesto', 'comuna', 'barrio', 'testigos', 'calor'] as const).map((v) => (
           <button
@@ -305,10 +307,10 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
       {vista === 'testigos'   && <ControlesTestigos testigos={testigosVisibles} ubicarPor={ubicarPor} onUbicarPor={setUbicarPor} />}
       {vista === 'calor'      && <ControlesCalor puntos={visibles} />}
 
-      <div
-        ref={contenedor}
-        style={{ height: 420, width: '100%', borderRadius: 8, overflow: 'hidden', border: '1px solid #e2e8f0', zIndex: 0 }}
-      />
+      <div style={pantalla.estiloArea(420)}>
+        <div ref={contenedor} style={ESTILO_MAPA} />
+        <BotonPantallaCompleta completa={pantalla.completa} onClick={pantalla.alternar} />
+      </div>
 
       {vista === 'residencia' && puntos.length === 0 && geoStats.pendientes === 0 && (
         <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '0.5rem' }}>

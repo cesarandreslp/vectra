@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import 'leaflet/dist/leaflet.css'
 import { type ItemRuta } from '../actions'
+import { usePantallaCompleta, BotonPantallaCompleta, ESTILO_MAPA } from '@/app/(tenant)/_components/pantalla-completa'
 
 interface Props {
   items: ItemRuta[]
@@ -14,6 +15,7 @@ export function MapaRutas({ items, onToggleCumplido }: Props) {
   const contenedor = useRef<HTMLDivElement>(null)
   const mapaRef     = useRef<import('leaflet').Map | null>(null)
   const capaRef      = useRef<import('leaflet').FeatureGroup | null>(null)
+  const pantalla     = usePantallaCompleta(mapaRef)
 
   const ubicados = items.filter((i): i is ItemRuta & { lat: number; lng: number } => i.lat !== null && i.lng !== null)
 
@@ -71,9 +73,12 @@ export function MapaRutas({ items, onToggleCumplido }: Props) {
   }
 
   return (
-    <>
+    <div ref={pantalla.contenedorRef} style={pantalla.estiloContenedor}>
       <style>{`.marcador-orden { background: transparent; border: none; box-shadow: none; color: #fff; font-weight: 700; font-size: 0.75rem; }`}</style>
-      <div ref={contenedor} style={{ height: '360px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0' }} />
-    </>
+      <div style={pantalla.estiloArea(360)}>
+        <div ref={contenedor} style={ESTILO_MAPA} />
+        <BotonPantallaCompleta completa={pantalla.completa} onClick={pantalla.alternar} />
+      </div>
+    </div>
   )
 }

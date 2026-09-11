@@ -10,6 +10,7 @@
 import { useEffect, useRef } from 'react'
 import 'leaflet/dist/leaflet.css'
 import { intensidadDeEstado, COLOR_TEMPERATURA, ETIQUETA_TEMPERATURA, GRADIENTE_CALOR } from '@/lib/temperatura'
+import { usePantallaCompleta, BotonPantallaCompleta, ESTILO_MAPA } from '@/app/(tenant)/_components/pantalla-completa'
 
 export interface PuntoCalor {
   id:               string
@@ -24,6 +25,7 @@ export function MapaCalor({ puntos }: { puntos: PuntoCalor[] }) {
   const mapaRef    = useRef<import('leaflet').Map | null>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const capaRef     = useRef<any>(null)
+  const pantalla    = usePantallaCompleta(mapaRef)
 
   useEffect(() => {
     let cancelado = false
@@ -68,7 +70,7 @@ export function MapaCalor({ puntos }: { puntos: PuntoCalor[] }) {
   }, [])
 
   return (
-    <div style={{ marginBottom: '1rem' }}>
+    <div ref={pantalla.contenedorRef} style={{ marginBottom: '1rem', ...pantalla.estiloContenedor }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem', fontSize: '0.75rem', color: '#64748b' }}>
         {(['frio', 'tibio', 'caliente'] as const).map((t) => (
           <span key={t} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
@@ -77,10 +79,10 @@ export function MapaCalor({ puntos }: { puntos: PuntoCalor[] }) {
           </span>
         ))}
       </div>
-      <div
-        ref={contenedor}
-        style={{ height: 220, width: '100%', borderRadius: 8, overflow: 'hidden', border: '1px solid #e2e8f0', zIndex: 0 }}
-      />
+      <div style={pantalla.estiloArea(220)}>
+        <div ref={contenedor} style={ESTILO_MAPA} />
+        <BotonPantallaCompleta completa={pantalla.completa} onClick={pantalla.alternar} />
+      </div>
     </div>
   )
 }
