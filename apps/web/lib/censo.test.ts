@@ -42,4 +42,11 @@ assert.equal(webhook?.lugar?.nuip, undefined, 'la cédula en claro no se guarda'
 const idempotente = interpretarJob({ success: true, data: { estado: 'no_encontrado', mensaje: 'No figura' } })
 assert.equal(idempotente?.estado, 'NO_ENCONTRADO', '200 del POST sin status')
 
+// v1.1.0: la ruta síncrona puede contestar 202 (sigue en curso) y el censo
+// distingue "novedad" de "no encontrado".
+assert.equal(interpretarJob({ job_id: 'abc', status: 'pending' }), null, '202 de /v1/consulta')
+const novedad = interpretarJob({ success: true, data: { estado: 'novedad', mensaje: 'Documento con novedad' } })
+assert.equal(novedad?.estado, 'NOVEDAD')
+assert.equal(novedad?.lugar?.mensaje, 'Documento con novedad')
+
 console.log('censo: ok')

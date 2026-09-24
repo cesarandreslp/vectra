@@ -6,6 +6,9 @@ import { BotonCenso }              from './_components/censo'
 
 export const metadata = { title: 'Electores' }
 
+// "Verificar padrón" encola hasta 200 consultas contra una API lenta.
+export const maxDuration = 60
+
 interface Props {
   searchParams: Promise<{ page?: string; status?: string; leaderId?: string; q?: string }>
 }

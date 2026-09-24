@@ -58,6 +58,7 @@ interface FichaCensoProps {
 
 const TEXTO_ESTADO: Record<string, string> = {
   PENDIENTE:     'Consultando a la Registraduría…',
+  NOVEDAD:       'Con novedad en el censo',
   NO_ENCONTRADO: 'No aparece en el censo electoral',
   ERROR:         'La consulta falló — se reintenta en el próximo lote',
 }
@@ -84,7 +85,7 @@ export function FichaCenso({ voterId, estado, lugar, puedeVerificar }: FichaCens
           {mapa && <> · <a href={mapa} target="_blank" rel="noopener noreferrer" style={{ color: '#1e40af' }}>Cómo llegar</a></>}
         </div>
       )}
-      {estado === 'NO_ENCONTRADO' && mensaje && (
+      {(estado === 'NO_ENCONTRADO' || estado === 'NOVEDAD') && mensaje && (
         <div style={{ fontSize: '0.8rem', color: '#92400e', marginTop: '0.15rem' }}>{mensaje}</div>
       )}
       {puedeVerificar && (

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { getTenantDb } from '@vectra/db'
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
-import { censoConfigurado, encolarCenso, procesarCensoPendientes, recogerCenso } from '@/lib/censo'
+import { censoConfigurado, consultarCensoAhora, procesarCensoPendientes, recogerCenso } from '@/lib/censo'
 
 const NO_CONFIGURADA = 'La API del censo no está configurada (CENSO_API_URL / CENSO_API_KEY).'
 
@@ -25,8 +25,10 @@ export async function verificarCensoElector(voterId: string): Promise<{ success:
   })
   if (!v) return { success: false, error: 'Elector no encontrado.' }
 
+  // Con una consulta en curso se recoge esa; si no, se pregunta de nuevo por la
+  // ruta síncrona, que suele contestar de una.
   if (v.censoEstado === 'PENDIENTE' && v.censoJobId) await recogerCenso(db, tenantId, v.censoJobId)
-  else await encolarCenso(db, tenantId, v)
+  else await consultarCensoAhora(db, v)
 
   revalidatePath(`/core/electores/${voterId}`)
   return { success: true }

@@ -10,6 +10,10 @@ import { FichaCenso } from '../_components/censo'
 
 export const metadata = { title: 'Ficha de elector' }
 
+// La consulta al censo puede tardar ~30 s antes de que la API conteste; con el
+// tope por defecto la función se corta y el elector queda marcado como error.
+export const maxDuration = 60
+
 interface Props {
   params: Promise<{ id: string }>
 }

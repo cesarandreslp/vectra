@@ -17,7 +17,7 @@ import { decrypt, type getTenantDb } from '@vectra/db'
 type Db = ReturnType<typeof getTenantDb>
 type Json = Record<string, unknown>
 
-export type EstadoCenso = 'PENDIENTE' | 'ENCONTRADO' | 'NO_ENCONTRADO' | 'ERROR'
+export type EstadoCenso = 'PENDIENTE' | 'ENCONTRADO' | 'NOVEDAD' | 'NO_ENCONTRADO' | 'ERROR'
 
 export function censoConfigurado(): boolean {
   return Boolean(process.env.CENSO_API_URL && process.env.CENSO_API_KEY)
@@ -28,7 +28,10 @@ async function llamarApi(ruta: string, body?: Json): Promise<Json> {
     method:  body ? 'POST' : 'GET',
     headers: { 'Content-Type': 'application/json', 'X-Client-Key': process.env.CENSO_API_KEY ?? '' },
     body:    body ? JSON.stringify(body) : undefined,
-    signal:  AbortSignal.timeout(15_000),
+    // La API pide un timeout de cliente de al menos 30 s: la consulta síncrona
+    // tarda ~25 s antes de contestar 202. Con 15 s se abortaba sola y toda
+    // consulta lenta quedaba marcada como ERROR.
+    signal:  AbortSignal.timeout(40_000),
   })
   return (await res.json()) as Json
 }
@@ -61,7 +64,25 @@ export function interpretarJob(job: Json): { estado: EstadoCenso; lugar: Json | 
 
   // nuip = la cédula en claro; no se guarda (PII cifrada en reposo, Ley 1581).
   const { nuip: _nuip, ...lugar } = job.data as Json
-  return { estado: lugar.estado === 'encontrado' ? 'ENCONTRADO' : 'NO_ENCONTRADO', lugar }
+  // estado de la API: encontrado | novedad | no_encontrado
+  const estado: EstadoCenso =
+    lugar.estado === 'encontrado' ? 'ENCONTRADO'
+    : lugar.estado === 'novedad'  ? 'NOVEDAD'
+    : 'NO_ENCONTRADO'
+  return { estado, lugar }
+}
+
+/** Guarda lo que devolvió la API para un elector. jobId null = ya no hay nada que esperar. */
+async function guardarResultado(
+  db: Db, voterId: string, r: { estado: EstadoCenso; lugar: Json | null },
+): Promise<void> {
+  await db.voter.update({
+    where: { id: voterId },
+    data:  {
+      censoEstado: r.estado, censoJobId: null, censoVerificadoEn: new Date(),
+      ...(r.lugar ? { censoLugar: r.lugar as object } : {}),
+    },
+  })
 }
 
 /** Idempotente: el webhook puede llegar repetido y se correlaciona por job_id. */
@@ -100,21 +121,36 @@ export async function encolarCenso(db: Db, tenantId: string, voter: { id: string
 
     // 200 = ya la había resuelto hoy; viene el resultado y no habrá webhook.
     const yaResuelto = r.success === true ? interpretarJob(r) : null
-    if (yaResuelto) {
-      await db.voter.update({
-        where: { id: voter.id },
-        data:  {
-          censoEstado: yaResuelto.estado, censoJobId: null, censoVerificadoEn: new Date(),
-          ...(yaResuelto.lugar ? { censoLugar: yaResuelto.lugar as object } : {}),
-        },
-      })
-      return
-    }
+    if (yaResuelto) return guardarResultado(db, voter.id, yaResuelto)
     if (typeof r.job_id !== 'string') throw new Error(String(r.error ?? r.message ?? 'la API no devolvió job_id'))
 
     await db.voter.update({ where: { id: voter.id }, data: { censoEstado: 'PENDIENTE', censoJobId: r.job_id } })
   } catch (err) {
     console.error(`[censo] no se pudo encolar el elector ${voter.id}:`, err instanceof Error ? err.message : err)
+    await db.voter.update({ where: { id: voter.id }, data: { censoEstado: 'ERROR', censoVerificadoEn: new Date() } })
+  }
+}
+
+/**
+ * Consulta de UN elector, para el botón de la ficha: va por la ruta síncrona,
+ * que normalmente contesta el resultado en la misma llamada (200). Si la API se
+ * demora devuelve 202 con job_id y el elector queda PENDIENTE, igual que en el
+ * lote: lo recoge el próximo "Revisar resultado" o el webhook.
+ */
+export async function consultarCensoAhora(db: Db, voter: { id: string; cedula: string }): Promise<void> {
+  try {
+    const cc = decrypt(voter.cedula).replace(/\D/g, '')
+    if (!/^\d{3,10}$/.test(cc)) throw new Error('la cédula no tiene el formato que acepta la API (3 a 10 dígitos)')
+
+    const r = await llamarApi('/v1/consulta', { tipo: 'registraduria', cc })
+
+    const resultado = interpretarJob(r) // null = 202, quedó encolada
+    if (resultado) return guardarResultado(db, voter.id, resultado)
+
+    if (typeof r.job_id !== 'string') throw new Error(String(r.error ?? r.message ?? 'respuesta inesperada de la API'))
+    await db.voter.update({ where: { id: voter.id }, data: { censoEstado: 'PENDIENTE', censoJobId: r.job_id } })
+  } catch (err) {
+    console.error(`[censo] falló la consulta del elector ${voter.id}:`, err instanceof Error ? err.message : err)
     await db.voter.update({ where: { id: voter.id }, data: { censoEstado: 'ERROR', censoVerificadoEn: new Date() } })
   }
 }
