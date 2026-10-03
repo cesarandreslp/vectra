@@ -1,4 +1,5 @@
-import NextAuth, { type DefaultSession, type NextAuthResult } from 'next-auth'
+import NextAuth, { type DefaultSession, type NextAuthConfig, type NextAuthResult } from 'next-auth'
+import type { NextRequest } from 'next/server'
 import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { createHash } from 'crypto'
@@ -274,7 +275,31 @@ async function autenticarTestigo(slug: string, cedula: string, fechaNac: string)
 
 // ── Configuración de NextAuth v5 ──────────────────────────────────────────────
 
-const nextAuth: NextAuthResult = NextAuth({
+/**
+ * Cookie de sesión compartida entre `oss-vectra.com` y `{slug}.oss-vectra.com`
+ * (Domain=.baseDomain), para que el usuario se quede en el subdominio de su
+ * campaña tras el login. Solo si el host pertenece al dominio base: en
+ * *.vercel.app o localhost el navegador rechazaría esa cookie y no habría login.
+ */
+function cookiesDominioBase(req: NextRequest | undefined): NextAuthConfig['cookies'] {
+  const base = (process.env.TENANT_BASE_DOMAIN ?? '').replace(/^\./, '')
+  if (!req || !base || !base.includes('.')) return undefined
+
+  const host = (req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? '').split(':')[0]
+  if (host !== base && !host.endsWith(`.${base}`)) return undefined
+
+  // Mismo nombre que el default de Auth.js sobre HTTPS: getToken() del middleware
+  // y auth() la siguen encontrando sin cambios.
+  return {
+    sessionToken: {
+      name:    '__Secure-authjs.session-token',
+      options: { httpOnly: true, sameSite: 'lax', path: '/', secure: true, domain: `.${base}` },
+    },
+  }
+}
+
+const nextAuth: NextAuthResult = NextAuth((req) => ({
+  cookies: cookiesDominioBase(req),
   providers: [
     Credentials({
       name: 'credentials',
@@ -392,7 +417,7 @@ const nextAuth: NextAuthResult = NextAuth({
   session: {
     strategy: 'jwt',
   },
-})
+}))
 
 export const handlers: NextAuthResult['handlers'] = nextAuth.handlers
 export const signIn:   NextAuthResult['signIn']   = nextAuth.signIn

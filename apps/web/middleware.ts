@@ -103,18 +103,17 @@ export async function middleware(request: NextRequest) {
   if (baseDomain && hostname.endsWith(`.${baseDomain}`) && hostname !== baseDomain) {
     const subdominio = hostname.slice(0, -1 - baseDomain.length)
 
-    // Subdominios reservados (www/api/admin) → reescribir al baseDomain.
+    // Subdominios reservados (www/api/admin) → mismo deploy, pasan tal cual.
     if (SUBDOMINIOS_RESERVADOS.has(subdominio)) {
-      const url = request.nextUrl.clone()
-      url.hostname = baseDomain
-      return NextResponse.rewrite(url)
+      return NextResponse.next()
     }
 
-    // Sin sesión → al login del baseDomain, con el slug para que muestre
-    // el branding de esa campaña en vez del genérico de Vectra.
+    // Sin sesión → login en el MISMO subdominio, con el slug para el branding.
+    // La cookie de sesión va con Domain=.baseDomain (ver @vectra/auth), así que
+    // tras el login el usuario sigue en su subdominio.
     if (!token) {
       const url = request.nextUrl.clone()
-      url.hostname = baseDomain
+      url.hostname = hostname
       url.pathname = '/login'
       url.searchParams.set('callbackUrl', pathname)
       url.searchParams.set('c', subdominio)
@@ -122,18 +121,17 @@ export async function middleware(request: NextRequest) {
     }
 
     // SUPERADMIN puede entrar a cualquier subdominio (auditoría/visibilidad).
-    // Para usuarios de tenant, el subdominio DEBE coincidir con su tenantSlug.
+    // Para usuarios de tenant, el subdominio DEBE coincidir con su tenantSlug:
+    // si no, va al subdominio de SU campaña.
     if (!esSuperadmin && subdominio !== tenantSlugSesion) {
       const url = request.nextUrl.clone()
-      url.hostname = baseDomain
+      url.hostname = tenantSlugSesion ? `${tenantSlugSesion}.${baseDomain}` : baseDomain
       url.pathname = tenantSlugSesion ? '/' : '/login'
       return NextResponse.redirect(url)
     }
 
-    // Subdominio coincide → reescribir al baseDomain (decorativo, mismo path).
-    const rewritten = request.nextUrl.clone()
-    rewritten.hostname = baseDomain
-    return NextResponse.rewrite(rewritten)
+    // Subdominio coincide → mismo deploy, pasa tal cual.
+    return NextResponse.next()
   }
 
   // ── MODO 3 — dominio custom de cliente ────────────────────────────────────
