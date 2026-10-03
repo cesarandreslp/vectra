@@ -22,9 +22,10 @@ import ws from 'ws'
 // queries del Pool al endpoint HTTP de Neon (sin transacciones, suficiente
 // para nuestros usos en authorize y la mayoría de Server Actions).
 //
-// `webSocketConstructor` queda configurado por compatibilidad con scripts
-// locales (seed, create-superadmin) que sí usan WebSocket.
-neonConfig.webSocketConstructor = ws
+// WebSocket (Client, transacciones): el nativo de Node (22+) primero. El `ws`
+// empaquetado por Next revienta en Vercel con "b.mask is not a function" y
+// deja la conexión colgada hasta el timeout (pasó al crear clientes).
+neonConfig.webSocketConstructor = globalThis.WebSocket ?? ws
 neonConfig.poolQueryViaFetch    = true
 
 // ── Cliente del superadmin ────────────────────────────────────────────────────
