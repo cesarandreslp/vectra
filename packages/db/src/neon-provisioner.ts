@@ -4,7 +4,7 @@
  * Flujo principal (provisionTenantDatabase):
  *   1. Verificar que el slug no esté tomado
  *   2. Crear proyecto Neon via API REST
- *   3. Aplicar migraciones con prisma migrate deploy
+ *   3. Aplicar las migraciones SQL de prisma/migrations (sin CLI)
  *   4. Guardar Tenant en superadminDb con connectionString CIFRADA
  *   5. Retornar connectionString en plano
  *
@@ -12,9 +12,10 @@
  * que simula el flujo usando DATABASE_URL_SUPERADMIN como placeholder.
  */
 
-import { execSync } from 'child_process'
-import { existsSync } from 'fs'
+import { createHash, randomUUID } from 'crypto'
+import { readdir, readFile } from 'fs/promises'
 import path from 'path'
+import { Client } from '@neondatabase/serverless'
 import { PrismaNeon } from '@prisma/adapter-neon'
 import { PrismaClient } from '@prisma/client'
 import { encrypt } from './crypto'
@@ -54,33 +55,12 @@ function logSafe(obj: unknown): unknown {
 }
 
 /**
- * Resuelve las rutas del binario de prisma y del schema.prisma.
- *
- * En desarrollo local (Next.js dev desde apps/web):
- *   process.cwd() = apps/web/  →  monorepoRoot = apps/web/../../  = raíz
- *
- * En producción (Vercel):
- *   Definir MONOREPO_ROOT y PRISMA_SCHEMA_PATH en las variables de entorno.
+ * Carpeta prisma/migrations. En Vercel llega al lambda por outputFileTracingIncludes
+ * (apps/web/next.config.ts); cwd es apps/web tanto en local como en Vercel.
  */
-function resolverRutasPrisma(): { prismaBin: string; schemaPath: string } {
-  const monorepoRoot = process.env.MONOREPO_ROOT
-    ?? path.resolve(process.cwd(), '../..')
-
-  // Buscar el binario de prisma en las ubicaciones típicas del monorepo pnpm
-  const candidatosPrisma = [
-    path.join(monorepoRoot, 'packages/db/node_modules/.bin/prisma'),
-    path.join(monorepoRoot, 'node_modules/.bin/prisma'),
-    path.join(process.cwd(), 'node_modules/.bin/prisma'),
-  ]
-
-  const prismaBin = candidatosPrisma.find(p => {
-    try { return existsSync(p) } catch { return false }
-  }) ?? 'prisma' // fallback al PATH del sistema
-
-  const schemaPath = process.env.PRISMA_SCHEMA_PATH
-    ?? path.join(monorepoRoot, 'packages/db/prisma/schema.prisma')
-
-  return { prismaBin, schemaPath }
+function rutaMigraciones(): string {
+  const monorepoRoot = process.env.MONOREPO_ROOT ?? path.resolve(process.cwd(), '../..')
+  return path.join(monorepoRoot, 'packages/db/prisma/migrations')
 }
 
 // ── Operaciones con la API de Neon ───────────────────────────────────────────
@@ -165,35 +145,51 @@ async function eliminarProyectoNeon(projectId: string): Promise<void> {
 // ── Aplicación de migraciones ─────────────────────────────────────────────────
 
 /**
- * Aplica las migraciones de Prisma a la DB del tenant usando prisma migrate deploy.
- * La connectionString NUNCA aparece en logs (stdio: 'pipe').
+ * Aplica las migraciones de prisma/migrations/ a la DB del tenant, en orden, y
+ * las registra en _prisma_migrations igual que `prisma migrate deploy`, para que
+ * migrate-tenants.ts siga aplicando solo las nuevas.
  *
- * prisma migrate deploy (no db push) porque:
- * - Aplica solo las migraciones registradas en prisma/migrations/, en orden
- * - Es reproducible y auditable
- * - No hace inferencias destructivas sobre el schema
- * - Es el estándar para entornos de producción
+ * No se invoca el CLI de prisma: en Vercel no existe (`prisma: command not found`).
+ * Client (websocket) y no Pool: el Pool va por fetch (poolQueryViaFetch) y no
+ * acepta varias sentencias en una sola query.
  */
-function aplicarMigraciones(connectionString: string): void {
-  const { prismaBin, schemaPath } = resolverRutasPrisma()
-
+async function aplicarMigraciones(connectionString: string): Promise<void> {
+  const dir = rutaMigraciones()
+  const client = new Client({ connectionString })
   try {
-    execSync(
-      `"${prismaBin}" migrate deploy --schema="${schemaPath}"`,
-      {
-        // Pasar la connectionString del tenant como DATABASE_URL
-        // Sin este env, prisma usaría la DB del superadmin (incorrecto)
-        env:   { ...process.env, DATABASE_URL: connectionString },
-        stdio: 'pipe', // CRÍTICO: evita que la connectionString aparezca en logs
-      }
-    )
+    const nombres = (await readdir(dir, { withFileTypes: true }))
+      .filter(d => d.isDirectory())
+      .map(d => d.name)
+      .sort()
+    if (nombres.length === 0) throw new Error(`No hay migraciones en ${dir}`)
+
+    await client.connect()
+    await client.query(`CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
+      "id" VARCHAR(36) PRIMARY KEY NOT NULL, "checksum" VARCHAR(64) NOT NULL,
+      "finished_at" TIMESTAMPTZ, "migration_name" VARCHAR(255) NOT NULL, "logs" TEXT,
+      "rolled_back_at" TIMESTAMPTZ, "started_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
+      "applied_steps_count" INTEGER NOT NULL DEFAULT 0)`)
+
+    for (const nombre of nombres) {
+      const sql = await readFile(path.join(dir, nombre, 'migration.sql'), 'utf8')
+      await client.query('BEGIN')
+      await client.query(sql)
+      await client.query(
+        `INSERT INTO "_prisma_migrations" (id, checksum, migration_name, finished_at, applied_steps_count)
+         VALUES ($1, $2, $3, now(), 1)`,
+        [randomUUID(), createHash('sha256').update(sql).digest('hex'), nombre],
+      )
+      await client.query('COMMIT')
+    }
   } catch (err) {
-    const stderr = (err as { stderr?: Buffer }).stderr?.toString() ?? ''
+    await client.query('ROLLBACK').catch(() => {})
+    // Solo el mensaje: el error de pg no trae la connection string.
     throw new TenantProvisionError(
-      `Error al aplicar migraciones Prisma en la DB del tenant. ` +
-      `Stderr: ${stderr}`,
-      err
+      `Error al aplicar migraciones en la DB del tenant: ${(err as Error).message}`,
+      err,
     )
+  } finally {
+    await client.end().catch(() => {})
   }
 }
 
@@ -229,7 +225,7 @@ export async function provisionTenantDatabase(slug: string): Promise<string> {
 
   // 3. Aplicar migraciones (rollback automático si falla)
   try {
-    aplicarMigraciones(connectionString)
+    await aplicarMigraciones(connectionString)
     console.log(`[Provisioning] Migraciones aplicadas correctamente`)
   } catch (err) {
     console.error(`[Provisioning] Error en migraciones — iniciando rollback`)

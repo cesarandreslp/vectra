@@ -45,6 +45,8 @@ const nextConfig: NextConfig = {
       '../../node_modules/.prisma/client/**/*',
       '../../node_modules/@prisma/client/**/*',
     ],
+    // El alta de clientes aplica estos .sql a la DB nueva (neon-provisioner).
+    '/superadmin/**/*': ['../../packages/db/prisma/migrations/**/*'],
   },
 
   // Configuración de headers de seguridad
