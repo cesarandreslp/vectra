@@ -11,9 +11,9 @@ import { useState } from 'react'
 // Misma regex que usa createTenant() en el servidor
 const REGEX_SLUG = /^[a-z0-9-]{3,}$/
 
-// Dominio base sobre el que se monta el subdominio de cada campaña. Debe
-// coincidir con TENANT_BASE_DOMAIN del entorno; aquí solo se muestra.
-const DOMINIO_BASE = process.env.NEXT_PUBLIC_TENANT_BASE_DOMAIN ?? 'vectra.com.co'
+// Dominio base sobre el que se monta el subdominio de cada campaña. Sale de
+// TENANT_BASE_DOMAIN (ver env en next.config.ts); aquí solo se muestra.
+const DOMINIO_BASE = process.env.NEXT_PUBLIC_TENANT_BASE_DOMAIN
 
 interface SlugInputProps {
   value:    string

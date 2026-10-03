@@ -26,6 +26,12 @@ const nextConfig: NextConfig = {
   // Activar React Strict Mode para detectar efectos secundarios en desarrollo
   reactStrictMode: true,
 
+  // El formulario de nuevo cliente muestra la URL {slug}.{dominio}. Es el dominio
+  // público (no un secreto), así que se expone desde TENANT_BASE_DOMAIN en build.
+  env: {
+    NEXT_PUBLIC_TENANT_BASE_DOMAIN: process.env.TENANT_BASE_DOMAIN || 'oss-vectra.com',
+  },
+
   // El runtime Node.js del middleware se declara directamente en middleware.ts
   // mediante `export const runtime = 'nodejs'` (estable desde Next 15.5).
 
