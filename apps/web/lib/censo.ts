@@ -76,13 +76,89 @@ export function interpretarJob(job: Json): { estado: EstadoCenso; lugar: Json | 
 async function guardarResultado(
   db: Db, voterId: string, r: { estado: EstadoCenso; lugar: Json | null },
 ): Promise<void> {
-  await db.voter.update({
+  const v = await db.voter.update({
     where: { id: voterId },
     data:  {
       censoEstado: r.estado, censoJobId: null, censoVerificadoEn: new Date(),
       ...(r.lugar ? { censoLugar: r.lugar as object } : {}),
     },
+    select: { tenantId: true },
   })
+  await asignarMesasDelCenso(db, v.tenantId)
+}
+
+/** "SEDE GUADALAJARA" y "Sede Guadalajara" son el mismo puesto; "BUGA" está en "Guadalajara de Buga". */
+function normalizar(texto: string): string {
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Asigna puesto y mesa a los electores encontrados en el censo que todavía no
+ * tienen mesa, para que cuenten en la vista "por puesto" del mapa y en la
+ * jurisdicción. El puesto se cruza por nombre dentro de su municipio; si la
+ * campaña no lo tiene cargado (o la mesa), se crea con los datos del censo.
+ * Nunca pisa una mesa ya asignada a mano. Idempotente.
+ */
+export async function asignarMesasDelCenso(db: Db, tenantId: string): Promise<number> {
+  const electores = await db.voter.findMany({
+    where:  { tenantId, censoEstado: 'ENCONTRADO', OR: [{ votingTableId: null }, { votingTable: { station: { lat: null } } }] },
+    select: { id: true, censoLugar: true, votingTableId: true },
+  })
+  if (electores.length === 0) return 0
+
+  const puestos = await db.votingStation.findMany({
+    select: { id: true, name: true, lat: true, municipality: { select: { name: true } }, tables: { select: { id: true, number: true } } },
+  })
+  let asignados = 0
+
+  for (const e of electores) {
+    const l = e.censoLugar as { puesto?: string; mesa?: string; municipio?: string; departamento?: string; direccion?: string; latitud?: number; longitud?: number } | null
+    const mesa = Number(l?.mesa)
+    if (!l?.puesto || !l.municipio || !Number.isInteger(mesa) || mesa <= 0) continue
+    const muni = normalizar(l.municipio)
+
+    let puesto = puestos.find((p) => normalizar(p.name) === normalizar(l.puesto!) && normalizar(p.municipality.name).includes(muni))
+    if (!puesto) {
+      // El municipio del censo viene abreviado ("BUGA"); el departamento desempata.
+      const candidatos = await db.municipality.findMany({
+        where:  { department: { name: { contains: l.departamento ?? '', mode: 'insensitive' } } },
+        select: { id: true, name: true },
+      })
+      const municipio = candidatos.filter((m) => normalizar(m.name).includes(muni))
+      if (municipio.length !== 1) continue // ambiguo o desconocido: mejor sin mesa que en la equivocada
+      const creado = await db.votingStation.create({
+        data: {
+          name: l.puesto, address: l.direccion ?? '', municipalityId: municipio[0].id,
+          lat: Number.isFinite(l.latitud) ? l.latitud : null, lng: Number.isFinite(l.longitud) ? l.longitud : null,
+        },
+        select: { id: true, name: true, lat: true, municipality: { select: { name: true } } },
+      })
+      puesto = { ...creado, tables: [] }
+      puestos.push(puesto)
+    } else if (puesto.lat === null && Number.isFinite(l.latitud) && Number.isFinite(l.longitud)) {
+      // Puesto cargado sin ubicar: la coordenada oficial del censo lo pone en el mapa.
+      await db.votingStation.update({ where: { id: puesto.id }, data: { lat: l.latitud, lng: l.longitud } })
+      puesto.lat = l.latitud!
+    }
+
+    if (e.votingTableId) continue // ya tenía mesa: solo se venía a ubicar su puesto
+
+    let mesaId = puesto.tables.find((t) => t.number === mesa)?.id
+    if (!mesaId) {
+      const t = await db.votingTable.upsert({
+        where:  { stationId_number: { stationId: puesto.id, number: mesa } },
+        update: {},
+        create: { stationId: puesto.id, number: mesa },
+        select: { id: true, number: true },
+      })
+      puesto.tables.push(t)
+      mesaId = t.id
+    }
+
+    await db.voter.update({ where: { id: e.id }, data: { votingTableId: mesaId } })
+    asignados++
+  }
+  return asignados
 }
 
 /** Idempotente: el webhook puede llegar repetido y se correlaciona por job_id. */
@@ -97,6 +173,7 @@ export async function aplicarJob(db: Db, tenantId: string, jobId: string, job: J
       ...(r.lugar ? { censoLugar: r.lugar as object } : {}),
     },
   })
+  await asignarMesasDelCenso(db, tenantId)
 }
 
 export async function recogerCenso(db: Db, tenantId: string, jobId: string): Promise<void> {
@@ -186,6 +263,7 @@ export async function procesarCensoPendientes(db: Db, tenantId: string, limite =
 
   await enTandas(pendientes, (p) => recogerCenso(db, tenantId, p.censoJobId as string))
   await enTandas(nuevos, (v) => encolarCenso(db, tenantId, v))
+  await asignarMesasDelCenso(db, tenantId) // también los que ya estaban verificados antes de existir esto
 
   const restantes = await db.voter.count({
     where: { tenantId, OR: [{ censoEstado: null }, { censoEstado: 'PENDIENTE' }] },
