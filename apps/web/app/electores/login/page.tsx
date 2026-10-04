@@ -21,7 +21,10 @@ export default async function LoginElectorPage({ searchParams }: Props) {
   const session = await auth()
   const params  = await searchParams
 
-  if (session?.user) {
+  // Solo un elector ya logueado se salta el formulario. Con otra sesión abierta
+  // (admin, superadmin) /pwa lo rebotaba a /login de correo y contraseña, y
+  // parecía que esta puerta pedía eso. Entrar aquí reemplaza esa sesión.
+  if (session?.user?.role === 'ELECTOR') {
     redirect('/pwa')
   }
 

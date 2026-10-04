@@ -20,7 +20,8 @@ export default async function LoginTestigoPage({ searchParams }: Props) {
   const session = await auth()
   const params  = await searchParams
 
-  if (session?.user) {
+  // Solo un testigo ya logueado se salta el formulario (ver /electores/login).
+  if (session?.user?.role === 'TESTIGO') {
     redirect('/dia-e/testigo')
   }
 
