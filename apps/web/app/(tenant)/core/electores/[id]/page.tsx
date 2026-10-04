@@ -7,6 +7,7 @@ import { SelectorEstado } from '../_components/selector-estado'
 import { BotonJefeDebate } from '../../_components/boton-jefe-debate'
 import { VeredictoCompromiso } from '@/app/(tenant)/_components/veredicto-compromiso'
 import { FichaCenso } from '../_components/censo'
+import { BotonActivoElector } from '../_components/boton-activo'
 
 export const metadata = { title: 'Ficha de elector' }
 
@@ -59,6 +60,14 @@ export default async function FichaElectorPage({ params }: Props) {
                 CANDIDATO
               </span>
             )}
+            {!elector.activo && (
+              <span style={{
+                marginLeft: '0.6rem', verticalAlign: 'middle', background: '#f1f5f9', color: '#475569',
+                padding: '0.15rem 0.5rem', borderRadius: 999, fontSize: '0.7rem', fontWeight: 600,
+              }}>
+                INACTIVO
+              </span>
+            )}
             {elector.tieneAgenda && (
               <span style={{
                 marginLeft: '0.6rem', verticalAlign: 'middle', background: '#eff6ff', color: '#1e40af',
@@ -80,7 +89,7 @@ export default async function FichaElectorPage({ params }: Props) {
             </div>
           )}
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {puedeEditar && (
             <Link href={`/core/electores/${elector.id}/editar`} style={{
               border: '1px solid #cbd5e1', borderRadius: '6px', padding: '0.25rem 0.75rem',
@@ -89,6 +98,7 @@ export default async function FichaElectorPage({ params }: Props) {
               Editar
             </Link>
           )}
+          {puedeEditar && !elector.isCandidate && <BotonActivoElector id={elector.id} nombre={elector.name} activo={elector.activo} />}
           <span style={{ background: c.bg, color: c.text, padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
             {elector.commitmentStatus.replace('_', ' ')}
           </span>

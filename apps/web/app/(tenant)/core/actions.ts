@@ -722,6 +722,28 @@ export async function updateVoter(
 }
 
 /**
+ * Inactiva o reactiva a un elector. Inactivo no entra a la aplicación por
+ * ninguna puerta (electores, testigos ni equipo — ver @vectra/auth); su red
+ * queda intacta y activa: quienes le reportan siguen reportándole.
+ * ponytail: una sesión ya abierta dura hasta que vence el JWT; el bloqueo es al entrar.
+ */
+export async function setVoterActivo(id: string, activo: boolean): Promise<{ success: true } | { success: false; error: string }> {
+  const session  = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR'], 'CORE_ELECTORES', 'edit')
+  const db       = await obtenerDbTenant(session.user.tenantId)
+  const tenantId = session.user.tenantId
+
+  const v = await db.voter.findFirst({ where: { id, tenantId }, select: { isCandidate: true } })
+  if (!v) return { success: false, error: 'Elector no encontrado.' }
+  if (!activo && v.isCandidate) return { success: false, error: 'Es el candidato de la campaña: no se puede inactivar.' }
+  if (!activo && session.user.voterId === id) return { success: false, error: 'No puedes inactivarte a ti mismo.' }
+
+  await db.voter.update({ where: { id }, data: { status: activo ? 'ACTIVO' : 'INACTIVO' } })
+  revalidatePath(`/core/electores/${id}`)
+  revalidatePath('/core/electores')
+  return { success: true }
+}
+
+/**
  * Actualiza el estado de compromiso de un elector.
  * Cualquier rol puede actualizar, pero solo sus propios electores (los LIDER).
  * Registra lastContact automáticamente al cambiar el estado.
@@ -1026,6 +1048,8 @@ export interface VoterDetalle {
   leaderName:       string | null
   isCandidate:      boolean
   tieneAgenda:      boolean
+  /** false = inactivado: no puede entrar a la aplicación por ninguna puerta. */
+  activo:           boolean
   censoEstado:      string | null
   censoLugar:       Record<string, unknown> | null
 }
@@ -1046,7 +1070,7 @@ export async function getVoterDetalle(id: string): Promise<VoterDetalle | null> 
     select: {
       id: true, name: true, apodo: true, phone: true, address: true,
       commitmentStatus: true, lastContact: true, notes: true,
-      leaderId: true, isCandidate: true, tieneAgenda: true,
+      leaderId: true, isCandidate: true, tieneAgenda: true, status: true,
       censoEstado: true, censoLugar: true,
       leader: { select: { name: true } },
     },
@@ -1066,7 +1090,7 @@ export async function getVoterDetalle(id: string): Promise<VoterDetalle | null> 
     id: v.id, name: v.name, apodo: v.apodo, phone: phonePlain, address: v.address,
     commitmentStatus: v.commitmentStatus, lastContact: v.lastContact, notes: v.notes,
     leaderId: v.leaderId, leaderName: v.leader?.name ?? null, isCandidate: v.isCandidate,
-    tieneAgenda: v.tieneAgenda,
+    tieneAgenda: v.tieneAgenda, activo: v.status === 'ACTIVO',
     censoEstado: v.censoEstado, censoLugar: v.censoLugar as Record<string, unknown> | null,
   }
 }

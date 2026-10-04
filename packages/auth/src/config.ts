@@ -144,6 +144,18 @@ async function autenticarUsuario(email: string, password: string, soloSuperadmin
   // Tenant inactivo o eliminado → bloquear login.
   if (!tenant || !tenant.isActive) return null
 
+  // Elector inactivado en la campaña: su cuenta de equipo tampoco entra.
+  if (usuario.voterId) {
+    try {
+      const voter = await getTenantDb(decrypt(tenant.connectionString)).voter.findUnique({
+        where: { id: usuario.voterId }, select: { status: true },
+      })
+      if (voter && voter.status !== 'ACTIVO') return null
+    } catch {
+      return null
+    }
+  }
+
   const customPermissions = usuario.role === 'PERSONALIZADO'
     ? await resolverCustomPermissions(usuario.customRoleId)
     : {}
@@ -195,6 +207,7 @@ async function autenticarElector(slug: string, cedula: string, telefono: string)
   const cedulaHash = createHash('sha256').update(cedula.trim()).digest('hex')
   const voter = await db.voter.findFirst({ where: { tenantId: tenant.id, cedulaHash } })
   if (!voter || !voter.phone) return null
+  if (voter.status !== 'ACTIVO') return null // inactivado por la campaña
 
   // Un testigo TAMBIÉN es elector: puede entrar por acá con cédula+teléfono a la
   // PWA de electores. Es otra puerta, a otra superficie. Sus deberes de día E van
@@ -245,9 +258,10 @@ async function autenticarTestigo(slug: string, cedula: string, fechaNac: string)
   const cedulaHash = createHash('sha256').update(cedula.trim()).digest('hex')
   const voter = await db.voter.findFirst({
     where:  { tenantId: tenant.id, cedulaHash },
-    select: { id: true, name: true, apodo: true, birthDate: true },
+    select: { id: true, name: true, apodo: true, birthDate: true, status: true },
   })
   if (!voter || !voter.birthDate) return null
+  if (voter.status !== 'ACTIVO') return null // inactivado por la campaña
 
   // Comparar solo la fecha (YYYY-MM-DD), sin hora. Se guarda a medianoche UTC.
   if (voter.birthDate.toISOString().slice(0, 10) !== fechaNac.trim()) return null
