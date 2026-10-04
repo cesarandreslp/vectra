@@ -1728,6 +1728,40 @@ export async function getVotingStationsGeo(): Promise<StationGeo[]> {
   }))
 }
 
+export interface ElectorDePuesto {
+  id:               string
+  name:             string
+  mesa:             number
+  commitmentStatus: string
+  leaderName:       string | null
+}
+
+/** Quiénes votan en un puesto (los propios de la campaña), para la tabla junto al mapa. */
+export async function getElectoresDePuesto(stationId: string): Promise<ElectorDePuesto[]> {
+  const session  = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR', 'LIDER', 'TESTIGO'], 'CORE_DASHBOARD')
+  const db       = await obtenerDbTenant(session.user.tenantId)
+  const tenantId = session.user.tenantId
+
+  // Un LIDER solo ve a su red, igual que en la lista de electores.
+  let soloIds: string[] | undefined
+  if (session.user.role === 'LIDER') {
+    if (!session.user.voterId) return []
+    soloIds = [...await idsSubarbol(session.user.voterId, tenantId, db)]
+  }
+
+  const rows = await db.voter.findMany({
+    where:   { tenantId, votingTable: { stationId }, ...(soloIds && { id: { in: soloIds } }) },
+    select:  { id: true, name: true, commitmentStatus: true, votingTable: { select: { number: true } }, leader: { select: { name: true } } },
+  })
+
+  return rows
+    .map((r) => ({
+      id: r.id, name: r.name, mesa: r.votingTable!.number, commitmentStatus: r.commitmentStatus,
+      leaderName: r.leader?.name ?? null,
+    }))
+    .sort((a, b) => a.mesa - b.mesa || a.name.localeCompare(b.name))
+}
+
 export interface CentroMunicipio {
   lat:  number
   lng:  number

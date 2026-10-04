@@ -7,6 +7,7 @@ import { geocodificarPendientes, type VoterGeo, type GeoStats, type StationGeo, 
 import { intensidadDeEstado, COLOR_TEMPERATURA, ETIQUETA_TEMPERATURA, GRADIENTE_CALOR } from '@/lib/temperatura'
 import { usePantallaCompleta, BotonPantallaCompleta, ESTILO_MAPA } from '@/app/(tenant)/_components/pantalla-completa'
 import { useLimiteMapa, aplicarLimite } from '@/app/(tenant)/_components/limite-mapa'
+import { PanelPuesto } from './panel-puesto'
 
 const COLOR_ESTADO: Record<string, string> = {
   SIN_CONTACTAR: '#94a3b8',
@@ -110,7 +111,7 @@ function dibujarCapaTestigos(L: typeof import('leaflet'), capa: import('leaflet'
   }
 }
 
-function dibujarCapaPuestos(L: typeof import('leaflet'), capa: import('leaflet').FeatureGroup, puestos: StationGeo[]) {
+function dibujarCapaPuestos(L: typeof import('leaflet'), capa: import('leaflet').FeatureGroup, puestos: StationGeo[], onElegir: (s: StationGeo) => void) {
   for (const s of puestos) {
     L.circleMarker([s.lat, s.lng], {
       radius: 8,
@@ -122,6 +123,7 @@ function dibujarCapaPuestos(L: typeof import('leaflet'), capa: import('leaflet')
       .bindPopup(
         `${s.specialLabel ? `⚑ ${s.specialLabel}<br>` : ''}<b>${s.name}</b><br>${s.totalElectores} elector(es) · ${s.estado === 'CUENTA' ? 'dentro de jurisdicción' : 'fuera de jurisdicción'}`,
       )
+      .on('click', () => onElegir(s)) // abre la tabla de quienes votan ahí
       .addTo(capa)
   }
 }
@@ -146,6 +148,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
   const [vista, setVista] = useState<Vista>('residencia')
   const [ubicarPor, setUbicarPor] = useState<UbicarPor>('residencia')
   const [barrio, setBarrio] = useState('')
+  const [puestoSel, setPuestoSel] = useState<StationGeo | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
@@ -241,7 +244,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
       } else {
         const capa = L.featureGroup()
         if (vista === 'residencia')    dibujarCapaResidencia(L, capa, visibles)
-        else if (vista === 'puesto')   dibujarCapaPuestos(L, capa, puestos)
+        else if (vista === 'puesto')   dibujarCapaPuestos(L, capa, puestos, setPuestoSel)
         else if (vista === 'barrio')   dibujarCapaBarrios(L, capa, barriosVisibles, visibles)
         else if (vista === 'testigos') dibujarCapaTestigos(L, capa, testigosVisibles, ubicarPor)
         else                           dibujarCapaComunas(L, capa, comunas, visibles)
@@ -262,6 +265,12 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
     if (mapaRef.current) { mapaRef.current.remove(); mapaRef.current = null }
   }, [])
 
+  // Abrir o cerrar la tabla del puesto cambia el ancho del mapa: Leaflet tiene que volver a medirse.
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => mapaRef.current?.invalidateSize())
+    return () => cancelAnimationFrame(frame)
+  }, [puestoSel])
+
   function ubicar() {
     setMsg(null)
     startTransition(async () => {
@@ -277,7 +286,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
         {(['residencia', 'puesto', 'comuna', 'barrio', 'testigos', 'calor'] as const).map((v) => (
           <button
             key={v}
-            onClick={() => setVista(v)}
+            onClick={() => { setVista(v); setPuestoSel(null) }}
             style={{
               background: vista === v ? '#0f172a' : '#f1f5f9',
               color:      vista === v ? '#fff' : '#475569',
@@ -314,9 +323,17 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
       {vista === 'testigos'   && <ControlesTestigos testigos={testigosVisibles} ubicarPor={ubicarPor} onUbicarPor={setUbicarPor} />}
       {vista === 'calor'      && <ControlesCalor puntos={visibles} />}
 
-      <div style={pantalla.estiloArea(420)}>
-        <div ref={contenedor} style={ESTILO_MAPA} />
-        <BotonPantallaCompleta completa={pantalla.completa} onClick={pantalla.alternar} />
+      {/* Con un puesto elegido, su tabla va al lado del mapa en pantalla completa y debajo si no. */}
+      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: pantalla.completa ? 'nowrap' : 'wrap', ...(pantalla.completa && { flex: 1, minHeight: 0 }) }}>
+        <div style={{ ...pantalla.estiloArea(420), flex: '1 1 420px' }}>
+          <div ref={contenedor} style={ESTILO_MAPA} />
+          <BotonPantallaCompleta completa={pantalla.completa} onClick={pantalla.alternar} />
+        </div>
+        {vista === 'puesto' && puestoSel && (
+          <div style={pantalla.completa ? { flex: '0 0 min(380px, 45%)', display: 'flex', minHeight: 0 } : { flex: '1 1 100%', maxHeight: 420, display: 'flex' }}>
+            <PanelPuesto puesto={puestoSel} onCerrar={() => setPuestoSel(null)} />
+          </div>
+        )}
       </div>
 
       {vista === 'residencia' && puntos.length === 0 && geoStats.pendientes === 0 && (
@@ -383,7 +400,7 @@ function ControlesPuesto({ puestos }: { puestos: StationGeo[] }) {
   return (
     <div style={{ marginBottom: '0.75rem' }}>
       <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
-        {puestos.length} puesto(s) con electores propios — verde: dentro de jurisdicción, rojo: fuera
+        {puestos.length} puesto(s) con electores propios — verde: dentro de jurisdicción, rojo: fuera. Clic en un puesto para ver quiénes votan ahí.
       </span>
     </div>
   )
