@@ -22,6 +22,7 @@
     "db:import-puestos-buga": "tsx src/import-puestos-buga.ts",
     "db:geocodificar-puestos-buga": "tsx src/geocodificar-puestos-buga.ts",
     "db:resolver-barrios": "tsx src/resolver-barrios.ts",
+    "db:copiar-territorio": "tsx src/copiar-territorio.ts",
     "db:sembrar-fechas-nacimiento": "tsx src/sembrar-fechas-nacimiento.ts",
     "db:sembrar-zonas-prueba": "tsx src/sembrar-zonas-prueba.ts",
     "db:sembrar-red-prueba-buga": "tsx src/sembrar-red-prueba-buga.ts",

@@ -33,6 +33,7 @@ export default async function FichaElectorPage({ params }: Props) {
 
   const session = await auth()
   const esAdminCampana = session?.user?.role === 'ADMIN_CAMPANA'
+  const puedeEditar    = ['ADMIN_CAMPANA', 'COORDINADOR'].includes(session?.user?.role ?? '')
 
   // Best-effort: si el rol no califica (ej. TESTIGO) o falla, simplemente no se
   // muestra el dato — no es motivo para romper la ficha completa del elector.
@@ -79,9 +80,19 @@ export default async function FichaElectorPage({ params }: Props) {
             </div>
           )}
         </div>
-        <span style={{ background: c.bg, color: c.text, padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
-          {elector.commitmentStatus.replace('_', ' ')}
-        </span>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {puedeEditar && (
+            <Link href={`/core/electores/${elector.id}/editar`} style={{
+              border: '1px solid #cbd5e1', borderRadius: '6px', padding: '0.25rem 0.75rem',
+              fontSize: '0.8rem', fontWeight: 600, color: '#0f172a', textDecoration: 'none',
+            }}>
+              Editar
+            </Link>
+          )}
+          <span style={{ background: c.bg, color: c.text, padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
+            {elector.commitmentStatus.replace('_', ' ')}
+          </span>
+        </div>
       </div>
 
       <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1.25rem', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -94,7 +105,7 @@ export default async function FichaElectorPage({ params }: Props) {
         {elector.notes && <Campo label="Notas" valor={elector.notes} />}
         <FichaCenso
           voterId={elector.id} estado={elector.censoEstado} lugar={elector.censoLugar}
-          puedeVerificar={['ADMIN_CAMPANA', 'COORDINADOR'].includes(session?.user?.role ?? '')}
+          puedeVerificar={puedeEditar}
         />
 
         <div>

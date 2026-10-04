@@ -3,7 +3,8 @@
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantDb } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
-import { geocodeAddress } from '@/lib/geocode'
+import { geocodeAddress, zonaDeLimite } from '@/lib/geocode'
+import { getLimiteMapa } from '../../actions-mapa'
 import { sugerirOrdenPorCercania } from '@/lib/geometry'
 import { revalidatePath } from 'next/cache'
 
@@ -66,7 +67,7 @@ export async function guardarDireccionRuta(id: string, tipo: TipoItemRuta, direc
   const session = await requireModuleOrScreen('CORE', [...ROLES_ADMIN], 'CORE_RUTAS', 'edit')
   const db = getTenantDb(await getTenantConnection(session.user.tenantId))
 
-  const geo = await geocodeAddress(direccion)
+  const geo = await geocodeAddress(direccion, zonaDeLimite(await getLimiteMapa()))
 
   if (tipo === 'agenda') {
     const entrada = await db.agendaEntrada.findFirst({ where: { id, tenantId: session.user.tenantId } })

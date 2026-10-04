@@ -4,16 +4,44 @@
  * respetar el rate limit (ver geocodificarPendientes). Best-effort: null si falla.
  */
 
-export async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+import type { LimiteMapa } from './jurisdiccion'
+
+/** Rectángulo (y nombre) del territorio de la campaña donde buscar direcciones. */
+export interface ZonaBusqueda { nombre: string; sur: number; norte: number; oeste: number; este: number }
+
+/** Rectángulo que encierra el contorno de la jurisdicción (ver getLimiteMapa). */
+export function zonaDeLimite(limite: LimiteMapa | null): ZonaBusqueda | null {
+  const puntos = limite?.anillos.flat() ?? []
+  if (puntos.length === 0) return null
+  const lats = puntos.map(([lat]) => lat)
+  const lngs = puntos.map(([, lng]) => lng)
+  return { nombre: limite!.nombre, sur: Math.min(...lats), norte: Math.max(...lats), oeste: Math.min(...lngs), este: Math.max(...lngs) }
+}
+
+export function dentroDeZona(zona: ZonaBusqueda, lat: number, lng: number): boolean {
+  return lat >= zona.sur && lat <= zona.norte && lng >= zona.oeste && lng <= zona.este
+}
+
+/**
+ * Con `zona`, la búsqueda queda encerrada en el territorio de la campaña. Sin
+ * eso una dirección colombiana típica ("Carrera 8 # 11-43") es ambigua y
+ * Nominatim devuelve la primera Carrera 8 del país: electores de Buga caían en
+ * Bogotá, fuera del mapa acotado, y no se veían.
+ */
+export async function geocodeAddress(address: string, zona?: ZonaBusqueda | null): Promise<{ lat: number; lng: number } | null> {
   const q = address.trim()
   if (!q) return null
 
   try {
     const url = new URL('https://nominatim.openstreetmap.org/search')
-    url.searchParams.set('q', q)
+    url.searchParams.set('q', zona ? `${q}, ${zona.nombre}` : q)
     url.searchParams.set('format', 'json')
     url.searchParams.set('limit', '1')
     url.searchParams.set('countrycodes', 'co') // acotar a Colombia mejora la precisión
+    if (zona) {
+      url.searchParams.set('viewbox', `${zona.oeste},${zona.norte},${zona.este},${zona.sur}`)
+      url.searchParams.set('bounded', '1')
+    }
 
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Vectra/1.0 (plataforma de campañas electorales)' },

@@ -12,7 +12,8 @@ import { requireAuth, requireModule, requireModuleOrScreen } from '@/lib/auth-he
 import { getTenantConnection }        from '@/lib/tenant'
 import { calcularCedulaHash }         from '@/lib/cedula-hash'
 import { getTenantDb, encrypt, decrypt, Prisma, superadminDb } from '@vectra/db'
-import { geocodeAddress }             from '@/lib/geocode'
+import { geocodeAddress, zonaDeLimite, dentroDeZona, type ZonaBusqueda } from '@/lib/geocode'
+import { getLimiteMapa }              from '../actions-mapa'
 import { resolverBarrios }            from '@/lib/barrios'
 import { puntoEnPoligono }            from '@/lib/geometry'
 import { coloresPorZona }             from '@/lib/colores-comuna'
@@ -615,6 +616,108 @@ export async function createVoter(
     }
     console.error('[createVoter]', err instanceof Error ? err.message : err)
     return { success: false, error: 'Error al crear el elector.' }
+  }
+}
+
+export interface VoterEditable {
+  id:               string
+  cedula:           string
+  name:             string
+  apodo:            string | null
+  phone:            string | null
+  address:          string | null
+  leaderId:         string | null
+  stationId:        string | null
+  votingTableId:    string | null
+  commitmentStatus: CommitmentStatus
+}
+
+/** Datos del elector en claro para el formulario de edición. */
+export async function getVoterEditable(id: string): Promise<VoterEditable | null> {
+  const session = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR'], 'CORE_ELECTORES', 'edit')
+  const db      = await obtenerDbTenant(session.user.tenantId)
+
+  const v = await db.voter.findFirst({
+    where:  { id, tenantId: session.user.tenantId },
+    select: {
+      id: true, cedula: true, name: true, apodo: true, phone: true, address: true,
+      leaderId: true, votingTableId: true, commitmentStatus: true,
+      votingTable: { select: { stationId: true } },
+    },
+  })
+  if (!v) return null
+
+  return {
+    id: v.id, cedula: decrypt(v.cedula), name: v.name, apodo: v.apodo,
+    phone: v.phone ? decrypt(v.phone) : null, address: v.address,
+    leaderId: v.leaderId, stationId: v.votingTable?.stationId ?? null, votingTableId: v.votingTableId,
+    commitmentStatus: v.commitmentStatus as CommitmentStatus,
+  }
+}
+
+/**
+ * Edita los datos de un elector. Si cambia la dirección se borra su ubicación
+ * (el mapa la vuelve a calcular); si cambia la cédula, se vuelve a consultar el censo.
+ */
+export async function updateVoter(
+  id: string, data: CreateVoterInput,
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    const session  = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR'], 'CORE_ELECTORES', 'edit')
+    const db       = await obtenerDbTenant(session.user.tenantId)
+    const tenantId = session.user.tenantId
+
+    const actual = await db.voter.findFirst({ where: { id, tenantId }, select: { cedulaHash: true, address: true } })
+    if (!actual) return { success: false, error: 'Elector no encontrado.' }
+
+    if (data.leaderId) {
+      // Reportar a sí mismo o a alguien de su propia red cerraría un ciclo en el árbol.
+      if ((await idsSubarbol(id, tenantId, db)).has(data.leaderId)) {
+        return { success: false, error: 'No puede reportar a sí mismo ni a alguien de su propia red.' }
+      }
+      const lider = await db.voter.findFirst({ where: { id: data.leaderId, tenantId }, select: { id: true } })
+      if (!lider) return { success: false, error: 'El líder no existe en esta campaña.' }
+    }
+    if (data.votingTableId && !(await db.votingTable.findUnique({ where: { id: data.votingTableId } }))) {
+      return { success: false, error: 'La mesa de votación no existe.' }
+    }
+
+    const cedulaNorm  = data.cedula.trim()
+    const cedulaHash  = calcularCedulaHash(cedulaNorm)
+    const cambioCedula = cedulaHash !== actual.cedulaHash
+    if (cambioCedula && await db.voter.findFirst({ where: { tenantId, cedulaHash, id: { not: id } }, select: { id: true } })) {
+      return { success: false, error: 'Ya existe otro elector con esa cédula en esta campaña.' }
+    }
+
+    const address       = data.address?.trim() || null
+    const cambioDireccion = address !== actual.address
+
+    await db.voter.update({
+      where: { id },
+      data: {
+        name:             data.name.trim(),
+        apodo:            data.apodo?.trim() || null,
+        phone:            data.phone?.trim() ? encrypt(data.phone.trim()) : null,
+        address,
+        leaderId:         data.leaderId || null,
+        votingTableId:    data.votingTableId || null,
+        commitmentStatus: data.commitmentStatus ?? 'SIN_CONTACTAR',
+        ...(cambioCedula && {
+          cedula: encrypt(cedulaNorm), cedulaHash,
+          censoEstado: null, censoLugar: Prisma.DbNull, censoJobId: null, censoVerificadoEn: null,
+        }),
+        ...(cambioDireccion && { lat: null, lng: null, neighborhoodId: null }),
+      },
+    })
+    if (cambioCedula) censoEnSegundoPlano(db, tenantId)
+
+    revalidatePath('/core/electores')
+    revalidatePath(`/core/electores/${id}`)
+    return { success: true }
+  } catch (err: any) {
+    if (err?.code === 'P2002') return { success: false, error: 'Ya existe otro elector con esa cédula en esta campaña.' }
+    console.error('[updateVoter]', err instanceof Error ? err.message : err)
+    return { success: false, error: 'Error al guardar el elector.' }
   }
 }
 
@@ -1437,15 +1540,42 @@ export async function getGeoStats(): Promise<GeoStats> {
   const db      = await obtenerDbTenant(session.user.tenantId)
   const tenantId = session.user.tenantId
 
+  const zona = zonaDeLimite(await getLimiteMapa())
   const [conCoords, pendientes] = await Promise.all([
     db.voter.count({ where: { tenantId, lat: { not: null } } }),
-    db.voter.count({ where: { tenantId, lat: null, address: { not: null } } }),
+    db.voter.count({ where: { tenantId, ...wherePendientesGeo(zona) } }),
   ])
   return { conCoords, pendientes }
 }
 
 /**
- * Geocodifica un LOTE PEQUEÑO de electores con dirección pero sin coordenadas.
+ * Electores por ubicar: con dirección o con lugar de votación del censo, y sin
+ * coordenadas o con coordenadas fuera del territorio de la campaña (las que dejó
+ * la geocodificación sin acotar, p. ej. Buga → Bogotá). Así esas se corrigen solas.
+ */
+function wherePendientesGeo(zona: ZonaBusqueda | null): Prisma.VoterWhereInput {
+  const ubicable: Prisma.VoterWhereInput = { OR: [{ address: { not: null } }, { censoEstado: 'ENCONTRADO' }] }
+  if (!zona) return { AND: [ubicable, { lat: null }] }
+  return {
+    AND: [ubicable, { OR: [
+      { lat: null }, { lng: null },
+      { lat: { lt: zona.sur } }, { lat: { gt: zona.norte } },
+      { lng: { lt: zona.oeste } }, { lng: { gt: zona.este } },
+    ] }],
+  }
+}
+
+/** Coordenadas del puesto de votación que trajo el censo, si las trajo. */
+function puntoDelCenso(censoLugar: Prisma.JsonValue): { lat: number; lng: number } | null {
+  const c = censoLugar as { latitud?: unknown; longitud?: unknown } | null
+  const lat = Number(c?.latitud), lng = Number(c?.longitud)
+  return c && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null
+}
+
+/**
+ * Ubica un LOTE PEQUEÑO de electores pendientes (ver wherePendientesGeo).
+ * Orden: la dirección, buscada solo dentro del territorio de la campaña; si no
+ * aparece, el puesto de votación del censo (al menos queda en su zona del mapa).
  * ponytail: lote de 5 con pausa de 1s por el rate limit de Nominatim (1 req/s) y
  * el timeout de la función serverless. Para volúmenes grandes esto es un cron/queue,
  * no una acción síncrona — por ahora el admin la corre varias veces.
@@ -1454,28 +1584,31 @@ export async function geocodificarPendientes(): Promise<{ geocodificados: number
   const session  = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR'], 'CORE_DASHBOARD', 'edit')
   const db       = await obtenerDbTenant(session.user.tenantId)
   const tenantId = session.user.tenantId
+  const zona     = zonaDeLimite(await getLimiteMapa())
 
   const lote = await db.voter.findMany({
-    where:  { tenantId, lat: null, address: { not: null } },
-    select: { id: true, address: true },
+    where:  { tenantId, ...wherePendientesGeo(zona) },
+    select: { id: true, address: true, censoLugar: true },
     take:   5,
   })
 
   let geocodificados = 0
   for (const v of lote) {
-    const coords = await geocodeAddress(v.address!)
-    if (coords) {
-      await db.voter.update({ where: { id: v.id }, data: { lat: coords.lat, lng: coords.lng } })
-      geocodificados++
-    }
-    await new Promise((r) => setTimeout(r, 1000)) // 1 req/s (política de Nominatim)
+    let coords = v.address ? await geocodeAddress(v.address, zona) : null
+    if (coords && zona && !dentroDeZona(zona, coords.lat, coords.lng)) coords = null
+    coords ??= puntoDelCenso(v.censoLugar)
+
+    // Sin ubicación válida se borra la que hubiera: un punto en otra ciudad es peor que ninguno.
+    await db.voter.update({ where: { id: v.id }, data: { lat: coords?.lat ?? null, lng: coords?.lng ?? null } })
+    if (coords) geocodificados++
+    if (v.address) await new Promise((r) => setTimeout(r, 1000)) // 1 req/s (política de Nominatim)
   }
 
   // Ya tienen coordenadas: ubicarlos en su barrio en la misma pasada, así nadie
   // tiene que acordarse de correrlo aparte.
   if (geocodificados > 0) await resolverBarrios(db, tenantId)
 
-  const restantes = await db.voter.count({ where: { tenantId, lat: null, address: { not: null } } })
+  const restantes = await db.voter.count({ where: { tenantId, ...wherePendientesGeo(zona) } })
   revalidatePath('/core')
   return { geocodificados, restantes }
 }
