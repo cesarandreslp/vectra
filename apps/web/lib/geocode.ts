@@ -29,12 +29,37 @@ export function dentroDeZona(zona: ZonaBusqueda, lat: number, lng: number): bool
  * Bogotá, fuera del mapa acotado, y no se veían.
  */
 export async function geocodeAddress(address: string, zona?: ZonaBusqueda | null): Promise<{ lat: number; lng: number } | null> {
-  const q = address.trim()
-  if (!q) return null
+  const consultas = variantesDireccion(address)
+  for (const [i, q] of consultas.entries()) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 1000)) // 1 req/s (política de Nominatim)
+    const hit = await buscarPunto(zona ? `${q}, ${zona.nombre}` : q, zona)
+    if (hit) return hit
+  }
+  return null
+}
 
+/**
+ * Cómo se escribe una dirección en Colombia vs. lo que entiende Nominatim:
+ * "calle 5ta sur No 15b-61" no aparece, "Calle 5 Sur 15b-61" sí. Primero la
+ * dirección normalizada; si el número exacto no está en el mapa, solo la vía
+ * ("Calle 5 Sur"): la persona queda en su calle, que es mejor que fuera del mapa.
+ */
+export function variantesDireccion(address: string): string[] {
+  const normal = address
+    .replace(/(\d+)(?:ra|da|ta|ma|va|na|vo|no|er|°|º)\b/gi, '$1') // 5ta → 5, 1ra → 1
+    .replace(/\s*(?:#|\bN[oº°]\.?(?=[\s\d])|\bnum(?:ero)?\.?(?=[\s\d]))\s*/gi, ' ')     // "No 15b-61" / "# 15b-61" → " 15b-61"
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!normal) return []
+  // La vía es todo lo anterior al número de placa ("15b-61").
+  const via = normal.replace(/\s+\d+\s*[a-z]?\s*-\s*\d+.*$/i, '').trim()
+  return via && via !== normal && /\d/.test(via) ? [normal, via] : [normal]
+}
+
+async function buscarPunto(q: string, zona?: ZonaBusqueda | null): Promise<{ lat: number; lng: number } | null> {
   try {
     const url = new URL('https://nominatim.openstreetmap.org/search')
-    url.searchParams.set('q', zona ? `${q}, ${zona.nombre}` : q)
+    url.searchParams.set('q', q)
     url.searchParams.set('format', 'json')
     url.searchParams.set('limit', '1')
     url.searchParams.set('countrycodes', 'co') // acotar a Colombia mejora la precisión
@@ -49,8 +74,7 @@ export async function geocodeAddress(address: string, zona?: ZonaBusqueda | null
     })
     if (!res.ok) return null
 
-    const data = (await res.json()) as Array<{ lat: string; lon: string }>
-    const hit  = data[0]
+    const hit = ((await res.json()) as Array<{ lat: string; lon: string }>)[0]
     if (!hit) return null
 
     const lat = parseFloat(hit.lat)

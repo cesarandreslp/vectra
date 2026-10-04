@@ -1549,15 +1549,15 @@ export async function getGeoStats(): Promise<GeoStats> {
 }
 
 /**
- * Electores por ubicar: con dirección o con lugar de votación del censo, y sin
- * coordenadas o con coordenadas fuera del territorio de la campaña (las que dejó
- * la geocodificación sin acotar, p. ej. Buga → Bogotá). Así esas se corrigen solas.
+ * Electores por ubicar: con dirección y sin coordenadas, o con coordenadas fuera
+ * del territorio de la campaña (las que dejó la geocodificación sin acotar, p. ej.
+ * Buga → Bogotá). Así esas se corrigen solas.
  */
 function wherePendientesGeo(zona: ZonaBusqueda | null): Prisma.VoterWhereInput {
-  const ubicable: Prisma.VoterWhereInput = { OR: [{ address: { not: null } }, { censoEstado: 'ENCONTRADO' }] }
-  if (!zona) return { AND: [ubicable, { lat: null }] }
+  const conDireccion: Prisma.VoterWhereInput = { address: { not: null } }
+  if (!zona) return { ...conDireccion, lat: null }
   return {
-    AND: [ubicable, { OR: [
+    AND: [conDireccion, { OR: [
       { lat: null }, { lng: null },
       { lat: { lt: zona.sur } }, { lat: { gt: zona.norte } },
       { lng: { lt: zona.oeste } }, { lng: { gt: zona.este } },
@@ -1565,17 +1565,11 @@ function wherePendientesGeo(zona: ZonaBusqueda | null): Prisma.VoterWhereInput {
   }
 }
 
-/** Coordenadas del puesto de votación que trajo el censo, si las trajo. */
-function puntoDelCenso(censoLugar: Prisma.JsonValue): { lat: number; lng: number } | null {
-  const c = censoLugar as { latitud?: unknown; longitud?: unknown } | null
-  const lat = Number(c?.latitud), lng = Number(c?.longitud)
-  return c && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null
-}
-
 /**
- * Ubica un LOTE PEQUEÑO de electores pendientes (ver wherePendientesGeo).
- * Orden: la dirección, buscada solo dentro del territorio de la campaña; si no
- * aparece, el puesto de votación del censo (al menos queda en su zona del mapa).
+ * Ubica un LOTE PEQUEÑO de electores pendientes (ver wherePendientesGeo) por la
+ * dirección que se digitó, buscada solo dentro del territorio de la campaña.
+ * Nunca por el puesto del censo: la residencia real suele diferir de la que
+ * conoce la Registraduría, y el puesto ya tiene su propia vista en el mapa.
  * ponytail: lote de 5 con pausa de 1s por el rate limit de Nominatim (1 req/s) y
  * el timeout de la función serverless. Para volúmenes grandes esto es un cron/queue,
  * no una acción síncrona — por ahora el admin la corre varias veces.
@@ -1588,20 +1582,19 @@ export async function geocodificarPendientes(): Promise<{ geocodificados: number
 
   const lote = await db.voter.findMany({
     where:  { tenantId, ...wherePendientesGeo(zona) },
-    select: { id: true, address: true, censoLugar: true },
+    select: { id: true, address: true },
     take:   5,
   })
 
   let geocodificados = 0
   for (const v of lote) {
-    let coords = v.address ? await geocodeAddress(v.address, zona) : null
+    let coords = await geocodeAddress(v.address!, zona)
     if (coords && zona && !dentroDeZona(zona, coords.lat, coords.lng)) coords = null
-    coords ??= puntoDelCenso(v.censoLugar)
 
     // Sin ubicación válida se borra la que hubiera: un punto en otra ciudad es peor que ninguno.
     await db.voter.update({ where: { id: v.id }, data: { lat: coords?.lat ?? null, lng: coords?.lng ?? null } })
     if (coords) geocodificados++
-    if (v.address) await new Promise((r) => setTimeout(r, 1000)) // 1 req/s (política de Nominatim)
+    await new Promise((r) => setTimeout(r, 1000)) // 1 req/s (política de Nominatim)
   }
 
   // Ya tienen coordenadas: ubicarlos en su barrio en la misma pasada, así nadie
