@@ -17,14 +17,10 @@ export default async function LideresPage({ searchParams }: Props) {
   const esAdmin = ['ADMIN_CAMPANA', 'COORDINADOR'].includes(session?.user?.role ?? '')
 
   const lideres = await listLeaders({ search: params.q })
-  const idsVisibles = new Set(lideres.map((l) => l.id))
-  // Raíz = sin padre, O cuyo padre no está en la lista (ej: el candidato, que
-  // se excluye a propósito de este panel — sus hijos directos pasan a ser
-  // la raíz visual). Al buscar, se muestran también los sub-líderes que hagan
-  // match (si no, este filtro los escondería aunque la búsqueda sí los encontró).
-  const raices  = params.q
-    ? lideres
-    : lideres.filter((l) => l.parentLeaderId === null || !idsVisibles.has(l.parentLeaderId))
+  // Todos los líderes, no solo los de arriba de la cadena: antes un líder que
+  // reportaba a otro (Daniela → José Antonio) solo se veía dentro de la ficha
+  // de su jefe. La jerarquía queda en el "Reporta a" de cada tarjeta.
+  const nombrePorId = new Map(lideres.map((l) => [l.id, l.name]))
 
   return (
     <div>
@@ -63,7 +59,7 @@ export default async function LideresPage({ searchParams }: Props) {
         </button>
       </form>
 
-      {raices.length === 0 ? (
+      {lideres.length === 0 ? (
         <div style={{ color: '#64748b', marginTop: '2rem' }}>
           {params.q
             ? 'Ningún líder coincide con la búsqueda.'
@@ -72,7 +68,7 @@ export default async function LideresPage({ searchParams }: Props) {
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
-          {raices.map((lider) => (
+          {lideres.map((lider) => (
             <Link
               key={lider.id}
               href={`/core/lideres/${lider.id}`}
@@ -89,12 +85,17 @@ export default async function LideresPage({ searchParams }: Props) {
                 }}
               >
                 {/* Encabezado */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.75rem' }}>
                   <div>
                     <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{lider.name}</div>
                     <div style={{ marginTop: '4px' }}>
                       <TitulosLider titulos={lider.titulos} />
                     </div>
+                    {lider.parentLeaderId && nombrePorId.has(lider.parentLeaderId) && (
+                      <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
+                        Reporta a {nombrePorId.get(lider.parentLeaderId)}
+                      </div>
+                    )}
                     {lider.zone && (
                       <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
                         {lider.zone}
