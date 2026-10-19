@@ -254,7 +254,10 @@ export interface NodoOrganizacion {
   /** Red completa debajo suyo, a cualquier profundidad. */
   red:      number
   titulos:  TituloLider[]
+  /** Los que tienen gente propia: siguen el árbol como ramas. */
   children: NodoOrganizacion[]
+  /** Su gente sin gente propia: se listan debajo de su caja, no como ramas. */
+  electores: { id: string; name: string; commitmentStatus: string }[]
 }
 
 /**
@@ -280,7 +283,7 @@ export async function getArbolOrganizacion(raizId: string): Promise<NodoOrganiza
 
   const todos = await db.voter.findMany({
     where:  { tenantId: session.user.tenantId },
-    select: { id: true, name: true, zone: true, leaderId: true },
+    select: { id: true, name: true, zone: true, leaderId: true, commitmentStatus: true },
   })
   const raiz = todos.find((v) => v.id === raizId)
   if (!raiz) return null
@@ -316,6 +319,10 @@ export async function getArbolOrganizacion(raizId: string): Promise<NodoOrganiza
       directos, red: total,
       titulos:  titulosDe(directos, total),
       children: construirHijos(v.id),
+      electores: (hijosPorLider.get(v.id) ?? [])
+        .filter((h) => !hijosPorLider.has(h.id))
+        .map((h) => ({ id: h.id, name: h.name, commitmentStatus: h.commitmentStatus }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
     }
   }
 

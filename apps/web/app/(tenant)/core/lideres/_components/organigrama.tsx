@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { NodoOrganizacion } from '../../actions'
 import { TITULOS } from '@/lib/lideres'
+import { GenteDe } from './gente-de'
 
 /**
  * Organigrama visual (no lista con sangría) — cajas conectadas por líneas,
@@ -55,6 +56,9 @@ function NodoOrganigrama({ nodo, esRaiz = false }: { nodo: NodoOrganizacion; esR
           ))}
         </div>
       </Link>
+
+      {/* La raíz no la repite: su gente ya está en la tabla "Electores" de la ficha. */}
+      {!esRaiz && nodo.electores.length > 0 && <GenteDe electores={nodo.electores} />}
 
       {nodo.children.length > 0 && (
         <ul>
