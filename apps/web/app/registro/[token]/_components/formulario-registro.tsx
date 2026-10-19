@@ -40,6 +40,13 @@ export function FormularioRegistro({ slug, token, refId, puestos }: FormularioRe
 
   const mesasDelPuesto = puestos.find((p) => p.id === puestoId)?.tables ?? []
 
+  function ingresarOtro() {
+    setNombre(''); setApodo(''); setCedula(''); setTelefono(''); setDireccion('')
+    setPuestoId(''); setMesaId('')
+    setMensaje(null); setEnviado(false); setMiQrToken(null); setCopiado(false); setPreguntasEncuesta(null)
+    window.scrollTo({ top: 0 })
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setMensaje(null)
@@ -226,6 +233,17 @@ export function FormularioRegistro({ slug, token, refId, puestos }: FormularioRe
             {' '}para ver y compartir tu QR cuando quieras.
           </p>
         )}
+
+        {/* Mismo link, formulario limpio: el siguiente queda en la red del mismo dueño del QR. */}
+        <button
+          type="button" onClick={ingresarOtro}
+          style={{
+            width: '100%', marginTop: '1.25rem', background: '#0f172a', color: '#fff', border: 'none',
+            borderRadius: '8px', padding: '0.75rem', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          Ingresar otro
+        </button>
       </div>
     )
   }
