@@ -25,7 +25,13 @@ export default async function EscrutinioPage({ searchParams }: Props) {
 
   return (
     <div>
-      <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.25rem' }}>Escrutinio (borrador E-24)</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.25rem' }}>Formulario E-24 (escrutinio)</h1>
+        <span style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem' }}>
+          <Link href="/core/reportes/e24" style={{ color: '#1e40af' }}>Tabla E-24 / Excel</Link>
+          <Link href="/dia-e/escrutinio/e26" style={{ color: '#1e40af', fontWeight: 600 }}>Formulario E-26 →</Link>
+        </span>
+      </div>
       <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1rem' }}>
         Parte del preconteo (E-14). A medida que la comisión escrutadora revisa cada mesa, registra aquí lo que quedó:
         si cambió, el motivo. El consolidado se coteja con el E-26 en Reportes.
@@ -72,7 +78,7 @@ export default async function EscrutinioPage({ searchParams }: Props) {
                       {ESTADO[m.estado].label}
                     </span>
                   </td>
-                  <td style={celda}><Link href={`/dia-e/escrutinio/${m.id}`} style={{ color: '#1e40af', fontWeight: 600 }}>Revisar</Link></td>
+                  <td style={celda}><Link href={`/dia-e/escrutinio/${m.id}${params.zona ? `?zona=${params.zona}` : ''}`} style={{ color: '#1e40af', fontWeight: 600 }}>Revisar</Link></td>
                 </tr>
               )
             })}

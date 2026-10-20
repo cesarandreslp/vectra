@@ -7,6 +7,7 @@ import { getTenantConnection } from '@/lib/tenant'
 import {
   CLAVE_BLANCO, CLAVE_NULOS, datosDeTransmision, votosDeE14, diferencias, totalVotos, type Votos,
 } from '@/lib/escrutinio'
+import { consolidarE14 } from '@/lib/consolidado-escrutinio'
 
 /** Motivos con los que la comisión cambia un conteo — van al historial y a la reclamación. */
 const MOTIVOS = [
@@ -133,12 +134,15 @@ export async function guardarEscrutinio(
     const v14 = (tx ? votosDeE14(datosDeTransmision(tx), candidatos) : null) ?? {}
     const base = (previo?.datos as Votos | undefined) ?? v14
     const cambios = diferencias(base, limpios)
-    const corregida = diferencias(v14, limpios).length > 0
+    // Sin E-14 no hay preconteo que corregir: lo digitado es el dato de la comisión.
+    const corregida = tx !== null && diferencias(v14, limpios).length > 0
 
-    if (cambios.length > 0 && !MOTIVOS.includes(motivo)) return { success: false, error: 'Elige el motivo de la corrección.' }
+    if (cambios.length > 0 && tx && !MOTIVOS.includes(motivo)) return { success: false, error: 'Elige el motivo de la corrección.' }
 
     const historial = (previo?.historial as DetalleMesaEscrutinio['historial'] | undefined) ?? []
-    if (cambios.length > 0) historial.push({ at: new Date().toISOString(), por: nombre, motivo, observacion: observacion.trim(), cambios })
+    if (cambios.length > 0) {
+      historial.push({ at: new Date().toISOString(), por: nombre, motivo: tx ? motivo : 'Mesa sin E-14: digitada de la comisión', observacion: observacion.trim(), cambios })
+    }
 
     const datos = { datos: limpios, estado: corregida ? 'CORREGIDA' : 'REVISADA', historial, updatedBy: userId }
     await db.escrutinioMesa.upsert({
@@ -153,5 +157,86 @@ export async function guardarEscrutinio(
   } catch (err) {
     console.error('[guardarEscrutinio]', err instanceof Error ? err.message : err)
     return { success: false, error: 'No se pudo guardar el escrutinio de la mesa.' }
+  }
+}
+
+// ── Formulario E-26: cotejo del acta oficial contra el escrutinio ────────────
+
+export interface FilaE26 {
+  clave:      string
+  nombre:     string
+  agrupacion: string | null
+  e14:        number
+  e24:        number
+  /** Lo guardado del acta oficial; null = todavía no se ha diligenciado. */
+  oficial:    number | null
+}
+
+export interface FormE26 {
+  zonas:       { id: string; code: string; name: string | null }[]
+  zonaActual:  { id: string; code: string; name: string | null } | null
+  mesasRevisadas: number
+  mesasTotales:   number
+  filas:       FilaE26[]
+  observacion: string
+  guardado:    string | null
+}
+
+const alcanceDe = (zonaId: string | null) => zonaId ?? 'GENERAL'
+
+export async function getFormE26(zonaId: string | null): Promise<FormE26> {
+  const { db, tenantId } = await contexto()
+  const zonas = await db.zona.findMany({ select: { id: true, code: true, name: true }, orderBy: { code: 'asc' } })
+  const zonaActual = zonas.find((z) => z.id === zonaId) ?? null
+  const [c, oficial] = await Promise.all([
+    consolidarE14(db, tenantId, zonaActual?.id ?? null),
+    db.e26Oficial.findUnique({ where: { tenantId_alcance: { tenantId, alcance: alcanceDe(zonaActual?.id ?? null) } } }),
+  ])
+  const ofi = (oficial?.datos as Votos | undefined) ?? null
+
+  const filas: FilaE26[] = [
+    ...c.agrupaciones.flatMap((g) => g.candidatos.map((k) => ({
+      clave: k.clave, nombre: k.nombre, agrupacion: g.nombre !== k.nombre ? g.nombre : null, e14: k.votosE14, e24: k.votos,
+    }))),
+    { clave: CLAVE_BLANCO, nombre: 'Votos en blanco', agrupacion: null, e14: c.blancoE14, e24: c.blanco },
+    { clave: CLAVE_NULOS,  nombre: 'Votos nulos',     agrupacion: null, e14: c.nulosE14,  e24: c.nulos },
+  ].map((f) => ({ ...f, oficial: ofi ? ofi[f.clave] ?? 0 : null }))
+
+  return {
+    zonas, zonaActual, filas,
+    mesasRevisadas: c.mesasRevisadas, mesasTotales: c.mesasTotales,
+    observacion: oficial?.observacion ?? '',
+    guardado: oficial ? oficial.updatedAt.toISOString() : null,
+  }
+}
+
+/**
+ * Guarda el E-26 oficial completo: lo que se digitó en la columna del acta y,
+ * en lo que se dejó vacío, el escrutinio (E-24) del momento — el acta es un
+ * documento fijo, así que si el escrutinio cambia después, aparece la diferencia.
+ */
+export async function guardarE26Oficial(
+  zonaId: string | null, valores: Votos, observacion: string,
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    const { db, tenantId, userId } = await contexto('edit')
+    for (const n of Object.values(valores)) {
+      if (!Number.isInteger(n) || n < 0) return { success: false, error: 'Los votos deben ser números enteros, sin negativos.' }
+    }
+    const alcance = alcanceDe(zonaId)
+    if (zonaId && !(await db.zona.findUnique({ where: { id: zonaId }, select: { id: true } }))) {
+      return { success: false, error: 'Zona no encontrada.' }
+    }
+    await db.e26Oficial.upsert({
+      where:  { tenantId_alcance: { tenantId, alcance } },
+      update: { datos: valores, observacion: observacion.trim() || null, updatedBy: userId },
+      create: { tenantId, alcance, datos: valores, observacion: observacion.trim() || null, updatedBy: userId },
+    })
+    revalidatePath('/dia-e/escrutinio/e26')
+    revalidatePath('/core/reportes/e26')
+    return { success: true }
+  } catch (err) {
+    console.error('[guardarE26Oficial]', err instanceof Error ? err.message : err)
+    return { success: false, error: 'No se pudo guardar el E-26.' }
   }
 }

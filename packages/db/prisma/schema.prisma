@@ -843,6 +843,25 @@ model EscrutinioMesa {
   @@index([tenantId])
 }
 
+/// Lo que trae el E-26 oficial de la comisión escrutadora, para cotejarlo con
+/// el escrutinio que llevó la campaña (borrador E-24). Uno por alcance: el
+/// general del municipio o el parcial de cada zona (comisión auxiliar).
+model E26Oficial {
+  id          String   @id @default(cuid())
+  tenantId    String
+  /// "GENERAL" o el id de la Zona: así el alcance es único sin depender de nulls.
+  alcance     String
+  /// Votos del acta oficial, completos: { [clave]: votos } con las claves del E-14.
+  datos       Json
+  /// Número del acta, folio o cualquier dato para ubicar el documento.
+  observacion String?
+  updatedBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, alcance])
+}
+
 /// Incidente reportado desde campo durante la jornada electoral.
 model Incident {
   id            String    @id @default(cuid())

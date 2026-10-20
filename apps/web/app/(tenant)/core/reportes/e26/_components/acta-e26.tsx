@@ -16,6 +16,10 @@ const fmt = (n: number) => n.toLocaleString('es-CO')
 export function ActaE26({ datos, curules }: { datos: DatosE26; curules: number | null }) {
   const validos    = datos.agrupaciones.reduce((a, g) => a + g.total, 0) + datos.blanco
   const validosE14 = datos.agrupaciones.reduce((a, g) => a + g.totalE14, 0) + datos.blancoE14
+  const ofi = datos.oficial
+  // Votos del acta oficial para un conjunto de claves (una o varias: agrupación, totales).
+  const deOficial = (claves: string[]) => (ofi ? claves.reduce((a, k) => a + (ofi[k] ?? 0), 0) : undefined)
+  const clavesValidas = [...datos.agrupaciones.flatMap((g) => g.candidatos.map((c) => c.clave)), 'votos_blanco']
   const ganador = datos.cargo && !CORPORACIONES.includes(datos.cargo)
     ? datos.agrupaciones.flatMap((g) => g.candidatos).sort((a, b) => b.votos - a.votos)[0]
     : null
@@ -39,6 +43,7 @@ export function ActaE26({ datos, curules }: { datos: DatosE26; curules: number |
           <Fila k="Alcance" v={datos.zonaActual ? `Parcial — Zona ${datos.zonaActual.code}${datos.zonaActual.name ? ` (${datos.zonaActual.name})` : ''}` : 'General — todo el municipio'} />
           <Fila k="Mesas con E-14" v={`${fmt(datos.mesasReportadas)} de ${fmt(datos.mesasTotales)}`} />
           <Fila k="Mesas escrutadas" v={`${fmt(datos.mesasRevisadas)} de ${fmt(datos.mesasTotales)} (${fmt(datos.mesasCorregidas)} con corrección)${datos.mesasRevisadas < datos.mesasTotales ? ' — escrutinio en curso: las pendientes van con su E-14' : ''}`} />
+          <Fila k="E-26 oficial" v={ofi ? `Cargado${datos.oficialObservacion ? ` — ${datos.oficialObservacion}` : ''}` : 'Aún no se ha cargado (Día E › Escrutinio › Formulario E-26)'} />
           <Fila k="Generado" v={new Date().toLocaleString('es-CO')} />
         </tbody>
       </table>
@@ -48,22 +53,24 @@ export function ActaE26({ datos, curules }: { datos: DatosE26; curules: number |
         <thead>
           <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
             <th style={celda}>Agrupación / candidato</th><th style={{ ...celda, textAlign: 'right' }}>E-14</th>
-            <th style={{ ...celda, textAlign: 'right' }}>Escrutinio</th><th style={{ ...celda, textAlign: 'right' }}>Dif.</th><th style={celda}>Escrutinio en letras</th>
+            <th style={{ ...celda, textAlign: 'right' }}>Escrutinio</th><th style={{ ...celda, textAlign: 'right' }}>Dif.</th>
+            {ofi && <><th style={{ ...celda, textAlign: 'right' }}>E-26 oficial</th><th style={{ ...celda, textAlign: 'right' }}>Dif. E-26</th></>}
+            <th style={celda}>Escrutinio en letras</th>
           </tr>
         </thead>
         <tbody>
           {datos.agrupaciones.map((g) => [
             ...(g.candidatos.length > 1 || g.candidatos[0]?.nombre !== g.nombre
-              ? [<FilaVotos key={g.nombre} nombre={g.nombre} votos={g.total} e14={g.totalE14} negrita />]
+              ? [<FilaVotos key={g.nombre} nombre={g.nombre} votos={g.total} e14={g.totalE14} oficial={deOficial(g.candidatos.map((c) => c.clave))} negrita />]
               : []),
             ...g.candidatos.map((c) => (
-              <FilaVotos key={`${g.nombre}-${c.nombre}`} nombre={c.nombre} votos={c.votos} e14={c.votosE14} sangria={g.candidatos.length > 1 || c.nombre !== g.nombre} propio={c.propio} />
+              <FilaVotos key={`${g.nombre}-${c.nombre}`} nombre={c.nombre} votos={c.votos} e14={c.votosE14} oficial={deOficial([c.clave])} sangria={g.candidatos.length > 1 || c.nombre !== g.nombre} propio={c.propio} />
             )),
           ])}
-          <FilaVotos nombre="Votos en blanco" votos={datos.blanco} e14={datos.blancoE14} negrita />
-          <FilaVotos nombre="Total votos válidos (agrupaciones + blanco)" votos={validos} e14={validosE14} negrita fondo />
-          <FilaVotos nombre="Votos nulos" votos={datos.nulos} e14={datos.nulosE14} negrita />
-          <FilaVotos nombre="Total votos (válidos + nulos)" votos={validos + datos.nulos} e14={validosE14 + datos.nulosE14} negrita fondo />
+          <FilaVotos nombre="Votos en blanco" votos={datos.blanco} e14={datos.blancoE14} oficial={deOficial(['votos_blanco'])} negrita />
+          <FilaVotos nombre="Total votos válidos (agrupaciones + blanco)" votos={validos} e14={validosE14} oficial={deOficial(clavesValidas)} negrita fondo />
+          <FilaVotos nombre="Votos nulos" votos={datos.nulos} e14={datos.nulosE14} oficial={deOficial(['votos_nulos'])} negrita />
+          <FilaVotos nombre="Total votos (válidos + nulos)" votos={validos + datos.nulos} e14={validosE14 + datos.nulosE14} oficial={deOficial([...clavesValidas, 'votos_nulos'])} negrita fondo />
         </tbody>
       </table>
       <p style={nota}>Los votos no marcados no se transmiten desde la app de testigos, así que no suman aquí.</p>
@@ -93,16 +100,26 @@ function Fila({ k, v }: { k: string; v: string }) {
   return <tr style={{ borderTop: '1px solid #f1f5f9' }}><td style={{ ...celda, width: '35%', color: '#64748b' }}>{k}</td><td style={{ ...celda, fontWeight: 600 }}>{v}</td></tr>
 }
 
-function FilaVotos({ nombre, votos, e14, negrita, sangria, propio, fondo }: {
-  nombre: string; votos: number; e14: number; negrita?: boolean; sangria?: boolean; propio?: boolean; fondo?: boolean
+function FilaVotos({ nombre, votos, e14, oficial, negrita, sangria, propio, fondo }: {
+  nombre: string; votos: number; e14: number
+  /** undefined = no hay E-26 oficial cargado: no se dibujan sus columnas. */
+  oficial?: number
+  negrita?: boolean; sangria?: boolean; propio?: boolean; fondo?: boolean
 }) {
   const dif = votos - e14
+  const difOficial = oficial === undefined ? 0 : oficial - votos
   return (
     <tr style={{ borderTop: '1px solid #f1f5f9', fontWeight: negrita ? 700 : 400, background: fondo ? '#f8fafc' : propio ? '#fef9c3' : undefined }}>
       <td style={{ ...celda, paddingLeft: sangria ? '1.75rem' : celda.padding as string }}>{nombre}{propio ? ' ★' : ''}</td>
       <td style={{ ...celda, textAlign: 'right', color: '#64748b' }}>{fmt(e14)}</td>
       <td style={{ ...celda, textAlign: 'right' }}>{fmt(votos)}</td>
       <td style={{ ...celda, textAlign: 'right', color: dif > 0 ? '#166534' : dif < 0 ? '#991b1b' : '#94a3b8' }}>{dif === 0 ? '—' : `${dif > 0 ? '+' : ''}${fmt(dif)}`}</td>
+      {oficial !== undefined && <>
+        <td style={{ ...celda, textAlign: 'right' }}>{fmt(oficial)}</td>
+        <td style={{ ...celda, textAlign: 'right', fontWeight: 700, background: difOficial !== 0 ? '#fef2f2' : undefined, color: difOficial > 0 ? '#166534' : difOficial < 0 ? '#991b1b' : '#94a3b8' }}>
+          {difOficial === 0 ? '—' : `${difOficial > 0 ? '+' : ''}${fmt(difOficial)}`}
+        </td>
+      </>}
       <td style={{ ...celda, color: '#475569' }}>{numeroALetras(votos)}</td>
     </tr>
   )
