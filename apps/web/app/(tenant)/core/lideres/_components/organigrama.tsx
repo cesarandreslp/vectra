@@ -57,8 +57,9 @@ function NodoOrganigrama({ nodo, esRaiz = false }: { nodo: NodoOrganizacion; esR
         </div>
       </Link>
 
-      {/* La raíz no la repite: su gente ya está en la tabla "Electores" de la ficha. */}
-      {!esRaiz && nodo.electores.length > 0 && <GenteDe electores={nodo.electores} />}
+      {/* También en la raíz: un líder cuya gente no tiene gente propia (Daniela y
+          sus 14) quedaba como una caja sola, sin organización a la vista. */}
+      {nodo.electores.length > 0 && <GenteDe electores={nodo.electores} />}
 
       {nodo.children.length > 0 && (
         <ul>
