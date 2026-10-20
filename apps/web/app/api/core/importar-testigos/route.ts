@@ -4,7 +4,7 @@ import { getTenantConnection }        from '@/lib/tenant'
 import { getTenantDb }               from '@vectra/db'
 import { parsearPreviewExcel }       from '@/app/(tenant)/core/importar/_lib/excel'
 import { procesarImportTestigos }    from '@/app/(tenant)/core/usuarios/_lib/excel-testigos'
-import { censoEnSegundoPlano }       from '@/lib/censo'
+import { trasAltaDeElectores }       from '@/lib/ubicar-electores'
 
 /**
  * POST /api/core/importar-testigos — carga masiva de testigos desde Excel.
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       db as any,
     )
-    censoEnSegundoPlano(db, session.user.tenantId)
+    trasAltaDeElectores(db, session.user.tenantId)
     return NextResponse.json(resultado)
   } catch (err) {
     console.error('[POST /api/core/importar-testigos]', err instanceof Error ? err.message : err)

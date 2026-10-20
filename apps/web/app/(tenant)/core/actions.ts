@@ -12,9 +12,8 @@ import { requireAuth, requireModule, requireModuleOrScreen } from '@/lib/auth-he
 import { getTenantConnection }        from '@/lib/tenant'
 import { calcularCedulaHash }         from '@/lib/cedula-hash'
 import { getTenantDb, encrypt, decrypt, Prisma, superadminDb } from '@vectra/db'
-import { geocodeAddress, zonaDeLimite, dentroDeZona, type ZonaBusqueda } from '@/lib/geocode'
-import { getLimiteMapa }              from '../actions-mapa'
-import { resolverBarrios }            from '@/lib/barrios'
+import { geocodeAddress }             from '@/lib/geocode'
+import { ubicarPendientes, ubicarEnSegundoPlano, trasAltaDeElectores, zonaDeCampana, wherePorUbicar, whereNoEncontrados } from '@/lib/ubicar-electores'
 import { puntoEnPoligono }            from '@/lib/geometry'
 import { coloresPorZona }             from '@/lib/colores-comuna'
 import { crearQrPropio }              from '@/lib/qr'
@@ -611,7 +610,7 @@ export async function createVoter(
       },
     })
     await crearQrPropio(elector.id, session.user.tenantId, db)
-    censoEnSegundoPlano(db, session.user.tenantId)
+    trasAltaDeElectores(db, session.user.tenantId)
 
     revalidatePath('/core/electores')
     return { success: true, voterId: elector.id }
@@ -713,10 +712,11 @@ export async function updateVoter(
           cedula: encrypt(cedulaNorm), cedulaHash,
           censoEstado: null, censoLugar: Prisma.DbNull, censoJobId: null, censoVerificadoEn: null,
         }),
-        ...(cambioDireccion && { lat: null, lng: null, neighborhoodId: null }),
+        ...(cambioDireccion && { lat: null, lng: null, neighborhoodId: null, geoIntentadoEn: null }),
       },
     })
     if (cambioCedula) censoEnSegundoPlano(db, tenantId)
+    if (cambioDireccion && address) ubicarEnSegundoPlano(db, tenantId)
 
     revalidatePath('/core/electores')
     revalidatePath(`/core/electores/${id}`)
@@ -1193,7 +1193,7 @@ export async function importVoters(rows: ImportVoterRow[]): Promise<ImportResult
     }
   }
 
-  if (created > 0) censoEnSegundoPlano(db, tenantId)
+  if (created > 0) trasAltaDeElectores(db, tenantId)
   revalidatePath('/core/electores')
   return { created, skipped, errors }
 }
@@ -1563,78 +1563,45 @@ export async function generarQrFaltantes(): Promise<{ creados: number; total: nu
   return { creados, total: electores.length }
 }
 
-export interface GeoStats { conCoords: number; pendientes: number }
+export interface GeoStats {
+  conCoords:     number
+  pendientes:    number
+  /** El buscador no encontró su dirección: hay que corregirla en la ficha. */
+  noEncontrados: { id: string; name: string; address: string }[]
+}
 
-/** Conteo de electores ubicados vs. pendientes de geocodificar (tienen dirección, no coords). */
+/** Ubicados, por ubicar, y los que no se encontraron (ver lib/ubicar-electores). */
 export async function getGeoStats(): Promise<GeoStats> {
-  const session = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR', 'LIDER', 'TESTIGO'], 'CORE_DASHBOARD')
-  const db      = await obtenerDbTenant(session.user.tenantId)
+  const session  = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR', 'LIDER', 'TESTIGO'], 'CORE_DASHBOARD')
+  const db       = await obtenerDbTenant(session.user.tenantId)
   const tenantId = session.user.tenantId
+  const puedeCorregir = ['ADMIN_CAMPANA', 'COORDINADOR'].includes(session.user.role)
 
-  const zona = zonaDeLimite(await getLimiteMapa())
-  const [conCoords, pendientes] = await Promise.all([
+  const zona = await zonaDeCampana(db, tenantId)
+  const [conCoords, pendientes, noEncontrados] = await Promise.all([
     db.voter.count({ where: { tenantId, lat: { not: null } } }),
-    db.voter.count({ where: { tenantId, ...wherePendientesGeo(zona) } }),
+    db.voter.count({ where: wherePorUbicar(tenantId, zona) }),
+    puedeCorregir
+      ? db.voter.findMany({ where: whereNoEncontrados(tenantId), select: { id: true, name: true, address: true }, orderBy: { name: 'asc' }, take: 100 })
+      : Promise.resolve([]),
   ])
-  return { conCoords, pendientes }
+  return { conCoords, pendientes, noEncontrados: noEncontrados.map((v) => ({ ...v, address: v.address! })) }
 }
 
 /**
- * Electores por ubicar: con dirección y sin coordenadas, o con coordenadas fuera
- * del territorio de la campaña (las que dejó la geocodificación sin acotar, p. ej.
- * Buga → Bogotá). Así esas se corrigen solas.
+ * Botón del mapa: ubica a los rezagados (normalmente ya se ubican solos en
+ * segundo plano al crearlos). Por la dirección digitada, nunca por el puesto
+ * del censo: la residencia real suele diferir de la que conoce la Registraduría.
  */
-function wherePendientesGeo(zona: ZonaBusqueda | null): Prisma.VoterWhereInput {
-  const conDireccion: Prisma.VoterWhereInput = { address: { not: null } }
-  if (!zona) return { ...conDireccion, lat: null }
-  return {
-    AND: [conDireccion, { OR: [
-      { lat: null }, { lng: null },
-      { lat: { lt: zona.sur } }, { lat: { gt: zona.norte } },
-      { lng: { lt: zona.oeste } }, { lng: { gt: zona.este } },
-    ] }],
-  }
-}
-
-/**
- * Ubica un LOTE PEQUEÑO de electores pendientes (ver wherePendientesGeo) por la
- * dirección que se digitó, buscada solo dentro del territorio de la campaña.
- * Nunca por el puesto del censo: la residencia real suele diferir de la que
- * conoce la Registraduría, y el puesto ya tiene su propia vista en el mapa.
- * ponytail: lote de 5 con pausa de 1s por el rate limit de Nominatim (1 req/s) y
- * el timeout de la función serverless. Para volúmenes grandes esto es un cron/queue,
- * no una acción síncrona — por ahora el admin la corre varias veces.
- */
-export async function geocodificarPendientes(): Promise<{ geocodificados: number; restantes: number }> {
+export async function geocodificarPendientes(): Promise<{ geocodificados: number; noEncontrados: number; restantes: number }> {
   const session  = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR'], 'CORE_DASHBOARD', 'edit')
   const db       = await obtenerDbTenant(session.user.tenantId)
   const tenantId = session.user.tenantId
-  const zona     = zonaDeLimite(await getLimiteMapa())
 
-  const lote = await db.voter.findMany({
-    where:  { tenantId, ...wherePendientesGeo(zona) },
-    select: { id: true, address: true },
-    take:   5,
-  })
-
-  let geocodificados = 0
-  for (const v of lote) {
-    let coords = await geocodeAddress(v.address!, zona)
-    if (coords && zona && !dentroDeZona(zona, coords.lat, coords.lng)) coords = null
-
-    // Sin ubicación válida se borra la que hubiera: un punto en otra ciudad es peor que ninguno.
-    await db.voter.update({ where: { id: v.id }, data: { lat: coords?.lat ?? null, lng: coords?.lng ?? null } })
-    if (coords) geocodificados++
-    await new Promise((r) => setTimeout(r, 1000)) // 1 req/s (política de Nominatim)
-  }
-
-  // Ya tienen coordenadas: ubicarlos en su barrio en la misma pasada, así nadie
-  // tiene que acordarse de correrlo aparte.
-  if (geocodificados > 0) await resolverBarrios(db, tenantId)
-
-  const restantes = await db.voter.count({ where: { tenantId, ...wherePendientesGeo(zona) } })
+  const r = await ubicarPendientes(db, tenantId, { limite: 20, presupuestoMs: 45_000 }) // maxDuration de /core = 60 s
+  const restantes = await db.voter.count({ where: wherePorUbicar(tenantId, await zonaDeCampana(db, tenantId)) })
   revalidatePath('/core')
-  return { geocodificados, restantes }
+  return { geocodificados: r.ubicados, noEncontrados: r.noEncontrados, restantes }
 }
 
 // ── Jurisdicción electoral ──────────────────────────────────────────────────────

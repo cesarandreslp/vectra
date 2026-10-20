@@ -40,20 +40,42 @@ export async function geocodeAddress(address: string, zona?: ZonaBusqueda | null
 
 /**
  * Cómo se escribe una dirección en Colombia vs. lo que entiende Nominatim:
- * "calle 5ta sur No 15b-61" no aparece, "Calle 5 Sur 15b-61" sí. Primero la
- * dirección normalizada; si el número exacto no está en el mapa, solo la vía
- * ("Calle 5 Sur"): la persona queda en su calle, que es mejor que fuera del mapa.
+ * "Cll 9sur # 9a-63" no aparece, "Calle 9 Sur 9a-63" sí. Se prueba, en orden:
+ * la dirección completa normalizada; solo la vía ("Calle 9 Sur") — la persona
+ * queda en su calle —; y si escribieron el barrio después de una coma, el
+ * barrio ("San Jeronimo"). Cualquiera es mejor que quedar fuera del mapa.
  */
 export function variantesDireccion(address: string): string[] {
-  const normal = address
-    .replace(/(\d+)(?:ra|da|ta|ma|va|na|vo|no|er|°|º)\b/gi, '$1') // 5ta → 5, 1ra → 1
-    .replace(/\s*(?:#|\bN[oº°]\.?(?=[\s\d])|\bnum(?:ero)?\.?(?=[\s\d]))\s*/gi, ' ')     // "No 15b-61" / "# 15b-61" → " 15b-61"
-    .replace(/\s+/g, ' ')
-    .trim()
-  if (!normal) return []
-  // La vía es todo lo anterior al número de placa ("15b-61").
-  const via = normal.replace(/\s+\d+\s*[a-z]?\s*-\s*\d+.*$/i, '').trim()
-  return via && via !== normal && /\d/.test(via) ? [normal, via] : [normal]
+  const [principal, ...resto] = address.split(',')
+  const barrio = resto.join(' ').replace(/\s+/g, ' ').trim()
+
+  const limpia = principal
+    .replace(/\b(?:apto|apt|apartamento|casa|int|interior|piso|torre|bloque|local)\b\.?.*$/i, '') // "Apto 101" no está en el mapa
+    .replace(/^\s*(?:cll|clle|cl|calle)\b\.?/i, 'Calle ')
+    .replace(/^\s*(?:cra|kra|cr|kr|carrera)\b\.?/i, 'Carrera ')
+    .replace(/^\s*(?:tv|tr|transv|transversal)\b\.?/i, 'Transversal ')
+    .replace(/^\s*(?:dg|diag|diagonal)\b\.?/i, 'Diagonal ')
+    .replace(/^\s*(?:av|avda|avenida)\b\.?/i, 'Avenida ')
+    .replace(/(\d+)(?:ra|da|ta|ma|va|na|vo|no|er|°|º)\b/gi, '$1')   // 5ta → 5
+    .replace(/(\d+[a-z]?)(sur|norte|bis|este|oeste)\b/gi, '$1 $2')   // 16Sur → 16 Sur, 4Bis → 4 Bis
+    .replace(/(\d+[a-z]?)n\b/gi, '$1 Norte')                         // 1N → 1 Norte
+    .replace(/\s*-\s*/g, '-')                                        // "13 -68" → "13-68"
+
+  // La vía es lo anterior al "#" / "No"; la placa, lo que sigue.
+  const [viaCruda, ...placa] = limpia.split(/#|\bN[oº°]\.?(?=[\s\d])/i)
+  let via = viaCruda.replace(/\s+/g, ' ').trim()
+  let numero = placa.join(' ').replace(/\s+/g, ' ').trim()
+  if (!numero) {
+    // Sin "#": "Calle 13 10-49" — la placa es el último "NN-NN".
+    const m = via.match(/^(.*\d[a-z]?(?:\s+(?:sur|norte|bis|este|oeste))*)\s+(\d+\s*[a-z]?(?:\s+(?:sur|norte|bis))*-\d+.*)$/i)
+    if (m) { via = m[1].trim(); numero = m[2].trim() }
+  }
+
+  numero = numero.replace(/[-\s]+$/, '') // lo que dejó "- Apto 101"
+  const variantes = [numero ? `${via} ${numero}` : via]
+  if (numero && /\d/.test(via)) variantes.push(via)
+  if (barrio) variantes.push(barrio)
+  return [...new Set(variantes.filter(Boolean))]
 }
 
 async function buscarPunto(q: string, zona?: ZonaBusqueda | null): Promise<{ lat: number; lng: number } | null> {

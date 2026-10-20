@@ -3,7 +3,7 @@ import { auth }                      from '@vectra/auth'
 import { getTenantConnection }        from '@/lib/tenant'
 import { getTenantDb }               from '@vectra/db'
 import { parsearPreviewExcel, procesarImportExcel } from '@/app/(tenant)/core/importar/_lib/excel'
-import { censoEnSegundoPlano } from '@/lib/censo'
+import { trasAltaDeElectores } from '@/lib/ubicar-electores'
 
 /**
  * POST /api/pwa/importar-electores — un elector sube a SU gente desde la PWA.
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       db as any,
     )
-    if (resultado.created > 0) censoEnSegundoPlano(db, session.user.tenantId)
+    if (resultado.created > 0) trasAltaDeElectores(db, session.user.tenantId)
     return NextResponse.json(resultado)
   } catch (err) {
     console.error('[POST /api/pwa/importar-electores]', err instanceof Error ? err.message : err)

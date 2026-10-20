@@ -8,6 +8,7 @@ import { intensidadDeEstado, COLOR_TEMPERATURA, ETIQUETA_TEMPERATURA, GRADIENTE_
 import { usePantallaCompleta, BotonPantallaCompleta, ESTILO_MAPA } from '@/app/(tenant)/_components/pantalla-completa'
 import { useLimiteMapa, aplicarLimite } from '@/app/(tenant)/_components/limite-mapa'
 import { PanelPuesto } from './panel-puesto'
+import { SinUbicar } from './sin-ubicar'
 
 const COLOR_ESTADO: Record<string, string> = {
   SIN_CONTACTAR: '#94a3b8',
@@ -275,7 +276,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
     setMsg(null)
     startTransition(async () => {
       const res = await geocodificarPendientes()
-      setMsg(`Ubicados ${res.geocodificados}. Quedan ${res.restantes} pendientes.`)
+      setMsg(`Ubicados ${res.geocodificados}` + (res.noEncontrados ? `, ${res.noEncontrados} sin encontrar` : '') + `. Quedan ${res.restantes} pendientes.`)
       router.refresh() // recarga los puntos del server component
     })
   }
@@ -317,6 +318,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
       </div>
 
       {vista === 'residencia' && <ControlesResidencia puntos={visibles} geoStats={geoStats} msg={msg} isPending={isPending} onUbicar={ubicar} />}
+      {vista === 'residencia' && <SinUbicar electores={geoStats.noEncontrados} />}
       {vista === 'puesto'     && <ControlesPuesto puestos={puestos} />}
       {vista === 'comuna'     && <ControlesComuna comunas={comunas} />}
       {vista === 'barrio'     && <ControlesBarrio barrios={barriosVisibles} />}
@@ -388,7 +390,7 @@ function ControlesResidencia({ puntos, geoStats, msg, isPending, onUbicar }: {
             cursor: isPending ? 'wait' : 'pointer',
           }}
         >
-          {isPending ? 'Ubicando…' : `Ubicar ${Math.min(5, geoStats.pendientes)} pendientes`}
+          {isPending ? 'Ubicando…' : `Ubicar ${Math.min(20, geoStats.pendientes)} pendientes`}
         </button>
       )}
       {msg && <span style={{ fontSize: '0.8rem', color: '#166534' }}>{msg}</span>}

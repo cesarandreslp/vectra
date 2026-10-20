@@ -210,6 +210,9 @@ model Voter {
   address          String? // Dirección física del elector
   lat              Float? // Coordenada geocodificada desde address (para el mapa)
   lng              Float?
+  // Último intento de ubicar la dirección. Con lat null = el buscador no la encontró:
+  // no se reintenta hasta que cambie la dirección (si no, esos tapaban la fila).
+  geoIntentadoEn   DateTime?
   // Barrio donde vive. NO se digita: se resuelve solo cruzando lat/lng contra el
   // polígono del barrio (ver lib/barrios.ts). Queda null si está fuera de todos
   // los polígonos cargados o si todavía no se geocodificó.
