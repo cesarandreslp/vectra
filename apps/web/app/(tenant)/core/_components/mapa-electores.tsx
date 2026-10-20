@@ -9,7 +9,7 @@ import { usePantallaCompleta, BotonPantallaCompleta, ESTILO_MAPA } from '@/app/(
 import { useLimiteMapa, aplicarLimite } from '@/app/(tenant)/_components/limite-mapa'
 import { PanelPuesto } from './panel-puesto'
 import { SinUbicar } from './sin-ubicar'
-import { dibujarCapaCalorBarrios, calorPorBarrio, colorDe, etiquetaDe, type TemperaturaBarrio } from './calor-barrios'
+import { dibujarCapaCalorComunas, comunasConMeta, temperaturaDe, colorDe, etiquetaDe, type TemperaturaZona } from './calor-comunas'
 
 const COLOR_ESTADO: Record<string, string> = {
   SIN_CONTACTAR: '#94a3b8',
@@ -192,9 +192,9 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
       // no importa leaflet) — hay que setear window.L ANTES de cargarlo, si no revienta
       // con "L is not defined". No sirve Promise.all: deben cargar en este orden exacto.
       const L = (await import('leaflet')).default
-      // Con barrios cargados, el calor se pinta por barrio (polígonos); el heat de
-      // puntos queda solo para campañas sin barrios.
-      const calorDePuntos = vista === 'calor' && barriosVisibles.length === 0
+      // Con metas por comuna, el calor es el avance contra la meta (polígonos);
+      // el heat de puntos queda solo para campañas sin metas cargadas.
+      const calorDePuntos = vista === 'calor' && comunasConMeta(comunas).length === 0
       if (calorDePuntos) {
         if (typeof window !== 'undefined') (window as unknown as { L: typeof L }).L = L
         await import('leaflet.heat')
@@ -249,7 +249,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
         else centrarEnMunicipioSiVacio()
       } else {
         const capa = L.featureGroup()
-        if (vista === 'calor')         dibujarCapaCalorBarrios(L, capa, barriosVisibles, visibles)
+        if (vista === 'calor')         dibujarCapaCalorComunas(L, capa, comunas)
         else if (vista === 'residencia') dibujarCapaResidencia(L, capa, visibles)
         else if (vista === 'puesto')   dibujarCapaPuestos(L, capa, puestos, setPuestoSel)
         else if (vista === 'barrio')   dibujarCapaBarrios(L, capa, barriosVisibles, visibles)
@@ -329,7 +329,7 @@ export function MapaElectores({ puntos, geoStats, puestos, comunas, barrios: bar
       {vista === 'comuna'     && <ControlesComuna comunas={comunas} />}
       {vista === 'barrio'     && <ControlesBarrio barrios={barriosVisibles} />}
       {vista === 'testigos'   && <ControlesTestigos testigos={testigosVisibles} ubicarPor={ubicarPor} onUbicarPor={setUbicarPor} />}
-      {vista === 'calor'      && <ControlesCalor puntos={visibles} barrios={barriosVisibles} />}
+      {vista === 'calor'      && <ControlesCalor puntos={visibles} comunas={comunas} />}
 
       {/* Con un puesto elegido, su tabla va al lado del mapa en pantalla completa y debajo si no. */}
       <div style={{ display: 'flex', gap: '0.75rem', flexWrap: pantalla.completa ? 'nowrap' : 'wrap', ...(pantalla.completa && { flex: 1, minHeight: 0 }) }}>
@@ -414,21 +414,21 @@ function ControlesPuesto({ puestos }: { puestos: StationGeo[] }) {
   )
 }
 
-function ControlesCalor({ puntos, barrios }: { puntos: VoterGeo[]; barrios: BarrioGeo[] }) {
-  // Por barrio: cuántos barrios hay en cada temperatura. Sin barrios: leyenda del heat de puntos.
-  const conteo = new Map<TemperaturaBarrio, number>()
-  for (const c of calorPorBarrio(barrios, puntos)) conteo.set(c.temperatura, (conteo.get(c.temperatura) ?? 0) + 1)
-  const temps: TemperaturaBarrio[] = barrios.length > 0 ? ['vacio', 'frio', 'tibio', 'caliente'] : ['frio', 'tibio', 'caliente']
+function ControlesCalor({ puntos, comunas }: { puntos: VoterGeo[]; comunas: ComunaGeo[] }) {
+  const conMeta = comunasConMeta(comunas)
+  const conteo = new Map<TemperaturaZona, number>()
+  for (const c of conMeta) conteo.set(temperaturaDe(c), (conteo.get(temperaturaDe(c)) ?? 0) + 1)
+  const temps: TemperaturaZona[] = conMeta.length > 0 ? ['vacio', 'frio', 'tibio', 'caliente'] : ['frio', 'tibio', 'caliente']
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
       <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
-        {barrios.length > 0 ? `${barrios.length} barrio(s) · compromiso promedio de su gente` : `${puntos.length} elector(es) ubicados`}
+        {conMeta.length > 0 ? `${conMeta.length} zona(s) · avance contra su meta de votos` : `${puntos.length} elector(es) ubicados`}
       </span>
       {temps.map((t) => (
         <span key={t} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', color: '#64748b' }}>
           <span style={{ width: 10, height: 10, borderRadius: '50%', background: colorDe(t), border: t === 'vacio' ? '1px dashed #94a3b8' : 'none', display: 'inline-block' }} />
-          {etiquetaDe(t)}{barrios.length > 0 && ` (${conteo.get(t) ?? 0})`}
+          {conMeta.length > 0 ? `${etiquetaDe(t)}: ${conteo.get(t) ?? 0}` : etiquetaDe(t).replace(/ \(.*\)$/, '')}
         </span>
       ))}
     </div>
