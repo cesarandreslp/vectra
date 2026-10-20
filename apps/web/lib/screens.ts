@@ -46,6 +46,7 @@ export const SCREENS: Record<string, ScreenDef> = {
   DIA_E_TESTIGO:        { label: 'Mi mesa (testigo)',   modulo: 'DIA_E', path: '/dia-e/testigo' },
   DIA_E_SALA:           { label: 'Sala de situación',   modulo: 'DIA_E', path: '/dia-e/sala' },
   DIA_E_RESULTADOS:     { label: 'Resultados',          modulo: 'DIA_E', path: '/dia-e/sala/resultados' },
+  DIA_E_ESCRUTINIO:     { label: 'Escrutinio (comisión)', modulo: 'DIA_E', path: '/dia-e/escrutinio' },
   DIA_E_INCIDENTES:     { label: 'Incidentes',          modulo: 'DIA_E', path: '/dia-e/sala/incidentes' },
   DIA_E_CONFIGURACION:  { label: 'Configuración',       modulo: 'DIA_E', path: '/dia-e/sala/configuracion' },
 

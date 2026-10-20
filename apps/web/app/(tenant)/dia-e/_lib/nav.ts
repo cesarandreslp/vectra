@@ -2,7 +2,7 @@ import type { NavItem } from '@/app/_components/app-shell'
 import type { CustomPermissions, UserRole } from '@vectra/auth'
 
 export const SCREENS_DIA_E = [
-  'DIA_E_TESTIGO', 'DIA_E_SALA', 'DIA_E_RESULTADOS',
+  'DIA_E_TESTIGO', 'DIA_E_SALA', 'DIA_E_RESULTADOS', 'DIA_E_ESCRUTINIO',
   'DIA_E_INCIDENTES', 'DIA_E_CONFIGURACION',
 ]
 
@@ -20,6 +20,7 @@ export function navDiaE(role: UserRole, customPermissions: CustomPermissions): N
       ...(puedeVer('DIA_E_TESTIGO')       ? [{ href: '/dia-e/testigo',             label: 'Mi mesa' }] : []),
       ...(puedeVer('DIA_E_SALA')          ? [{ href: '/dia-e/sala',                label: 'Sala de situación' }] : []),
       ...(puedeVer('DIA_E_RESULTADOS')    ? [{ href: '/dia-e/sala/resultados',     label: 'Resultados' }] : []),
+      ...(puedeVer('DIA_E_ESCRUTINIO')    ? [{ href: '/dia-e/escrutinio',          label: 'Escrutinio' }] : []),
       ...(puedeVer('DIA_E_INCIDENTES')    ? [{ href: '/dia-e/sala/incidentes',     label: 'Incidentes' }] : []),
       ...(puedeVer('DIA_E_CONFIGURACION') ? [{ href: '/dia-e/sala/configuracion',  label: 'Configuración' }] : []),
     ]
@@ -30,6 +31,7 @@ export function navDiaE(role: UserRole, customPermissions: CustomPermissions): N
   return [
     { href: '/dia-e/sala',               label: 'Sala de situación' },
     { href: '/dia-e/sala/resultados',    label: 'Resultados' },
+    { href: '/dia-e/escrutinio',         label: 'Escrutinio' },
     { href: '/dia-e/sala/incidentes',    label: 'Incidentes' },
     { href: '/dia-e/sala/configuracion', label: 'Configuración' },
   ]

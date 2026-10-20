@@ -30,7 +30,9 @@ export const REPORTES: ReporteDef[] = [
     descripcion: 'Mesas con y sin testigo en cada puesto.' },
   { id: 'preconteo',  grupo: 'Día E y escrutinio', titulo: 'Resultados de preconteo (E-14)', modulo: 'DIA_E',
     descripcion: 'Votos por candidato según los E-14 transmitidos por los testigos.' },
+  { id: 'e24',        grupo: 'Día E y escrutinio', titulo: 'Borrador de escrutinio (E-24)', modulo: 'DIA_E',
+    descripcion: 'Mesa por mesa, lo que dejó la comisión escrutadora frente al E-14, con las correcciones marcadas.' },
   { id: 'e26',        grupo: 'Día E y escrutinio', titulo: 'Consolidado de escrutinio (formato E-26)', modulo: 'DIA_E',
     href: '/core/reportes/e26',
-    descripcion: 'Consolidado de los E-14 por zona o municipio, en números y letras, con cifra repartidora: para cotejar el E-26 oficial de la comisión escrutadora.' },
+    descripcion: 'Consolidado del escrutinio (E-24) por zona o municipio frente al preconteo, en números y letras, con cifra repartidora: para cotejar el E-26 oficial.' },
 ]

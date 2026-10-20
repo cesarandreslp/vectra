@@ -5,6 +5,7 @@ import { requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
 import { puntoEnPoligono } from '@/lib/geometry'
 import { titulosDe, TITULOS } from '@/lib/lideres'
+import { CLAVE_BLANCO, CLAVE_NULOS, datosDeTransmision, votosDeE14, totalVotos, type Votos } from '@/lib/escrutinio'
 
 type Celda = string | number
 
@@ -41,6 +42,7 @@ export async function getReporte(id: string): Promise<Reporte | null> {
     case 'calidad':    return reporteCalidad(db, tenantId)
     case 'testigos':   return modulos.includes('DIA_E') ? reporteTestigos(db, tenantId) : null
     case 'preconteo':  return modulos.includes('DIA_E') ? reportePreconteo(db, tenantId) : null
+    case 'e24':        return modulos.includes('DIA_E') ? reporteE24(db, tenantId) : null
     default:           return null
   }
 }
@@ -226,79 +228,127 @@ async function reporteTestigos(db: Db, tenantId: string): Promise<Reporte> {
 async function reportePreconteo(db: Db, tenantId: string): Promise<Reporte> {
   const c = await consolidarE14(db, tenantId, null)
   const filas: Celda[][] = []
-  for (const g of c.agrupaciones) for (const cand of g.candidatos) filas.push([cand.nombre, g.nombre, cand.votos, `${pct(cand.votos, c.totalVotos)} %`])
+  for (const g of c.agrupaciones) for (const cand of g.candidatos) filas.push([cand.nombre, g.nombre, cand.votosE14, `${pct(cand.votosE14, c.totalVotosE14)} %`])
   filas.sort((a, b) => (b[2] as number) - (a[2] as number))
-  filas.push(['Votos en blanco', '', c.blanco, `${pct(c.blanco, c.totalVotos)} %`], ['Votos nulos', '', c.nulos, `${pct(c.nulos, c.totalVotos)} %`])
+  filas.push(['Votos en blanco', '', c.blancoE14, `${pct(c.blancoE14, c.totalVotosE14)} %`], ['Votos nulos', '', c.nulosE14, `${pct(c.nulosE14, c.totalVotosE14)} %`])
   return {
     titulo: 'Resultados de preconteo (E-14)',
-    descripcion: `${c.mesasReportadas} de ${c.mesasTotales} mesas transmitidas por los testigos. Cifras de los E-14, no del escrutinio oficial.`,
+    descripcion: `${c.mesasReportadas} de ${c.mesasTotales} mesas transmitidas por los testigos. Cifras de los E-14, antes del escrutinio.`,
     columnas: ['Candidato', 'Agrupación', 'Votos', '%'],
     filas,
-    totales: ['Total', '', c.totalVotos, '100 %'],
+    totales: ['Total', '', c.totalVotosE14, '100 %'],
   }
 }
 
-// ── Consolidado de E-14 (preconteo y formato E-26) ───────────────────────────
+// ── Consolidado de preconteo (E-14) y escrutinio (E-24) ─────────────────────
 
 export interface ConsolidadoE14 {
   mesasTotales:     number
+  /** Mesas con E-14 transmitido por el testigo de mesa. */
   mesasReportadas:  number
+  /** Mesas que el testigo ante la comisión ya registró en el escrutinio. */
+  mesasRevisadas:   number
+  mesasCorregidas:  number
   mesasSinReporte:  { puesto: string; mesa: number }[]
-  agrupaciones:     { nombre: string; total: number; candidatos: { nombre: string; votos: number; propio: boolean }[] }[]
-  blanco:           number
-  nulos:            number
-  /** Agrupaciones + blanco + nulos. */
+  /** `votos` = escrutinio (E-24; si la mesa no se ha revisado, su E-14). `votosE14` = preconteo. */
+  agrupaciones: {
+    nombre: string; total: number; totalE14: number
+    candidatos: { nombre: string; votos: number; votosE14: number; propio: boolean }[]
+  }[]
+  blanco: number; blancoE14: number
+  nulos:  number; nulosE14:  number
+  /** Agrupaciones + blanco + nulos, del escrutinio. */
   totalVotos:       number
+  totalVotosE14:    number
 }
 
 /**
- * Suma los E-14 transmitidos (dato final si ya se verificó; si no, lo digitado
- * o lo leído de la foto, igual que la sala de situación). `zonaId` acota a una
- * zona electoral (E-26 parcial de comisión auxiliar); null = todo el municipio.
+ * Suma mesa a mesa el preconteo (E-14 transmitido) y el escrutinio (borrador
+ * E-24 que lleva el testigo ante la comisión). `zonaId` acota a una zona
+ * electoral (E-26 parcial de comisión auxiliar); null = todo el municipio.
  */
 async function consolidarE14(db: Db, tenantId: string, zonaId: string | null): Promise<ConsolidadoE14> {
-  const [mesas, candidatos, transmisiones] = await Promise.all([
+  const [mesas, candidatos, transmisiones, escrutinios] = await Promise.all([
     db.votingTable.findMany({
       where:  zonaId ? { station: { zonaId } } : {},
       select: { id: true, number: true, station: { select: { name: true } } },
     }),
     db.candidate.findMany({ where: { tenantId }, orderBy: { order: 'asc' } }),
-    db.e14Transmission.findMany({ where: { tenantId } }),
+    db.e14Transmission.findMany({ where: { tenantId }, select: { votingTableId: true, finalData: true, manualData: true, extractedData: true } }),
+    db.escrutinioMesa.findMany({ where: { tenantId }, select: { votingTableId: true, datos: true, estado: true } }),
   ])
-  const enAlcance = new Set(mesas.map((m) => m.id))
-  const reportadas = new Set<string>()
-  const votos = new Map<string, number>() // clave en minúsculas: id, nombre, votos_blanco, votos_nulos
+  const e14 = new Map(transmisiones.map((t) => [t.votingTableId, votosDeE14(datosDeTransmision(t), candidatos)]))
+  const esc = new Map(escrutinios.map((e) => [e.votingTableId, e]))
 
-  for (const tx of transmisiones) {
-    if (!enAlcance.has(tx.votingTableId)) continue
-    const datos = (tx.finalData ?? tx.manualData ?? tx.extractedData) as { candidateId: string; votes: number }[] | null
-    if (!datos) continue
-    reportadas.add(tx.votingTableId)
-    for (const d of datos) votos.set(d.candidateId.toLowerCase(), (votos.get(d.candidateId.toLowerCase()) ?? 0) + (d.votes || 0))
+  const pre: Votos = {}, fin: Votos = {}
+  let reportadas = 0, revisadas = 0, corregidas = 0
+  const sinReporte: ConsolidadoE14['mesasSinReporte'] = []
+  for (const m of mesas) {
+    const v14 = e14.get(m.id) ?? null
+    const e = esc.get(m.id)
+    if (v14) reportadas++
+    if (e) { revisadas++; if (e.estado === 'CORREGIDA') corregidas++ }
+    if (!v14 && !e) sinReporte.push({ puesto: m.station.name, mesa: m.number })
+    for (const [k, n] of Object.entries(v14 ?? {})) pre[k] = (pre[k] ?? 0) + n
+    for (const [k, n] of Object.entries((e?.datos as Votos | undefined) ?? v14 ?? {})) fin[k] = (fin[k] ?? 0) + n
   }
 
   const porAgrupacion = new Map<string, ConsolidadoE14['agrupaciones'][number]>()
   for (const c of candidatos) {
-    // ponytail: también por nombre, como agregarResultados en Día E (transmisiones viejas).
-    const v = (votos.get(c.id.toLowerCase()) ?? 0) + (votos.get(c.name.toLowerCase()) ?? 0)
     const nombre = c.party?.trim() || c.name
-    const g = porAgrupacion.get(nombre) ?? { nombre, total: 0, candidatos: [] }
-    g.candidatos.push({ nombre: c.name, votos: v, propio: c.isOwn })
-    g.total += v
+    const g = porAgrupacion.get(nombre) ?? { nombre, total: 0, totalE14: 0, candidatos: [] }
+    g.candidatos.push({ nombre: c.name, votos: fin[c.id] ?? 0, votosE14: pre[c.id] ?? 0, propio: c.isOwn })
+    g.total += fin[c.id] ?? 0
+    g.totalE14 += pre[c.id] ?? 0
     porAgrupacion.set(nombre, g)
   }
-  const blanco = votos.get('votos_blanco') ?? 0
-  const nulos  = votos.get('votos_nulos') ?? 0
-  const agrupaciones = [...porAgrupacion.values()].sort((a, b) => b.total - a.total)
 
   return {
-    mesasTotales: mesas.length,
-    mesasReportadas: reportadas.size,
-    mesasSinReporte: mesas.filter((m) => !reportadas.has(m.id))
-      .map((m) => ({ puesto: m.station.name, mesa: m.number }))
-      .sort((a, b) => a.puesto.localeCompare(b.puesto) || a.mesa - b.mesa),
-    agrupaciones, blanco, nulos,
-    totalVotos: agrupaciones.reduce((a, g) => a + g.total, 0) + blanco + nulos,
+    mesasTotales: mesas.length, mesasReportadas: reportadas, mesasRevisadas: revisadas, mesasCorregidas: corregidas,
+    mesasSinReporte: sinReporte.sort((a, b) => a.puesto.localeCompare(b.puesto) || a.mesa - b.mesa),
+    agrupaciones: [...porAgrupacion.values()].sort((a, b) => b.total - a.total),
+    blanco: fin[CLAVE_BLANCO] ?? 0, blancoE14: pre[CLAVE_BLANCO] ?? 0,
+    nulos:  fin[CLAVE_NULOS] ?? 0,  nulosE14:  pre[CLAVE_NULOS] ?? 0,
+    totalVotos: totalVotos(fin), totalVotosE14: totalVotos(pre),
+  }
+}
+
+/** Borrador E-24: mesa por mesa, el escrutinio por candidato, con lo que cambió frente al E-14. */
+async function reporteE24(db: Db, tenantId: string): Promise<Reporte> {
+  const [mesas, candidatos, transmisiones, escrutinios] = await Promise.all([
+    db.votingTable.findMany({ select: { id: true, number: true, station: { select: { name: true } } } }),
+    db.candidate.findMany({ where: { tenantId }, select: { id: true, name: true }, orderBy: { order: 'asc' } }),
+    db.e14Transmission.findMany({ where: { tenantId }, select: { votingTableId: true, finalData: true, manualData: true, extractedData: true } }),
+    db.escrutinioMesa.findMany({ where: { tenantId }, select: { votingTableId: true, datos: true, estado: true } }),
+  ])
+  const e14 = new Map(transmisiones.map((t) => [t.votingTableId, votosDeE14(datosDeTransmision(t), candidatos)]))
+  const esc = new Map(escrutinios.map((e) => [e.votingTableId, e]))
+  const claves = [...candidatos.map((c) => c.id), CLAVE_BLANCO, CLAVE_NULOS]
+  const ESTADO: Record<string, string> = { REVISADA: 'Sin cambios', CORREGIDA: 'Corregida' }
+
+  const totales = new Map<string, number>()
+  const filas = mesas
+    .filter((m) => e14.get(m.id) || esc.has(m.id))
+    .sort((a, b) => a.station.name.localeCompare(b.station.name) || a.number - b.number)
+    .map((m) => {
+      const v14 = e14.get(m.id) ?? {}
+      const e = esc.get(m.id)
+      const v = (e?.datos as Votos | undefined) ?? v14
+      const celdas = claves.map((k) => {
+        const n = v[k] ?? 0
+        totales.set(k, (totales.get(k) ?? 0) + n)
+        // La celda corregida se ve y se exporta con el valor del E-14 al lado.
+        return e && n !== (v14[k] ?? 0) ? `${n} (E-14: ${v14[k] ?? 0})` : n
+      })
+      return [m.station.name, m.number, e ? ESTADO[e.estado] ?? e.estado : 'Pendiente', ...celdas, totalVotos(v)] as Celda[]
+    })
+
+  return {
+    titulo: 'Borrador de escrutinio (E-24)',
+    descripcion: 'Mesa por mesa, lo que quedó en el escrutinio de la comisión. Las celdas corregidas muestran entre paréntesis el valor del E-14. Las mesas pendientes conservan su E-14.',
+    columnas: ['Puesto', 'Mesa', 'Estado', ...candidatos.map((c) => c.name), 'Blanco', 'Nulos', 'Total'],
+    filas,
+    totales: ['Total', '', '', ...claves.map((k) => totales.get(k) ?? 0), [...totales.values()].reduce((a, n) => a + n, 0)],
   }
 }
 

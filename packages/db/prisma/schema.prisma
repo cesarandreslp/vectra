@@ -820,6 +820,29 @@ model E14Transmission {
   @@index([tenantId, verificationStatus])
 }
 
+/// Borrador del escrutinio de una mesa (E-24): parte del preconteo (E-14) y el
+/// testigo ante la comisión escrutadora lo va corrigiendo a medida que la
+/// comisión revisa la mesa (reconteos, errores aritméticos, reclamaciones). El
+/// consolidado de estas mesas es lo que se coteja contra el E-26 oficial.
+model EscrutinioMesa {
+  id            String   @id @default(cuid())
+  tenantId      String
+  votingTableId String   @unique
+  /// Votos tras el escrutinio: { [clave]: votos }, con las mismas claves del
+  /// E-14 normalizado (id del candidato, votos_blanco, votos_nulos).
+  datos         Json
+  /// REVISADA = la comisión la revisó y quedó igual al E-14 | CORREGIDA = cambió.
+  estado        String   @default("REVISADA")
+  /// Cada corrección: { at, por, motivo, observacion, cambios: { clave, antes, despues }[] }[].
+  /// Es el soporte de una reclamación: qué cambió, por qué y quién lo registró.
+  historial     Json     @default("[]")
+  updatedBy     String // userId
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
 /// Incidente reportado desde campo durante la jornada electoral.
 model Incident {
   id            String    @id @default(cuid())

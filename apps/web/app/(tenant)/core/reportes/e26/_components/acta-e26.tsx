@@ -14,7 +14,8 @@ const CORPORACION: Record<string, string> = {
 const fmt = (n: number) => n.toLocaleString('es-CO')
 
 export function ActaE26({ datos, curules }: { datos: DatosE26; curules: number | null }) {
-  const validos = datos.agrupaciones.reduce((a, g) => a + g.total, 0) + datos.blanco
+  const validos    = datos.agrupaciones.reduce((a, g) => a + g.total, 0) + datos.blanco
+  const validosE14 = datos.agrupaciones.reduce((a, g) => a + g.totalE14, 0) + datos.blancoE14
   const ganador = datos.cargo && !CORPORACIONES.includes(datos.cargo)
     ? datos.agrupaciones.flatMap((g) => g.candidatos).sort((a, b) => b.votos - a.votos)[0]
     : null
@@ -24,8 +25,9 @@ export function ActaE26({ datos, curules }: { datos: DatosE26; curules: number |
       <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
         <div style={{ fontWeight: 800, fontSize: '1.05rem' }}>CONSOLIDADO DE ESCRUTINIO — FORMATO E-26</div>
         <div style={{ color: '#64748b', fontSize: '0.78rem', marginTop: '0.2rem' }}>
-          Copia de control de la campaña, armada con los E-14 transmitidos por sus testigos. No reemplaza el acta oficial
-          que expide la comisión escrutadora: sirve para cotejarla y sustentar reclamaciones.
+          Copia de control de la campaña: el escrutinio que registró su testigo ante la comisión (borrador E-24) frente
+          al preconteo de los E-14. No reemplaza el acta oficial que expide la comisión escrutadora: sirve para cotejarla
+          y sustentar reclamaciones.
         </div>
       </div>
 
@@ -35,7 +37,8 @@ export function ActaE26({ datos, curules }: { datos: DatosE26; curules: number |
           <Fila k="Municipio" v={datos.municipio} />
           <Fila k="Corporación / cargo" v={datos.cargo ? CORPORACION[datos.cargo] ?? datos.cargo : 'Sin configurar'} />
           <Fila k="Alcance" v={datos.zonaActual ? `Parcial — Zona ${datos.zonaActual.code}${datos.zonaActual.name ? ` (${datos.zonaActual.name})` : ''}` : 'General — todo el municipio'} />
-          <Fila k="Mesas con E-14" v={`${fmt(datos.mesasReportadas)} de ${fmt(datos.mesasTotales)}${datos.mesasReportadas < datos.mesasTotales ? ' — consolidado incompleto' : ''}`} />
+          <Fila k="Mesas con E-14" v={`${fmt(datos.mesasReportadas)} de ${fmt(datos.mesasTotales)}`} />
+          <Fila k="Mesas escrutadas" v={`${fmt(datos.mesasRevisadas)} de ${fmt(datos.mesasTotales)} (${fmt(datos.mesasCorregidas)} con corrección)${datos.mesasRevisadas < datos.mesasTotales ? ' — escrutinio en curso: las pendientes van con su E-14' : ''}`} />
           <Fila k="Generado" v={new Date().toLocaleString('es-CO')} />
         </tbody>
       </table>
@@ -44,22 +47,23 @@ export function ActaE26({ datos, curules }: { datos: DatosE26; curules: number |
       <table style={tabla}>
         <thead>
           <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
-            <th style={celda}>Agrupación / candidato</th><th style={{ ...celda, textAlign: 'right' }}>Votos</th><th style={celda}>En letras</th>
+            <th style={celda}>Agrupación / candidato</th><th style={{ ...celda, textAlign: 'right' }}>E-14</th>
+            <th style={{ ...celda, textAlign: 'right' }}>Escrutinio</th><th style={{ ...celda, textAlign: 'right' }}>Dif.</th><th style={celda}>Escrutinio en letras</th>
           </tr>
         </thead>
         <tbody>
           {datos.agrupaciones.map((g) => [
             ...(g.candidatos.length > 1 || g.candidatos[0]?.nombre !== g.nombre
-              ? [<FilaVotos key={g.nombre} nombre={g.nombre} votos={g.total} negrita />]
+              ? [<FilaVotos key={g.nombre} nombre={g.nombre} votos={g.total} e14={g.totalE14} negrita />]
               : []),
             ...g.candidatos.map((c) => (
-              <FilaVotos key={`${g.nombre}-${c.nombre}`} nombre={c.nombre} votos={c.votos} sangria={g.candidatos.length > 1 || c.nombre !== g.nombre} propio={c.propio} />
+              <FilaVotos key={`${g.nombre}-${c.nombre}`} nombre={c.nombre} votos={c.votos} e14={c.votosE14} sangria={g.candidatos.length > 1 || c.nombre !== g.nombre} propio={c.propio} />
             )),
           ])}
-          <FilaVotos nombre="Votos en blanco" votos={datos.blanco} negrita />
-          <FilaVotos nombre="Total votos válidos (agrupaciones + blanco)" votos={validos} negrita fondo />
-          <FilaVotos nombre="Votos nulos" votos={datos.nulos} negrita />
-          <FilaVotos nombre="Total votos (válidos + nulos)" votos={validos + datos.nulos} negrita fondo />
+          <FilaVotos nombre="Votos en blanco" votos={datos.blanco} e14={datos.blancoE14} negrita />
+          <FilaVotos nombre="Total votos válidos (agrupaciones + blanco)" votos={validos} e14={validosE14} negrita fondo />
+          <FilaVotos nombre="Votos nulos" votos={datos.nulos} e14={datos.nulosE14} negrita />
+          <FilaVotos nombre="Total votos (válidos + nulos)" votos={validos + datos.nulos} e14={validosE14 + datos.nulosE14} negrita fondo />
         </tbody>
       </table>
       <p style={nota}>Los votos no marcados no se transmiten desde la app de testigos, así que no suman aquí.</p>
@@ -69,7 +73,7 @@ export function ActaE26({ datos, curules }: { datos: DatosE26; curules: number |
 
       {datos.mesasSinReporte.length > 0 && (
         <>
-          <h3 style={subtitulo}>Mesas sin E-14 transmitido ({fmt(datos.mesasSinReporte.length)})</h3>
+          <h3 style={subtitulo}>Mesas sin datos: ni E-14 ni escrutinio ({fmt(datos.mesasSinReporte.length)})</h3>
           <p style={{ fontSize: '0.78rem', color: '#475569', lineHeight: 1.6 }}>
             {datos.mesasSinReporte.map((m) => `${m.puesto} – mesa ${m.mesa}`).join(' · ')}
           </p>
@@ -89,13 +93,16 @@ function Fila({ k, v }: { k: string; v: string }) {
   return <tr style={{ borderTop: '1px solid #f1f5f9' }}><td style={{ ...celda, width: '35%', color: '#64748b' }}>{k}</td><td style={{ ...celda, fontWeight: 600 }}>{v}</td></tr>
 }
 
-function FilaVotos({ nombre, votos, negrita, sangria, propio, fondo }: {
-  nombre: string; votos: number; negrita?: boolean; sangria?: boolean; propio?: boolean; fondo?: boolean
+function FilaVotos({ nombre, votos, e14, negrita, sangria, propio, fondo }: {
+  nombre: string; votos: number; e14: number; negrita?: boolean; sangria?: boolean; propio?: boolean; fondo?: boolean
 }) {
+  const dif = votos - e14
   return (
     <tr style={{ borderTop: '1px solid #f1f5f9', fontWeight: negrita ? 700 : 400, background: fondo ? '#f8fafc' : propio ? '#fef9c3' : undefined }}>
       <td style={{ ...celda, paddingLeft: sangria ? '1.75rem' : celda.padding as string }}>{nombre}{propio ? ' ★' : ''}</td>
+      <td style={{ ...celda, textAlign: 'right', color: '#64748b' }}>{fmt(e14)}</td>
       <td style={{ ...celda, textAlign: 'right' }}>{fmt(votos)}</td>
+      <td style={{ ...celda, textAlign: 'right', color: dif > 0 ? '#166534' : dif < 0 ? '#991b1b' : '#94a3b8' }}>{dif === 0 ? '—' : `${dif > 0 ? '+' : ''}${fmt(dif)}`}</td>
       <td style={{ ...celda, color: '#475569' }}>{numeroALetras(votos)}</td>
     </tr>
   )
