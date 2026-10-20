@@ -41,19 +41,55 @@ const ETIQUETA_VISTA: Record<Vista, string> = {
 /** Un testigo con mesa está cubriendo algo; sin mesa es capacidad ociosa. */
 const COLOR_TESTIGO = { conMesa: '#16a34a', sinMesa: '#f59e0b' } as const
 
+/**
+ * Un punto por lugar, no por persona: la gente de una misma casa (o de un mismo
+ * tramo de calle, cuando la dirección se ubicó a nivel de vía) comparte
+ * coordenadas exactas, y un círculo por persona dejaba visible solo el de
+ * arriba (45 electores se veían como 27). Si son varios, el círculo lleva el
+ * número y la ventanita los lista a todos.
+ */
 function dibujarCapaResidencia(L: typeof import('leaflet'), capa: import('leaflet').FeatureGroup, puntos: VoterGeo[]) {
+  const porLugar = new Map<string, VoterGeo[]>()
   for (const p of puntos) {
-    const color = COLOR_ESTADO[p.commitmentStatus] ?? '#94a3b8'
-    L.circleMarker([p.lat, p.lng], {
-      radius: 9, weight: 2, color: '#fff', // borde blanco para que resalte sobre el mapa base
-      fillOpacity: 1, fillColor: color,
-    })
-      .bindPopup(
-        `<b>${p.name}</b><br>${p.commitmentStatus.replace(/_/g, ' ')}` +
-        (p.leaderName ? `<br>Líder: ${p.leaderName}` : ''),
-      )
-      .addTo(capa)
+    const clave = `${p.lat},${p.lng}`
+    porLugar.set(clave, [...(porLugar.get(clave) ?? []), p])
   }
+
+  for (const grupo of porLugar.values()) {
+    const { lat, lng } = grupo[0]
+    const color = COLOR_ESTADO[estadoMayoritario(grupo)] ?? '#94a3b8'
+    const popup = grupo.map((p) =>
+      `<b>${escaparHtml(p.name)}</b> · ${p.commitmentStatus.replace(/_/g, ' ')}` +
+      (p.leaderName ? `<br><span style="color:#64748b">Líder: ${escaparHtml(p.leaderName)}</span>` : ''),
+    ).join('<hr style="margin:4px 0;border:0;border-top:1px solid #e2e8f0">')
+
+    const marcador = grupo.length === 1
+      ? L.circleMarker([lat, lng], {
+          radius: 9, weight: 2, color: '#fff', // borde blanco para que resalte sobre el mapa base
+          fillOpacity: 1, fillColor: color,
+        })
+      : L.marker([lat, lng], {
+          icon: L.divIcon({
+            className: '',
+            iconSize: [26, 26],
+            html: `<div style="width:26px;height:26px;border-radius:50%;background:${color};border:2px solid #fff;` +
+                  `box-shadow:0 1px 3px rgba(0,0,0,.35);color:#fff;font:700 12px/22px system-ui;text-align:center">${grupo.length}</div>`,
+          }),
+        })
+    marcador.bindPopup(grupo.length > 1 ? `<b>${grupo.length} personas aquí</b><hr style="margin:4px 0">${popup}` : popup).addTo(capa)
+  }
+}
+
+/** El estado que más se repite en el grupo; empate → el más comprometido (orden de COLOR_ESTADO). */
+function estadoMayoritario(grupo: VoterGeo[]): string {
+  const orden = Object.keys(COLOR_ESTADO)
+  const cuenta = new Map<string, number>()
+  for (const p of grupo) cuenta.set(p.commitmentStatus, (cuenta.get(p.commitmentStatus) ?? 0) + 1)
+  return [...cuenta].sort((a, b) => b[1] - a[1] || orden.indexOf(b[0]) - orden.indexOf(a[0]))[0][0]
+}
+
+function escaparHtml(texto: string): string {
+  return texto.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
 }
 
 function dibujarCapaComunas(L: typeof import('leaflet'), capa: import('leaflet').FeatureGroup, comunas: ComunaGeo[], puntos: VoterGeo[]) {
