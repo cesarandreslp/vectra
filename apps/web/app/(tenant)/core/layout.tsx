@@ -48,6 +48,7 @@ export default async function CoreLayout({ children }: { children: React.ReactNo
     ...(((esAdmin || personalizado) && puedeVer('CORE_PERFILES')) ? [{ href: '/core/perfiles', label: 'Perfiles' } as NavItem] : []),
     ...(((esAdmin || personalizado) && puedeVer('CORE_RUTAS'))      ? [{ href: '/core/rutas', label: 'Rutas' } as NavItem] : []),
     ...(puedeVer('CORE_ALERTAS')    ? [{ href: '/core/alertas', label: 'Alertas', badge: <BadgeNotificaciones /> } as NavItem] : []),
+    ...(((esAdmin || personalizado) && puedeVer('CORE_REPORTES'))   ? [{ href: '/core/reportes', label: 'Reportes' } as NavItem] : []),
     // Crear testigos es trabajo de campaña, no un ajuste: va en el menú, no
     // enterrado en Configuración.
     ...((session.user.role === 'ADMIN_CAMPANA' || (personalizado && puedeVer('CORE_USUARIOS')))
