@@ -1817,6 +1817,10 @@ export interface ComunaGeo {
   name:           string
   boundary:       [number, number][]
   totalElectores: number
+  /** Comprometidos + voto seguro: lo que cuenta como avance hacia la meta. */
+  comprometidos:  number
+  /** Votos que la campaña se propone sacar aquí (Territorio). null = sin meta. */
+  metaVotos:      number | null
   /** Mismo color que muestra esta zona en Territorio. */
   color:          string
 }
@@ -1835,7 +1839,7 @@ export async function getElectoresPorComuna(): Promise<ComunaGeo[]> {
     db.commune.findMany({ orderBy: [{ municipalityId: 'asc' }, { name: 'asc' }] }),
     db.voter.findMany({
       where:  { tenantId, lat: { not: null }, lng: { not: null } },
-      select: { lat: true, lng: true },
+      select: { lat: true, lng: true, commitmentStatus: true },
     }),
   ])
 
@@ -1852,8 +1856,12 @@ export async function getElectoresPorComuna(): Promise<ComunaGeo[]> {
     .filter((c) => c.boundary !== null)
     .map((c) => {
       const boundary = c.boundary as unknown as [number, number][]
-      const totalElectores = electores.filter((e) => puntoEnPoligono([e.lat!, e.lng!], boundary)).length
-      return { id: c.id, name: c.name, boundary, totalElectores, color: colores.get(c.id)! }
+      const dentro = electores.filter((e) => puntoEnPoligono([e.lat!, e.lng!], boundary))
+      const comprometidos = dentro.filter((e) => e.commitmentStatus === 'COMPROMETIDO' || e.commitmentStatus === 'VOTO_SEGURO').length
+      return {
+        id: c.id, name: c.name, boundary, totalElectores: dentro.length, comprometidos,
+        metaVotos: c.metaVotos, color: colores.get(c.id)!,
+      }
     })
 }
 

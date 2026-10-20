@@ -27,6 +27,8 @@ export interface CommuneSummary {
   tieneLimites:     boolean
   /** Quién coordina esta comuna y sus barrios. */
   lider:            { id: string; name: string } | null
+  /** Votos que la campaña se propone sacar aquí. null = sin meta. */
+  metaVotos:        number | null
 }
 
 export interface NeighborhoodSummary {
@@ -96,6 +98,7 @@ export async function listCommunes(municipalityId: string): Promise<CommuneSumma
     color:        colores.get(c.id)!,
     tieneLimites: c.boundary !== null,
     lider:        c.lider,
+    metaVotos:    c.metaVotos,
   }))
 }
 
@@ -122,23 +125,28 @@ export async function createCommune(
 }
 
 export async function updateCommune(
-  id: string, data: { name?: string; type?: CommuneKind },
+  id: string, data: { name?: string; type?: CommuneKind; metaVotos?: number | null },
 ): Promise<Resultado> {
   const session = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR'], 'CORE_TERRITORIO', 'edit')
   const db      = await dbTenant(session.user.tenantId)
 
   const nombre = data.name?.trim()
   if (data.name !== undefined && !nombre) return { success: false, error: 'El nombre es obligatorio.' }
+  if (data.metaVotos != null && (!Number.isInteger(data.metaVotos) || data.metaVotos < 0)) {
+    return { success: false, error: 'La meta debe ser un número entero de votos.' }
+  }
 
   await db.commune.update({
     where: { id },
     data: {
       ...(nombre       !== undefined && { name: nombre }),
       ...(data.type     !== undefined && { type: data.type }),
+      ...(data.metaVotos !== undefined && { metaVotos: data.metaVotos }),
     },
   })
 
   revalidatePath('/core/territorio')
+  revalidatePath('/core') // el mapa por comuna muestra el avance contra la meta
   return { success: true }
 }
 

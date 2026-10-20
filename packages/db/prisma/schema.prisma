@@ -391,6 +391,8 @@ model Commune {
   type           CommuneType // COMUNA o CORREGIMIENTO
   municipalityId String
   boundary       Json? // Polígono real: array de [lat, lng] (orden Leaflet), sin huecos
+  // Votos que la campaña se propone sacar aquí (su parte de la meta total).
+  metaVotos      Int?
   // Quién coordina esta comuna: articula a los líderes de sus barrios. Es un
   // cargo territorial, aparte del árbol de captación (Voter.leaderId).
   liderId        String?

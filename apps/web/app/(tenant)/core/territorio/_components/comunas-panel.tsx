@@ -9,6 +9,7 @@ import {
 } from '../actions'
 import { EditableTexto } from './editable-texto'
 import { SelectorLider } from './selector-lider'
+import { MetaComuna } from './meta-comuna'
 
 export function ComunasPanel({ municipalityId, comunasIniciales, electores }: {
   municipalityId: string
@@ -91,6 +92,7 @@ export function ComunasPanel({ municipalityId, comunasIniciales, electores }: {
                 {c.type === 'COMUNA' ? 'Comuna' : 'Corregimiento'} · {c.neighborhoodCount} barrio(s)
                 {!c.tieneLimites && ' · sin límites'}
               </span>
+              <MetaComuna id={c.id} meta={c.metaVotos} />
               <SelectorLider
                 liderActual={c.lider} electores={electores}
                 onAsignar={(liderId) => asignarLiderComuna(c.id, liderId)}
