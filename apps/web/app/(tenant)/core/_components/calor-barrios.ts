@@ -9,7 +9,7 @@ import { intensidadDeEstado, COLOR_TEMPERATURA, ETIQUETA_TEMPERATURA, type Tempe
  */
 export type TemperaturaBarrio = Temperatura | 'vacio'
 
-export const COLOR_VACIO = '#dbeafe'
+export const COLOR_VACIO = '#ffffff'
 export const ETIQUETA_VACIO = 'Sin presencia'
 
 /** Promedio de intensidad → frío / tibio / caliente (cortes entre los valores de cada estado). */
@@ -53,8 +53,8 @@ export function dibujarCapaCalorBarrios(
   for (const { barrio, electores, temperatura } of calorPorBarrio(barrios, puntos)) {
     const color = colorDe(temperatura)
     L.polygon(barrio.boundary, {
-      color: temperatura === 'vacio' ? '#60a5fa' : color, weight: 1.5, dashArray: temperatura === 'vacio' ? '4' : undefined,
-      fillColor: color, fillOpacity: temperatura === 'vacio' ? 0.45 : 0.55,
+      color: temperatura === 'vacio' ? '#94a3b8' : color, weight: 1.5, dashArray: temperatura === 'vacio' ? '4' : undefined,
+      fillColor: color, fillOpacity: temperatura === 'vacio' ? 0.75 : 0.55, // blanco que tape el mapa base
     })
       .bindPopup(`<b>${barrio.name}</b><br>${barrio.comunaName}<br>${electores} elector(es) · ${etiquetaDe(temperatura)}`)
       .addTo(capa)

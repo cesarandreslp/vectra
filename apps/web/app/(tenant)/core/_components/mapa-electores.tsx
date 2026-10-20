@@ -426,7 +426,7 @@ function ControlesCalor({ puntos, barrios }: { puntos: VoterGeo[]; barrios: Barr
       </span>
       {temps.map((t) => (
         <span key={t} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem', color: '#64748b' }}>
-          <span style={{ width: 10, height: 10, borderRadius: '50%', background: colorDe(t), border: t === 'vacio' ? '1px dashed #60a5fa' : 'none', display: 'inline-block' }} />
+          <span style={{ width: 10, height: 10, borderRadius: '50%', background: colorDe(t), border: t === 'vacio' ? '1px dashed #94a3b8' : 'none', display: 'inline-block' }} />
           {etiquetaDe(t)}{barrios.length > 0 && ` (${conteo.get(t) ?? 0})`}
         </span>
       ))}
