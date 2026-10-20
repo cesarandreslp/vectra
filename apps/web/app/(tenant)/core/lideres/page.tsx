@@ -3,7 +3,7 @@ import { auth }                  from '@vectra/auth'
 import { listLeaders }           from '../actions'
 import { BarraProgreso }         from './_components/barra-progreso'
 import { TitulosLider }          from './_components/titulos-lider'
-import { UMBRAL_LIDER_DIRECTOS, UMBRAL_LIDER_RED } from '@/lib/lideres'
+import { UMBRAL_LIDER_DIRECTOS, UMBRAL_LIDER_RED, type TituloLider } from '@/lib/lideres'
 
 export const metadata = { title: 'Líderes' }
 
@@ -76,8 +76,7 @@ export default async function LideresPage({ searchParams }: Props) {
             >
               <div
                 style={{
-                  background:   '#fff',
-                  border:       '1px solid #e2e8f0',
+                  ...estiloTarjeta(lider.titulos),
                   borderRadius: '8px',
                   padding:      '1.25rem',
                   cursor:       'pointer',
@@ -124,6 +123,23 @@ export default async function LideresPage({ searchParams }: Props) {
       )}
     </div>
   )
+}
+
+/**
+ * El título se ve de lejos: Reclutador arde (rojo arriba → amarillo abajo),
+ * Constructor de red es verde, y quien tiene los dos arde con borde verde.
+ * Tonos suavizados para que el texto oscuro se lea en toda la tarjeta.
+ */
+function estiloTarjeta(titulos: TituloLider[]): React.CSSProperties {
+  const reclutador  = titulos.includes('RECLUTADOR')
+  const constructor = titulos.includes('CONSTRUCTOR')
+  const fuego = 'linear-gradient(180deg, #f87171 0%, #fb923c 50%, #fde047 100%)'
+  const verde = 'linear-gradient(180deg, #bbf7d0 0%, #86efac 100%)'
+
+  if (reclutador && constructor) return { background: fuego, border: '3px solid #16a34a' }
+  if (reclutador)                return { background: fuego, border: '1px solid #f97316' }
+  if (constructor)               return { background: verde, border: '1px solid #22c55e' }
+  return { background: '#fff', border: '1px solid #e2e8f0' }
 }
 
 function EstadoBadge({ status }: { status: string }) {
