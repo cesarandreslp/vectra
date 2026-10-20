@@ -36,7 +36,17 @@ export default function PwaAgendaPage() {
           <PanelConvocar />
         </div>
       )}
-      {!cargando && !esAnfitrion && gestion && <PanelAgendaGestor inicial={gestion} />}
+      {!cargando && !esAnfitrion && gestion && gestion.anfitriones.length > 0 && <PanelAgendaGestor inicial={gestion} />}
+      {/* Gestor asignado pero nadie marcado como candidato / jefe de debate: el
+          formulario no tenía a nombre de quién publicar y fallaba con
+          "Anfitrión no válido" al guardar. */}
+      {!cargando && !esAnfitrion && gestion && gestion.anfitriones.length === 0 && (
+        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '1rem', fontSize: '0.875rem', color: '#92400e' }}>
+          Te asignaron la agenda {gestion.ambito === 'CANDIDATO' ? 'del candidato' : 'de los jefes de debate'}, pero la campaña
+          todavía no marcó {gestion.ambito === 'CANDIDATO' ? 'a nadie como candidato' : 'a ningún jefe de debate'}.
+          Pídele al administrador que lo haga (Líderes → ficha → {gestion.ambito === 'CANDIDATO' ? '"Marcar como candidato"' : '"Marcar como jefe de debate"'}) y vuelve a entrar aquí.
+        </div>
+      )}
       {!cargando && !esAnfitrion && !gestion && <PanelAgendaElector />}
     </div>
   )
