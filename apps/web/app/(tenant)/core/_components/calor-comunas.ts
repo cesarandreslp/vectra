@@ -11,7 +11,7 @@ export type TemperaturaZona = Temperatura | 'vacio'
 
 /** Cortes de avance sobre la meta. */
 export const CORTE_TIBIO    = 33 // % desde el que deja de ser fría
-export const CORTE_CALIENTE = 66 // % desde el que es caliente
+export const CORTE_CALIENTE = 80 // % desde el que es caliente
 
 const COLOR_VACIO = '#ffffff'
 
