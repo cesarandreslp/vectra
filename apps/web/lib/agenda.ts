@@ -87,3 +87,9 @@ export async function publicarEntrada(
   })
   return { success: true }
 }
+
+/** A quiénes avisar de lo que pasa en una agenda: el anfitrión y el gestor de su ámbito. */
+export async function responsablesAgenda(db: Db, tenantId: string, anfitrion: { id: string; isCandidate: boolean }) {
+  const gestor = await getGestor(ambitoDeAnfitrion(anfitrion), tenantId, db)
+  return [anfitrion.id, gestor?.id]
+}

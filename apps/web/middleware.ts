@@ -18,6 +18,7 @@ const RUTAS_PUBLICAS = [
   // Llamadas de servidor a servidor (Meta, API del censo): no traen sesión y
   // cada ruta verifica su propia firma/token.
   '/api/webhooks/',
+  '/api/agenda/recordatorios', // cron externo; la ruta exige CRON_SECRET
 ]
 
 /** La landing en `/` es siempre pública. La página decide si redirigir. */

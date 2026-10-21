@@ -7,10 +7,11 @@ import { getTenantDb } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
 import { idsLideres } from '@/app/(tenant)/core/actions'
 import {
-  ambitoDeAnfitrion, puedeGestionar, publicarEntrada, ocuparFranja, compromisoEnFranja,
+  ambitoDeAnfitrion, puedeGestionar, publicarEntrada, ocuparFranja, compromisoEnFranja, responsablesAgenda,
   type AgendaAmbito, type EstadoAgenda,
 } from '@/lib/agenda'
-import { fechaColombia } from '@/lib/hora-colombia'
+import { fechaColombia, textoColombia } from '@/lib/hora-colombia'
+import { enviarPushAVoters } from '@/lib/push'
 
 // Mismos roles que puede tener cualquier sesión dentro de /pwa (pwa/layout.tsx)
 // — el control real de acceso es tener voterId, no el rol.
@@ -149,7 +150,7 @@ export async function reservarHueco(entradaId: string, motivo?: string) {
   // La entrada debe ser de la agenda del candidato y estar abierta a reservas.
   const entrada = await db.agendaEntrada.findFirst({
     where:  { id: entradaId, tenantId: session.user.tenantId },
-    select: { anfitrion: { select: { isCandidate: true, agendaAbierta: true } } },
+    select: { startsAt: true, anfitrion: { select: { id: true, isCandidate: true, agendaAbierta: true } } },
   })
   if (!entrada?.anfitrion.isCandidate || !entrada.anfitrion.agendaAbierta) {
     return { success: false, error: 'La agenda no está abierta a reservas.' }
@@ -160,6 +161,13 @@ export async function reservarHueco(entradaId: string, motivo?: string) {
     data:  { reservadoPor: session.user.voterId, motivo: motivo?.trim() || undefined },
   })
   if (resultado.count === 0) return { success: false, error: 'Ese hueco ya no está disponible — elige otro.' }
+
+  const elector = await db.voter.findUnique({ where: { id: session.user.voterId }, select: { name: true } })
+  await enviarPushAVoters(db, session.user.tenantId, await responsablesAgenda(db, session.user.tenantId, entrada.anfitrion), {
+    title: 'Nueva reserva en la agenda',
+    body:  `${elector?.name ?? 'Un elector'} reservó ${textoColombia(entrada.startsAt)}${motivo?.trim() ? ` · ${motivo.trim()}` : ''}`,
+    url:   '/pwa/agenda',
+  })
 
   revalidatePath('/pwa/agenda')
   return { success: true }
@@ -413,7 +421,7 @@ export async function toggleAbiertaGestionada(anfitrionId: string, abierta: bool
 async function entradaAutorizada(id: string, session: Awaited<ReturnType<typeof requireAuth>>, db: ReturnType<typeof getTenantDb>) {
   const entrada = await db.agendaEntrada.findFirst({
     where:  { id, tenantId: session.user.tenantId },
-    select: { anfitrionId: true, reservadoPor: true, disponible: true, estado: true },
+    select: { anfitrionId: true, reservadoPor: true, disponible: true, estado: true, startsAt: true, anfitrion: { select: { name: true } } },
   })
   if (!entrada) return { ok: false as const, error: 'Entrada no encontrada.' }
   if (entrada.anfitrionId !== session.user.voterId) {
@@ -450,8 +458,15 @@ export async function editarEntrada(id: string, data: { startsAt: string; endsAt
 
   await db.agendaEntrada.update({
     where: { id },
-    data:  { startsAt, endsAt, ...(r.entrada.disponible ? {} : { titulo: data.titulo!.trim() }) },
+    data:  { startsAt, endsAt, recordatorioEnviado: false, ...(r.entrada.disponible ? {} : { titulo: data.titulo!.trim() }) },
   })
+  if (+startsAt !== +r.entrada.startsAt) {
+    await enviarPushAVoters(db, session.user.tenantId, [r.entrada.reservadoPor], {
+      title: 'Cambió la hora de tu cita',
+      body:  `Con ${r.entrada.anfitrion.name}: ahora es ${textoColombia(startsAt)} (antes ${textoColombia(r.entrada.startsAt)}).`,
+      url:   '/pwa/agenda',
+    })
+  }
   revalidarAgenda()
   return { success: true }
 }
@@ -469,6 +484,13 @@ export async function marcarEstadoEntrada(id: string, estado: EstadoAgenda | nul
     // cumplido alimenta el mapa de rutas: se mantiene en sync con REALIZADA.
     data:  { estado, retrasoMin: estado === 'REALIZADA' ? (retrasoMin ?? 0) : null, cumplido: estado === 'REALIZADA' },
   })
+  if (estado === 'CANCELADA' && r.entrada.estado !== 'CANCELADA') {
+    await enviarPushAVoters(db, session.user.tenantId, [r.entrada.reservadoPor], {
+      title: 'Tu cita fue cancelada',
+      body:  `Con ${r.entrada.anfitrion.name}, ${textoColombia(r.entrada.startsAt)}.`,
+      url:   '/pwa/agenda',
+    })
+  }
   revalidarAgenda()
   return { success: true }
 }

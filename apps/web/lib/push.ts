@@ -17,22 +17,19 @@ function configurarVapid(): boolean {
   return true
 }
 
+type TenantDb = ReturnType<typeof getTenantDb>
+interface Payload { title: string; body: string; url?: string }
+
 /**
- * Envía una notificación push a todos los electores del tenant con
- * suscripción activa. Best-effort: nunca lanza — si Web Push no está
- * configurado (faltan VAPID keys), simplemente no hace nada.
- *
- * Suscripciones que responden 404/410 (expiradas o revocadas por el
- * navegador) se borran para no seguir intentando en cada envío futuro.
+ * Best-effort: nunca lanza — si Web Push no está configurado (faltan VAPID
+ * keys), simplemente no hace nada. Suscripciones que responden 404/410
+ * (expiradas o revocadas por el navegador) se borran para no seguir
+ * intentando en cada envío futuro.
  */
-export async function enviarPushATenant(
-  tenantDb: ReturnType<typeof getTenantDb>,
-  tenantId: string,
-  payload: { title: string; body: string; url?: string },
-): Promise<void> {
+async function enviar(tenantDb: TenantDb, where: { tenantId: string; voterId?: { in: string[] } }, payload: Payload): Promise<void> {
   if (!configurarVapid()) return
 
-  const suscripciones = await tenantDb.voterPushSubscription.findMany({ where: { tenantId } })
+  const suscripciones = await tenantDb.voterPushSubscription.findMany({ where }).catch(() => [])
   if (suscripciones.length === 0) return
 
   const cuerpo = JSON.stringify(payload)
@@ -54,4 +51,17 @@ export async function enviarPushATenant(
       }
     }),
   )
+}
+
+/** A todos los electores del tenant con suscripción activa. */
+export async function enviarPushATenant(tenantDb: TenantDb, tenantId: string, payload: Payload): Promise<void> {
+  await enviar(tenantDb, { tenantId }, payload)
+}
+
+/** Solo a estos electores (a todos sus dispositivos suscritos). Ignora ids vacíos y repetidos. */
+export async function enviarPushAVoters(
+  tenantDb: TenantDb, tenantId: string, voterIds: (string | null | undefined)[], payload: Payload,
+): Promise<void> {
+  const ids = [...new Set(voterIds.filter((v): v is string => Boolean(v)))]
+  if (ids.length > 0) await enviar(tenantDb, { tenantId, voterId: { in: ids } }, payload)
 }

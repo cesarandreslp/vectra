@@ -1298,6 +1298,7 @@ model AgendaEntrada {
   cumplido     Boolean  @default(false) // marcado por quien maneja la agenda al arrancar/completar la ruta
   estado       EstadoAgenda? // null = pendiente; lo marca quien maneja la agenda
   retrasoMin   Int? // minutos que arrancó tarde (solo REALIZADA); null/0 = a tiempo
+  recordatorioEnviado Boolean @default(false) // push de "empieza en 30 min" ya enviado; se resetea si cambia la hora
 
   anfitrion  Voter  @relation("AgendaAnfitrion", fields: [anfitrionId], references: [id], onDelete: Cascade)
   reservante Voter? @relation("AgendaReservante", fields: [reservadoPor], references: [id], onDelete: SetNull)
