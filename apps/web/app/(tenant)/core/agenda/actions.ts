@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantDb } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
-import { getGestor, type AgendaAmbito, type EstadoAgenda } from '@/lib/agenda'
+import { getGestor, publicarEntrada, type AgendaAmbito, type EstadoAgenda } from '@/lib/agenda'
 import { fechaColombia } from '@/lib/hora-colombia'
 
 const ROLES_ADMIN = ['ADMIN_CAMPANA', 'COORDINADOR'] as const
@@ -81,18 +81,11 @@ export async function crearEntradaAgendaAdmin(
     return { success: false, error: 'Solo el candidato o un jefe de debate tiene agenda.' }
   }
 
-  const startsAt = fechaColombia(data.startsAt)
-  const endsAt   = fechaColombia(data.endsAt)
-  if (!(endsAt > startsAt)) return { success: false, error: 'La hora de fin debe ser después de la de inicio.' }
-  if (!data.disponible && !data.titulo?.trim()) return { success: false, error: 'Falta el título del compromiso.' }
-
-  await db.agendaEntrada.create({
-    data: {
-      tenantId: session.user.tenantId, anfitrionId,
-      startsAt, endsAt, disponible: data.disponible,
-      titulo: data.disponible ? undefined : data.titulo!.trim(),
-    },
+  const r = await publicarEntrada(db, {
+    tenantId: session.user.tenantId, anfitrionId,
+    startsAt: fechaColombia(data.startsAt), endsAt: fechaColombia(data.endsAt), disponible: data.disponible, titulo: data.titulo,
   })
+  if (!r.success) return r
 
   revalidatePath('/core/agenda')
   return { success: true }

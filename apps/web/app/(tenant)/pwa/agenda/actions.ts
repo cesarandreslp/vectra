@@ -6,7 +6,10 @@ import { type UserRole } from '@vectra/auth'
 import { getTenantDb } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
 import { idsLideres } from '@/app/(tenant)/core/actions'
-import { ambitoDeAnfitrion, puedeGestionar, type AgendaAmbito, type EstadoAgenda } from '@/lib/agenda'
+import {
+  ambitoDeAnfitrion, puedeGestionar, publicarEntrada, ocuparFranja, compromisoEnFranja,
+  type AgendaAmbito, type EstadoAgenda,
+} from '@/lib/agenda'
 import { fechaColombia } from '@/lib/hora-colombia'
 
 // Mismos roles que puede tener cualquier sesión dentro de /pwa (pwa/layout.tsx)
@@ -94,18 +97,11 @@ export async function crearEntradaAgenda(data: {
     return { success: false, error: 'Solo el candidato o un jefe de debate puede publicar agenda.' }
   }
 
-  const startsAt = fechaColombia(data.startsAt)
-  const endsAt   = fechaColombia(data.endsAt)
-  if (!(endsAt > startsAt)) return { success: false, error: 'La hora de fin debe ser después de la de inicio.' }
-  if (!data.disponible && !data.titulo?.trim()) return { success: false, error: 'Falta el título del compromiso.' }
-
-  await db.agendaEntrada.create({
-    data: {
-      tenantId: session.user.tenantId, anfitrionId: session.user.voterId,
-      startsAt, endsAt, disponible: data.disponible,
-      titulo: data.disponible ? undefined : data.titulo!.trim(),
-    },
+  const r = await publicarEntrada(db, {
+    tenantId: session.user.tenantId, anfitrionId: session.user.voterId,
+    startsAt: fechaColombia(data.startsAt), endsAt: fechaColombia(data.endsAt), disponible: data.disponible, titulo: data.titulo,
   })
+  if (!r.success) return r
 
   revalidatePath('/pwa/agenda')
   return { success: true }
@@ -302,8 +298,6 @@ export async function getMisConvocatorias(): Promise<ConvocatoriaListado[]> {
 // ── Gestión delegada: el gestor administra la agenda de un anfitrión ────────────
 // El gestor es un Voter con gestionaAgenda; administra la agenda de los
 // anfitriones de su ámbito. Autorización vía puedeGestionar (admin o gestor).
-// ponytail: repite el create/delete del anfitrión con anfitrionId variable; se
-// podría extraer a lib/agenda si aparece un tercer llamador.
 
 const ROLES_ADMIN_PWA: UserRole[] = ['ADMIN_CAMPANA', 'COORDINADOR']
 
@@ -377,17 +371,11 @@ export async function crearEntradaGestionada(anfitrionId: string, data: {
   const auth = await autorizarSobreAnfitrion(anfitrionId, session, db)
   if (!auth.ok) return { success: false, error: auth.error }
 
-  const startsAt = fechaColombia(data.startsAt)
-  const endsAt   = fechaColombia(data.endsAt)
-  if (!(endsAt > startsAt)) return { success: false, error: 'La hora de fin debe ser después de la de inicio.' }
-  if (!data.disponible && !data.titulo?.trim()) return { success: false, error: 'Falta el título del compromiso.' }
-
-  await db.agendaEntrada.create({
-    data: {
-      tenantId: session.user.tenantId, anfitrionId, startsAt, endsAt,
-      disponible: data.disponible, titulo: data.disponible ? undefined : data.titulo!.trim(),
-    },
+  const r = await publicarEntrada(db, {
+    tenantId: session.user.tenantId, anfitrionId,
+    startsAt: fechaColombia(data.startsAt), endsAt: fechaColombia(data.endsAt), disponible: data.disponible, titulo: data.titulo,
   })
+  if (!r.success) return r
   revalidatePath('/pwa/agenda')
   return { success: true }
 }
@@ -451,6 +439,14 @@ export async function editarEntrada(id: string, data: { startsAt: string; endsAt
   const endsAt   = fechaColombia(data.endsAt)
   if (!(endsAt > startsAt)) return { success: false, error: 'La hora de fin debe ser después de la de inicio.' }
   if (!r.entrada.disponible && !data.titulo?.trim()) return { success: false, error: 'Falta el título del compromiso.' }
+
+  const franja = { tenantId: session.user.tenantId, anfitrionId: r.entrada.anfitrionId, startsAt, endsAt }
+  if (r.entrada.disponible) {
+    const choque = await compromisoEnFranja(db, franja)
+    if (choque) return { success: false, error: `Esa franja ya está ocupada por "${choque.titulo}".` }
+  } else if (r.entrada.estado !== 'CANCELADA') {
+    await ocuparFranja(db, franja)
+  }
 
   await db.agendaEntrada.update({
     where: { id },
