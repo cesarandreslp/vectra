@@ -8,6 +8,8 @@ import { getTenantDb } from '@vectra/db'
  */
 
 export type AgendaAmbito = 'CANDIDATO' | 'JEFES'
+/** null = pendiente. Realizada con retrasoMin > 0 = arrancó tarde. */
+export type EstadoAgenda = 'REALIZADA' | 'INCUMPLIDA' | 'CANCELADA'
 type Db = ReturnType<typeof getTenantDb>
 
 /** El candidato pertenece al ámbito CANDIDATO; cualquier otro anfitrión, a JEFES. */

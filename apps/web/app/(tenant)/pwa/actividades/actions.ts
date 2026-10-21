@@ -1,5 +1,6 @@
 'use server'
 
+import { fechaColombia } from '@/lib/hora-colombia'
 /**
  * Actividades desde el PWA del DOLIENTE: el elector que responde por que la
  * actividad ocurra arma sus grupos, asigna simpatizantes y carga la logística.
@@ -98,7 +99,7 @@ export async function crearMiGrupo(actividadId: string, data: { nombre: string; 
   await db.grupoActividad.create({
     data: {
       tenantId, actividadId, nombre: data.nombre.trim(), lugar: data.lugar?.trim() || undefined,
-      inicio: data.inicio ? new Date(data.inicio) : undefined,
+      inicio: data.inicio ? fechaColombia(data.inicio) : undefined,
       duracionMin: data.duracionMin ?? undefined,
     },
   })

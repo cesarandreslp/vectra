@@ -44,6 +44,7 @@ export function PanelAgendaElector() {
             {reservas.map((r) => (
               <div key={r.id} style={{ fontSize: '0.8rem' }}>
                 {new Date(r.startsAt).toLocaleString('es-CO')} · con {r.anfitrionName}
+                {r.estado === 'CANCELADA' && <strong style={{ color: '#dc2626' }}> · Cancelada</strong>}
               </div>
             ))}
           </div>

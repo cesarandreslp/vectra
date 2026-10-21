@@ -2,27 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import {
-  getAgendaDeAnfitrion, getConvocatoriasDeAnfitrion, eliminarEntradaAgendaAdmin,
+  getAgendaDeAnfitrion, getConvocatoriasDeAnfitrion,
   type AnfitrionOption, type EntradaAgendaAdmin, type ConvocatoriaAdminListado,
 } from '../actions'
-import { CalendarioMensual, type EventoCalendario } from '@/app/_components/calendario-mensual'
+import { CalendarioMensual } from '@/app/_components/calendario-mensual'
+import { ItemEntradaAgenda, eventoDeEntrada, entradasDelDia } from '@/app/_components/entrada-agenda'
 import { FormCrearEntrada } from './form-crear-entrada'
-
-function claveFechaLocal(iso: string): string {
-  const d = new Date(iso)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-function colorEntrada(e: EntradaAgendaAdmin): string {
-  if (!e.disponible) return '#64748b'
-  return e.reservanteName ? '#2563eb' : '#16a34a'
-}
-
-function labelEntrada(e: EntradaAgendaAdmin): string {
-  const hora = new Date(e.startsAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
-  if (!e.disponible) return `${hora} ${e.titulo}`
-  return e.reservanteName ? `${hora} Reservado` : `${hora} Libre`
-}
 
 export function PanelAnfitrion({ anfitriones }: { anfitriones: AnfitrionOption[] }) {
   const [anfitrionId, setAnfitrionId] = useState(anfitriones[0]?.id ?? '')
@@ -41,13 +26,6 @@ export function PanelAnfitrion({ anfitriones }: { anfitriones: AnfitrionOption[]
     cargar()
   }, [anfitrionId, cargar])
 
-  async function borrar(id: string) {
-    if (!confirm('¿Borrar esta entrada de la agenda?')) return
-    const r = await eliminarEntradaAgendaAdmin(id)
-    if (!r.success) { alert(r.error ?? 'No se pudo borrar.'); return }
-    cargar()
-  }
-
   if (anfitriones.length === 0) {
     return (
       <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1.25rem', color: '#94a3b8', fontSize: '0.875rem' }}>
@@ -56,13 +34,8 @@ export function PanelAnfitrion({ anfitriones }: { anfitriones: AnfitrionOption[]
     )
   }
 
-  const eventos: EventoCalendario[] = agenda.map((e) => ({
-    id: e.id, fecha: claveFechaLocal(e.startsAt), label: labelEntrada(e), color: colorEntrada(e),
-  }))
-
-  const entradasDelDia = diaSeleccionado
-    ? agenda.filter((e) => claveFechaLocal(e.startsAt) === claveFechaLocal(diaSeleccionado.toISOString()))
-    : []
+  const eventos = agenda.map(eventoDeEntrada)
+  const entradasDelDiaSel = entradasDelDia(agenda, diaSeleccionado)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -87,26 +60,9 @@ export function PanelAnfitrion({ anfitriones }: { anfitriones: AnfitrionOption[]
               : 'Detalle del día'}
           </h3>
           {!diaSeleccionado && <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Toca un día del calendario para ver el detalle.</div>}
-          {diaSeleccionado && entradasDelDia.length === 0 && <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Sin entradas ese día.</div>}
+          {diaSeleccionado && entradasDelDiaSel.length === 0 && <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Sin entradas ese día.</div>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-            {entradasDelDia.map((e) => (
-              <div key={e.id} style={{ fontSize: '0.85rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-                <div>
-                  <div style={{ fontWeight: 600 }}>
-                    {e.disponible ? (e.reservanteName ? `Reservado — ${e.reservanteName}` : 'Hueco disponible') : e.titulo}
-                  </div>
-                  <div style={{ color: '#94a3b8', fontSize: '0.78rem' }}>
-                    {new Date(e.startsAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })} – {new Date(e.endsAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
-                    {e.motivo ? ` · ${e.motivo}` : ''}
-                  </div>
-                </div>
-                {!e.reservanteName && (
-                  <button onClick={() => borrar(e.id)} style={{ border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', borderRadius: '6px', padding: '0.2rem 0.5rem', fontSize: '0.72rem', cursor: 'pointer', flexShrink: 0 }}>
-                    Borrar
-                  </button>
-                )}
-              </div>
-            ))}
+            {entradasDelDiaSel.map((e) => <ItemEntradaAgenda key={e.id} e={e} onCambio={cargar} />)}
           </div>
         </div>
 

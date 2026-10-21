@@ -71,6 +71,12 @@ enum AgendaAmbito {
 }
 
 /// Estado operativo de un líder en la campaña
+enum EstadoAgenda {
+  REALIZADA
+  INCUMPLIDA
+  CANCELADA
+}
+
 enum LeaderStatus {
   ACTIVO // Operando normalmente
   INACTIVO // Temporalmente fuera de operación
@@ -1290,6 +1296,8 @@ model AgendaEntrada {
   lng          Float?
   ordenRuta    Int? // posición manual dentro de la ruta sugerida del día (null = sin definir)
   cumplido     Boolean  @default(false) // marcado por quien maneja la agenda al arrancar/completar la ruta
+  estado       EstadoAgenda? // null = pendiente; lo marca quien maneja la agenda
+  retrasoMin   Int? // minutos que arrancó tarde (solo REALIZADA); null/0 = a tiempo
 
   anfitrion  Voter  @relation("AgendaAnfitrion", fields: [anfitrionId], references: [id], onDelete: Cascade)
   reservante Voter? @relation("AgendaReservante", fields: [reservadoPor], references: [id], onDelete: SetNull)

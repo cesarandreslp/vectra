@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantDb } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
-import { getGestor, type AgendaAmbito } from '@/lib/agenda'
+import { getGestor, type AgendaAmbito, type EstadoAgenda } from '@/lib/agenda'
+import { fechaColombia } from '@/lib/hora-colombia'
 
 const ROLES_ADMIN = ['ADMIN_CAMPANA', 'COORDINADOR'] as const
 
@@ -34,6 +35,8 @@ export interface EntradaAgendaAdmin {
   titulo:         string | null
   reservanteName: string | null
   motivo:         string | null
+  estado:         EstadoAgenda | null
+  retrasoMin:     number | null
 }
 
 /** Agenda completa (compromisos + huecos, reservados o no) de un anfitrión puntual. */
@@ -51,6 +54,7 @@ export async function getAgendaDeAnfitrion(anfitrionId: string): Promise<Entrada
     id: e.id, startsAt: e.startsAt.toISOString(), endsAt: e.endsAt.toISOString(),
     disponible: e.disponible, titulo: e.titulo,
     reservanteName: e.reservante?.name ?? null, motivo: e.motivo,
+    estado: e.estado, retrasoMin: e.retrasoMin,
   }))
 }
 
@@ -77,8 +81,8 @@ export async function crearEntradaAgendaAdmin(
     return { success: false, error: 'Solo el candidato o un jefe de debate tiene agenda.' }
   }
 
-  const startsAt = new Date(data.startsAt)
-  const endsAt   = new Date(data.endsAt)
+  const startsAt = fechaColombia(data.startsAt)
+  const endsAt   = fechaColombia(data.endsAt)
   if (!(endsAt > startsAt)) return { success: false, error: 'La hora de fin debe ser después de la de inicio.' }
   if (!data.disponible && !data.titulo?.trim()) return { success: false, error: 'Falta el título del compromiso.' }
 
@@ -90,23 +94,6 @@ export async function crearEntradaAgendaAdmin(
     },
   })
 
-  revalidatePath('/core/agenda')
-  return { success: true }
-}
-
-/** Borra una entrada de la agenda de un anfitrión — bloqueado si ya fue reservada. */
-export async function eliminarEntradaAgendaAdmin(entradaId: string) {
-  const session = await requireModuleOrScreen('CORE', [...ROLES_ADMIN], 'CORE_AGENDA')
-  const db = getTenantDb(await getTenantConnection(session.user.tenantId))
-
-  const entrada = await db.agendaEntrada.findFirst({
-    where:  { id: entradaId, tenantId: session.user.tenantId },
-    select: { id: true, reservadoPor: true },
-  })
-  if (!entrada) return { success: false, error: 'Entrada no encontrada.' }
-  if (entrada.reservadoPor) return { success: false, error: 'Ya fue reservada — avisá al elector antes de borrarla.' }
-
-  await db.agendaEntrada.delete({ where: { id: entradaId } })
   revalidatePath('/core/agenda')
   return { success: true }
 }

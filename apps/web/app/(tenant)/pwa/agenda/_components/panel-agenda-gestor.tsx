@@ -2,16 +2,14 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import {
-  getMiGestion, getAgendaGestionada, crearEntradaGestionada, eliminarEntradaGestionada, toggleAbiertaGestionada,
+  getMiGestion, getAgendaGestionada, crearEntradaGestionada, toggleAbiertaGestionada,
   type EntradaAgenda,
 } from '../actions'
-import { CalendarioMensual, type EventoCalendario } from '@/app/_components/calendario-mensual'
+import { CalendarioMensual } from '@/app/_components/calendario-mensual'
+import { ItemEntradaAgenda, eventoDeEntrada, entradasDelDia } from '@/app/_components/entrada-agenda'
 
 type Gestion = NonNullable<Awaited<ReturnType<typeof getMiGestion>>>
 
-const clave = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
-const color = (e: EntradaAgenda) => (!e.disponible ? '#64748b' : e.reservadoPor ? '#2563eb' : '#16a34a')
-const label = (e: EntradaAgenda) => { const h = new Date(e.startsAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }); return !e.disponible ? `${h} ${e.titulo}` : e.reservadoPor ? `${h} Reservado` : `${h} Libre` }
 const inp = { border: '1px solid #cbd5e1', borderRadius: '8px', padding: '0.5rem 0.75rem', fontSize: '0.85rem' }
 const card = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px' }
 
@@ -36,7 +34,6 @@ export function PanelAgendaGestor({ inicial }: { inicial: Gestion }) {
     if (!r.success) { alert(r.error); return }
     setStartsAt(''); setEndsAt(''); setTitulo(''); cargar()
   }
-  async function borrar(id: string) { const r = await eliminarEntradaGestionada(id); if (!r.success) alert(r.error); cargar() }
   async function toggle() {
     if (!anfitrion) return
     const r = await toggleAbiertaGestionada(anfitrionId, !anfitrion.agendaAbierta)
@@ -44,8 +41,8 @@ export function PanelAgendaGestor({ inicial }: { inicial: Gestion }) {
     const g = await getMiGestion(); if (g) setAnfitriones(g.anfitriones)
   }
 
-  const eventos: EventoCalendario[] = entradas.map((e) => ({ id: e.id, fecha: clave(e.startsAt), label: label(e), color: color(e) }))
-  const delDia = dia ? entradas.filter((e) => clave(e.startsAt) === clave(dia.toISOString())) : []
+  const eventos = entradas.map(eventoDeEntrada)
+  const delDia = entradasDelDia(entradas, dia)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -82,15 +79,7 @@ export function PanelAgendaGestor({ inicial }: { inicial: Gestion }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>{dia.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
           {delDia.length === 0 && <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Sin entradas ese día.</div>}
-          {delDia.map((e) => (
-            <div key={e.id} style={{ ...card, padding: '0.75rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{e.disponible ? (e.reservadoPor ? `Reservado — ${e.reservanteName}` : 'Hueco disponible') : e.titulo}</div>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{new Date(e.startsAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })} – {new Date(e.endsAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</div>
-              </div>
-              {!e.reservadoPor && <button onClick={() => borrar(e.id)} style={{ border: 'none', background: 'none', color: '#ef4444', fontSize: '0.75rem', cursor: 'pointer' }}>Borrar</button>}
-            </div>
-          ))}
+          {delDia.map((e) => <ItemEntradaAgenda key={e.id} e={e} onCambio={cargar} />)}
         </div>
       )}
     </div>

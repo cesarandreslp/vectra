@@ -1,24 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getMiAgenda, crearEntradaAgenda, eliminarEntradaAgenda, type EntradaAgenda } from '../actions'
-import { CalendarioMensual, type EventoCalendario } from '@/app/_components/calendario-mensual'
-
-function claveFechaLocal(iso: string): string {
-  const d = new Date(iso)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-function colorEntrada(e: EntradaAgenda): string {
-  if (!e.disponible) return '#64748b' // compromiso propio
-  return e.reservadoPor ? '#2563eb' : '#16a34a' // reservado / libre
-}
-
-function labelEntrada(e: EntradaAgenda): string {
-  const hora = new Date(e.startsAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
-  if (!e.disponible) return `${hora} ${e.titulo}`
-  return e.reservadoPor ? `${hora} Reservado` : `${hora} Libre`
-}
+import { getMiAgenda, crearEntradaAgenda, type EntradaAgenda } from '../actions'
+import { CalendarioMensual } from '@/app/_components/calendario-mensual'
+import { ItemEntradaAgenda, eventoDeEntrada, entradasDelDia } from '@/app/_components/entrada-agenda'
 
 export function PanelAgendaAnfitrion() {
   const [entradas, setEntradas] = useState<EntradaAgenda[] | null>(null)
@@ -46,21 +31,10 @@ export function PanelAgendaAnfitrion() {
     await cargar()
   }
 
-  async function onEliminar(id: string) {
-    const res = await eliminarEntradaAgenda(id)
-    if (!res.success) alert(res.error)
-    await cargar()
-  }
-
   if (entradas === null) return <div style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8', fontSize: '0.875rem' }}>Cargando...</div>
 
-  const eventos: EventoCalendario[] = entradas.map((e) => ({
-    id: e.id, fecha: claveFechaLocal(e.startsAt), label: labelEntrada(e), color: colorEntrada(e),
-  }))
-
-  const entradasDelDia = diaSeleccionado
-    ? entradas.filter((e) => claveFechaLocal(e.startsAt) === claveFechaLocal(diaSeleccionado.toISOString()))
-    : []
+  const eventos = entradas.map(eventoDeEntrada)
+  const entradasDelDiaSel = entradasDelDia(entradas, diaSeleccionado)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -106,25 +80,10 @@ export function PanelAgendaAnfitrion() {
           <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>
             {diaSeleccionado.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}
           </div>
-          {entradasDelDia.length === 0 && (
+          {entradasDelDiaSel.length === 0 && (
             <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Sin entradas ese día.</div>
           )}
-          {entradasDelDia.map((e) => (
-            <div key={e.id} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.75rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>
-                  {e.disponible ? (e.reservadoPor ? `Reservado — ${e.reservanteName}` : 'Hueco disponible') : e.titulo}
-                </div>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-                  {new Date(e.startsAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })} – {new Date(e.endsAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
-                  {e.motivo ? ` · ${e.motivo}` : ''}
-                </div>
-              </div>
-              {!e.reservadoPor && (
-                <button onClick={() => onEliminar(e.id)} style={{ border: 'none', background: 'none', color: '#ef4444', fontSize: '0.75rem', cursor: 'pointer' }}>Borrar</button>
-              )}
-            </div>
-          ))}
+          {entradasDelDiaSel.map((e) => <ItemEntradaAgenda key={e.id} e={e} onCambio={() => void cargar()} />)}
         </div>
       )}
     </div>

@@ -1,5 +1,6 @@
 'use server'
 
+import { fechaColombia } from '@/lib/hora-colombia'
 import { revalidatePath } from 'next/cache'
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantDb } from '@vectra/db'
@@ -155,8 +156,7 @@ export async function crearGrupo(
     data: {
       tenantId, actividadId, nombre: data.nombre.trim(),
       lugar: data.lugar?.trim() || undefined, responsableId: data.responsableId || undefined,
-      // datetime-local llega sin zona; el server lo interpreta en su hora local.
-      inicio: data.inicio ? new Date(data.inicio) : undefined,
+      inicio: data.inicio ? fechaColombia(data.inicio) : undefined,
       duracionMin: data.duracionMin ?? undefined,
     },
   })

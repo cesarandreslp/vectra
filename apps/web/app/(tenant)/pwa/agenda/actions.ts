@@ -6,7 +6,8 @@ import { type UserRole } from '@vectra/auth'
 import { getTenantDb } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
 import { idsLideres } from '@/app/(tenant)/core/actions'
-import { ambitoDeAnfitrion, puedeGestionar, type AgendaAmbito } from '@/lib/agenda'
+import { ambitoDeAnfitrion, puedeGestionar, type AgendaAmbito, type EstadoAgenda } from '@/lib/agenda'
+import { fechaColombia } from '@/lib/hora-colombia'
 
 // Mismos roles que puede tener cualquier sesión dentro de /pwa (pwa/layout.tsx)
 // — el control real de acceso es tener voterId, no el rol.
@@ -56,6 +57,8 @@ export interface EntradaAgenda {
   reservadoPor: string | null
   reservanteName: string | null
   motivo:       string | null
+  estado:       EstadoAgenda | null
+  retrasoMin:   number | null
 }
 
 /** Todas las entradas propias del anfitrión (compromisos + huecos), para gestionar su calendario. */
@@ -75,7 +78,7 @@ export async function getMiAgenda(): Promise<EntradaAgenda[]> {
   return entradas.map((e) => ({
     id: e.id, startsAt: e.startsAt.toISOString(), endsAt: e.endsAt.toISOString(),
     disponible: e.disponible, titulo: e.titulo, reservadoPor: e.reservadoPor,
-    reservanteName: e.reservante?.name ?? null, motivo: e.motivo,
+    reservanteName: e.reservante?.name ?? null, motivo: e.motivo, estado: e.estado, retrasoMin: e.retrasoMin,
   }))
 }
 
@@ -91,8 +94,8 @@ export async function crearEntradaAgenda(data: {
     return { success: false, error: 'Solo el candidato o un jefe de debate puede publicar agenda.' }
   }
 
-  const startsAt = new Date(data.startsAt)
-  const endsAt   = new Date(data.endsAt)
+  const startsAt = fechaColombia(data.startsAt)
+  const endsAt   = fechaColombia(data.endsAt)
   if (!(endsAt > startsAt)) return { success: false, error: 'La hora de fin debe ser después de la de inicio.' }
   if (!data.disponible && !data.titulo?.trim()) return { success: false, error: 'Falta el título del compromiso.' }
 
@@ -104,23 +107,6 @@ export async function crearEntradaAgenda(data: {
     },
   })
 
-  revalidatePath('/pwa/agenda')
-  return { success: true }
-}
-
-/** Borra una entrada propia — bloqueado si ya fue reservada (avisar al elector aparte primero). */
-export async function eliminarEntradaAgenda(id: string) {
-  const session = await requireAuth(ROLES_PWA)
-  if (!session.user.voterId) return { success: false, error: 'Cuenta sin elector enlazado.' }
-
-  const db = getTenantDb(await getTenantConnection(session.user.tenantId))
-  const entrada = await db.agendaEntrada.findFirst({
-    where: { id, tenantId: session.user.tenantId, anfitrionId: session.user.voterId },
-  })
-  if (!entrada) return { success: false, error: 'Entrada no encontrada.' }
-  if (entrada.reservadoPor) return { success: false, error: 'Ya fue reservada — avisa directo antes de borrarla.' }
-
-  await db.agendaEntrada.delete({ where: { id } })
   revalidatePath('/pwa/agenda')
   return { success: true }
 }
@@ -148,7 +134,7 @@ export async function getHuecosDisponibles(anfitrionId: string): Promise<HuecoDi
   const huecos = await db.agendaEntrada.findMany({
     where: {
       tenantId: session.user.tenantId, anfitrionId,
-      disponible: true, reservadoPor: null, startsAt: { gte: new Date() },
+      disponible: true, reservadoPor: null, estado: null, startsAt: { gte: new Date() },
     },
     orderBy: { startsAt: 'asc' },
     select: { id: true, startsAt: true, endsAt: true },
@@ -174,7 +160,7 @@ export async function reservarHueco(entradaId: string, motivo?: string) {
   }
 
   const resultado = await db.agendaEntrada.updateMany({
-    where: { id: entradaId, tenantId: session.user.tenantId, disponible: true, reservadoPor: null },
+    where: { id: entradaId, tenantId: session.user.tenantId, disponible: true, reservadoPor: null, estado: null },
     data:  { reservadoPor: session.user.voterId, motivo: motivo?.trim() || undefined },
   })
   if (resultado.count === 0) return { success: false, error: 'Ese hueco ya no está disponible — elige otro.' }
@@ -198,7 +184,7 @@ export async function getMisReservas(): Promise<(EntradaAgenda & { anfitrionName
   return reservas.map((e) => ({
     id: e.id, startsAt: e.startsAt.toISOString(), endsAt: e.endsAt.toISOString(),
     disponible: e.disponible, titulo: e.titulo, reservadoPor: e.reservadoPor,
-    reservanteName: null, motivo: e.motivo, anfitrionName: e.anfitrion.name,
+    reservanteName: null, motivo: e.motivo, estado: e.estado, retrasoMin: e.retrasoMin, anfitrionName: e.anfitrion.name,
   }))
 }
 
@@ -267,7 +253,7 @@ export async function crearConvocatoria(data: {
   await db.convocatoria.create({
     data: {
       tenantId: session.user.tenantId, convocanteId: session.user.voterId,
-      titulo: data.titulo.trim(), startsAt: new Date(data.startsAt), lugar: data.lugar?.trim() || undefined,
+      titulo: data.titulo.trim(), startsAt: fechaColombia(data.startsAt), lugar: data.lugar?.trim() || undefined,
       destinatarios: { create: voterIds.map((voterId) => ({ voterId })) },
     },
   })
@@ -378,7 +364,7 @@ export async function getAgendaGestionada(anfitrionId: string): Promise<EntradaA
   return entradas.map((e) => ({
     id: e.id, startsAt: e.startsAt.toISOString(), endsAt: e.endsAt.toISOString(),
     disponible: e.disponible, titulo: e.titulo, reservadoPor: e.reservadoPor,
-    reservanteName: e.reservante?.name ?? null, motivo: e.motivo,
+    reservanteName: e.reservante?.name ?? null, motivo: e.motivo, estado: e.estado, retrasoMin: e.retrasoMin,
   }))
 }
 
@@ -391,8 +377,8 @@ export async function crearEntradaGestionada(anfitrionId: string, data: {
   const auth = await autorizarSobreAnfitrion(anfitrionId, session, db)
   if (!auth.ok) return { success: false, error: auth.error }
 
-  const startsAt = new Date(data.startsAt)
-  const endsAt   = new Date(data.endsAt)
+  const startsAt = fechaColombia(data.startsAt)
+  const endsAt   = fechaColombia(data.endsAt)
   if (!(endsAt > startsAt)) return { success: false, error: 'La hora de fin debe ser después de la de inicio.' }
   if (!data.disponible && !data.titulo?.trim()) return { success: false, error: 'Falta el título del compromiso.' }
 
@@ -402,25 +388,6 @@ export async function crearEntradaGestionada(anfitrionId: string, data: {
       disponible: data.disponible, titulo: data.disponible ? undefined : data.titulo!.trim(),
     },
   })
-  revalidatePath('/pwa/agenda')
-  return { success: true }
-}
-
-/** Borra una entrada de una agenda que administro (bloqueado si fue reservada). */
-export async function eliminarEntradaGestionada(entradaId: string) {
-  const session = await requireAuth(ROLES_PWA)
-  const db = getTenantDb(await getTenantConnection(session.user.tenantId))
-
-  const entrada = await db.agendaEntrada.findFirst({
-    where:  { id: entradaId, tenantId: session.user.tenantId },
-    select: { anfitrionId: true, reservadoPor: true },
-  })
-  if (!entrada) return { success: false, error: 'Entrada no encontrada.' }
-  if (entrada.reservadoPor) return { success: false, error: 'Ya fue reservada — avisá al elector antes de borrarla.' }
-  const auth = await autorizarSobreAnfitrion(entrada.anfitrionId, session, db)
-  if (!auth.ok) return { success: false, error: auth.error }
-
-  await db.agendaEntrada.delete({ where: { id: entradaId } })
   revalidatePath('/pwa/agenda')
   return { success: true }
 }
@@ -448,5 +415,79 @@ export async function toggleAbiertaGestionada(anfitrionId: string, abierta: bool
     }),
   ])
   revalidatePath('/pwa/agenda')
+  return { success: true }
+}
+
+// ── Seguimiento de una entrada: editar, marcar estado, borrar ──────────────────
+// Un solo juego de acciones para los tres que manejan agenda: el propio
+// anfitrión, su gestor y el admin (autorizarSobreAnfitrion cubre los dos últimos).
+
+async function entradaAutorizada(id: string, session: Awaited<ReturnType<typeof requireAuth>>, db: ReturnType<typeof getTenantDb>) {
+  const entrada = await db.agendaEntrada.findFirst({
+    where:  { id, tenantId: session.user.tenantId },
+    select: { anfitrionId: true, reservadoPor: true, disponible: true, estado: true },
+  })
+  if (!entrada) return { ok: false as const, error: 'Entrada no encontrada.' }
+  if (entrada.anfitrionId !== session.user.voterId) {
+    const auth = await autorizarSobreAnfitrion(entrada.anfitrionId, session, db)
+    if (!auth.ok) return auth
+  }
+  return { ok: true as const, entrada }
+}
+
+function revalidarAgenda() {
+  revalidatePath('/pwa/agenda')
+  revalidatePath('/core/agenda')
+}
+
+/** Cambia horario (y título si es compromiso) — p. ej. cuando se corre una reunión. */
+export async function editarEntrada(id: string, data: { startsAt: string; endsAt: string; titulo?: string }) {
+  const session = await requireAuth(ROLES_PWA)
+  const db = getTenantDb(await getTenantConnection(session.user.tenantId))
+  const r = await entradaAutorizada(id, session, db)
+  if (!r.ok) return { success: false, error: r.error }
+
+  const startsAt = fechaColombia(data.startsAt)
+  const endsAt   = fechaColombia(data.endsAt)
+  if (!(endsAt > startsAt)) return { success: false, error: 'La hora de fin debe ser después de la de inicio.' }
+  if (!r.entrada.disponible && !data.titulo?.trim()) return { success: false, error: 'Falta el título del compromiso.' }
+
+  await db.agendaEntrada.update({
+    where: { id },
+    data:  { startsAt, endsAt, ...(r.entrada.disponible ? {} : { titulo: data.titulo!.trim() }) },
+  })
+  revalidarAgenda()
+  return { success: true }
+}
+
+/** Marca cómo terminó: realizada (con minutos de retraso si arrancó tarde), incumplida o cancelada. null = volver a pendiente. */
+export async function marcarEstadoEntrada(id: string, estado: EstadoAgenda | null, retrasoMin?: number) {
+  const session = await requireAuth(ROLES_PWA)
+  const db = getTenantDb(await getTenantConnection(session.user.tenantId))
+  const r = await entradaAutorizada(id, session, db)
+  if (!r.ok) return { success: false, error: r.error }
+  if (retrasoMin != null && (!Number.isInteger(retrasoMin) || retrasoMin < 0)) return { success: false, error: 'Retraso inválido.' }
+
+  await db.agendaEntrada.update({
+    where: { id },
+    // cumplido alimenta el mapa de rutas: se mantiene en sync con REALIZADA.
+    data:  { estado, retrasoMin: estado === 'REALIZADA' ? (retrasoMin ?? 0) : null, cumplido: estado === 'REALIZADA' },
+  })
+  revalidarAgenda()
+  return { success: true }
+}
+
+/** Borra una entrada. Si un elector la reservó, primero hay que marcarla cancelada: así queda la decisión explícita. */
+export async function eliminarEntrada(id: string) {
+  const session = await requireAuth(ROLES_PWA)
+  const db = getTenantDb(await getTenantConnection(session.user.tenantId))
+  const r = await entradaAutorizada(id, session, db)
+  if (!r.ok) return { success: false, error: r.error }
+  if (r.entrada.reservadoPor && r.entrada.estado !== 'CANCELADA') {
+    return { success: false, error: 'Un elector la reservó: márcala como cancelada antes de borrarla.' }
+  }
+
+  await db.agendaEntrada.delete({ where: { id } })
+  revalidarAgenda()
   return { success: true }
 }

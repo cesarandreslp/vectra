@@ -1,5 +1,6 @@
 'use server'
 
+import { fechaColombia } from '@/lib/hora-colombia'
 /**
  * Server Actions del módulo COMUNICACIONES.
  * Todas las acciones verifican autenticación, rol y módulo con requireModule('COMUNICACIONES').
@@ -383,7 +384,7 @@ export async function createCampaign(data: {
       channel: data.channel,
       templateId: data.templateId,
       segmentFilters: data.segmentFilters as Prisma.InputJsonValue,
-      scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
+      scheduledAt: data.scheduledAt ? fechaColombia(data.scheduledAt) : null,
       status,
       totalRecipients: recipients.length,
     },
