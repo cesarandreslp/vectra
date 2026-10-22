@@ -1,9 +1,17 @@
 import { redirect } from 'next/navigation'
+import { auth } from '@vectra/auth'
 import { requireAuthOrRedirect } from '@/lib/auth-helpers'
 import { AppShell } from '@/app/_components/app-shell'
 import { getBranding } from '@/lib/branding'
 import { LogoutButton } from '@/app/_components/logout-button'
 import { navDiaE, SCREENS_DIA_E } from './_lib/nav'
+
+/** El testigo que instala la app desde su mesa la abre en su puerta, no en "/" (que manda según el rol). */
+export async function generateMetadata() {
+  const session = await auth()
+  if (session?.user?.role !== 'TESTIGO') return {}
+  return { manifest: `/manifest/testigo?c=${encodeURIComponent(session.user.tenantSlug ?? '')}` }
+}
 
 export default async function DiaELayout({ children }: { children: React.ReactNode }) {
   const session = await requireAuthOrRedirect(

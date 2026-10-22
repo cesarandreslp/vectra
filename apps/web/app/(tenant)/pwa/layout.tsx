@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { auth } from '@vectra/auth'
 import { requireAuthOrRedirect } from '@/lib/auth-helpers'
 import { getBranding } from '@/lib/branding'
 import { LogoutButton } from '@/app/_components/logout-button'
@@ -15,6 +16,13 @@ import { getTenantConnection } from '@/lib/tenant'
  * el AppShell de /core — la PWA no pasa por ahí, quedaba con la marca
  * genérica de Vectra.
  */
+/** El elector que instala la app desde acá la abre en su puerta, no en "/" (que manda según el rol). */
+export async function generateMetadata() {
+  const session = await auth()
+  if (session?.user?.role !== 'ELECTOR') return {}
+  return { manifest: `/manifest/elector?c=${encodeURIComponent(session.user.tenantSlug ?? '')}` }
+}
+
 export default async function PwaLayout({ children }: { children: React.ReactNode }) {
   // El TESTIGO no entra a la PWA de electores: el día E su superficie es solo su
   // mesa (ver dia-e/layout). Se lo excluye a propósito — un testigo no viene acá

@@ -19,6 +19,7 @@ const RUTAS_PUBLICAS = [
   // cada ruta verifica su propia firma/token.
   '/api/webhooks/',
   '/api/agenda/recordatorios', // cron externo; la ruta exige CRON_SECRET
+  '/manifest/', // manifest de la PWA por puerta (público: lo pide el navegador sin sesión)
 ]
 
 /** La landing en `/` es siempre pública. La página decide si redirigir. */

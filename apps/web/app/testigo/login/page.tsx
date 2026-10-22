@@ -3,11 +3,15 @@ import { redirect } from 'next/navigation'
 import { getBrandingBySlug } from '@/lib/branding'
 import { LoginTestigoForm } from './_components/login-form'
 
-// El template del layout raíz ya añade " | Vectra"
-export const metadata = { title: 'Acceso de testigos' }
-
 interface Props {
   searchParams: Promise<{ c?: string }>
+}
+
+/** Instalada desde acá, la app abre en esta puerta y no en el panel del rol que tenga la sesión. */
+export async function generateMetadata({ searchParams }: Props) {
+  const { c } = await searchParams
+  // El template del layout raíz ya añade " | Vectra" al title.
+  return { title: 'Acceso de testigos', manifest: `/manifest/testigo${c ? `?c=${encodeURIComponent(c)}` : ''}` }
 }
 
 /**
