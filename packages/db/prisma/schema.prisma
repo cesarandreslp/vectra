@@ -587,6 +587,8 @@ model TenantConfig {
   // Respaldo: solo entra a leer el acta cuando Groq o Zhipu fallan, para que el
   // consenso no se quede con una sola lectura.
   mistralApiKey String?
+  // Claude (Anthropic): análisis de la estrategia de campaña.
+  anthropicApiKey String?
 
   // Branding por campaña
   logoUrl      String? // URL del logo en Vercel Blob

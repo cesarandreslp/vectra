@@ -1,11 +1,13 @@
 // Clientes de IA de Vectra
 // Zhipu Flash: análisis de fidelidad de líderes (módulo ANALYTICS)
+// Claude: análisis de la estrategia de campaña
 // Groq: tareas en tiempo real (notificaciones, sala de situación día E)
 // Visión: extracción de datos de formularios E-14 (módulo DIA_E)
 
 export { chatZhipu }           from './zhipu'
 export { extractE14WithZhipu } from './zhipu'
 export { chatGroq }            from './groq'
+export { chatClaude }          from './claude'
 export { extractE14WithGroq }  from './groq'
 export { extractE14WithMistral } from './mistral'
 export { consensoE14 }         from './e14-consensus'

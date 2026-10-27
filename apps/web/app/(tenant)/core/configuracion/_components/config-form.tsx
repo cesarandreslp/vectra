@@ -19,6 +19,7 @@ export function ConfigForm({ inicial, departamentos }: { inicial: ConfiguracionV
   const [groqKey,   setGroqKey]   = useState('')
   const [zhipuKey,  setZhipuKey]  = useState('')
   const [mistralKey, setMistralKey] = useState('')
+  const [anthropicKey, setAnthropicKey] = useState('')
   const [color,     setColor]     = useState(inicial.primaryColor ?? '#7d2839')
   const [domain,    setDomain]    = useState(inicial.domain ?? '')
   const [logoUrl,   setLogoUrl]   = useState(inicial.logoUrl)
@@ -101,6 +102,7 @@ export function ConfigForm({ inicial, departamentos }: { inicial: ConfiguracionV
         groqApiKey:   groqKey || undefined,
         zhipuApiKey:  zhipuKey || undefined,
         mistralApiKey: mistralKey || undefined,
+        anthropicApiKey: anthropicKey || undefined,
         primaryColor: color,
         domain,
         electionOffice:               cargo,
@@ -111,6 +113,7 @@ export function ConfigForm({ inicial, departamentos }: { inicial: ConfiguracionV
         setGroqKey('')
         setZhipuKey('')
         setMistralKey('')
+        setAnthropicKey('')
         setMsg({ tipo: 'ok', texto: 'Configuración guardada.' })
       } else {
         setMsg({ tipo: 'error', texto: res.error })
@@ -262,8 +265,21 @@ export function ConfigForm({ inicial, departamentos }: { inicial: ConfiguracionV
           esperable.
         </p>
 
+        <Campo label="Claude (Anthropic) API key">
+          <input
+            type="password" name="anthropic-api-key" autoComplete="new-password" {...antiAutofill}
+            value={anthropicKey} onChange={(e) => setAnthropicKey(e.target.value)}
+            placeholder={inicial.hasAnthropicKey ? '•••••••• (ya configurada)' : 'sk-ant-…'}
+            style={estiloInput}
+          />
+        </Campo>
         <p style={estiloHint}>
-          Las tres se guardan cifradas. Déjalas en blanco para no cambiarlas. Si no
+          Claude analiza la estrategia de la campaña: avance contra metas, hitos y
+          correctivos.
+        </p>
+
+        <p style={estiloHint}>
+          Todas se guardan cifradas. Déjalas en blanco para no cambiarlas. Si no
           configuras alguna, la campaña usa la clave global del sistema.
         </p>
       </Seccion>

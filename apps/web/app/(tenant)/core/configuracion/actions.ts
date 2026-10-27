@@ -18,6 +18,7 @@ export interface ConfiguracionView {
   hasGroqKey:   boolean
   hasZhipuKey:  boolean
   hasMistralKey: boolean
+  hasAnthropicKey: boolean
   logoUrl:      string | null
   primaryColor: string | null
   domain:       string | null
@@ -31,6 +32,7 @@ export interface GuardarConfigInput {
   groqApiKey?:   string  // vacío/omitido = no cambiar
   zhipuApiKey?:  string  // vacío/omitido = no cambiar
   mistralApiKey?: string  // respaldo — vacío/omitido = no cambiar
+  anthropicApiKey?: string // vacío/omitido = no cambiar
   primaryColor?: string  // hex, "" = limpiar
   domain?:       string  // "" = limpiar
   electionOffice?:               Cargo | ''  // '' = limpiar
@@ -56,6 +58,7 @@ export async function getConfiguracion(): Promise<ConfiguracionView> {
     hasGroqKey:   Boolean(cfg?.groqApiKey),
     hasZhipuKey:  Boolean(cfg?.zhipuApiKey),
     hasMistralKey: Boolean(cfg?.mistralApiKey),
+    hasAnthropicKey: Boolean(cfg?.anthropicApiKey),
     logoUrl:      cfg?.logoUrl ?? null,
     primaryColor: cfg?.primaryColor ?? null,
     domain:       tenant?.domain ?? null,
@@ -108,6 +111,7 @@ export async function guardarConfiguracion(
   if (input.groqApiKey?.trim())  dataConfig.groqApiKey  = encrypt(input.groqApiKey.trim())
   if (input.zhipuApiKey?.trim()) dataConfig.zhipuApiKey = encrypt(input.zhipuApiKey.trim())
   if (input.mistralApiKey?.trim()) dataConfig.mistralApiKey = encrypt(input.mistralApiKey.trim())
+  if (input.anthropicApiKey?.trim()) dataConfig.anthropicApiKey = encrypt(input.anthropicApiKey.trim())
   if (input.primaryColor !== undefined) dataConfig.primaryColor = input.primaryColor || null
   if (input.electionOffice !== undefined) dataConfig.electionOffice = input.electionOffice || null
   if (input.electionDepartmentCode !== undefined) dataConfig.electionDepartmentCode = input.electionDepartmentCode || null
