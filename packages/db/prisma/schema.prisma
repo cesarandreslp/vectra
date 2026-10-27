@@ -1635,3 +1635,51 @@ model ConvocatoriaDestinatario {
   @@unique([convocatoriaId, voterId])
   @@index([voterId])
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// CONTACTO DE CALLE — a quién saludó el candidato
+// ════════════════════════════════════════════════════════════════════════════
+
+enum TemperaturaContacto {
+  FRIO
+  TIBIO
+  CALIENTE
+}
+
+enum EstadoContactoCalle {
+  PENDIENTE // nadie le ha escrito todavía
+  INVITADO // el líder ya le mandó su link de registro
+  CONVERTIDO // se registró como elector (ver voterId)
+  DESCARTADO
+}
+
+/// Persona con la que el candidato (o un jefe de debate) habló en la calle.
+/// No es un Voter porque no hay cédula: es lo que se alcanza a anotar en
+/// segundos. Sin nombre = un "+1 saludo" anónimo, solo cuenta. El líder de la
+/// zona le da seguimiento hasta que se registra; ahí pasa a CONVERTIDO. No
+/// cuenta como "contacto" de la meta en cascada hasta convertirse.
+model ContactoCalle {
+  id              String               @id // lo genera el celular: reenviar la cola offline no duplica
+  tenantId        String
+  fecha           DateTime
+  anfitrionId     String // Voter.id — candidato o jefe de debate dueño del contacto
+  registradoPorId String? // Voter.id — quien lo digitó (p. ej. el asistente)
+  nombre          String?
+  // CIFRADO: campo PII — se cifra con AES-256 antes de persistir.
+  telefono        String?
+  telefonoHash    String? // SHA-256 del celular normalizado (lib/contacto-calle)
+  temperatura     TemperaturaContacto?
+  nota            String?
+  lat             Float?
+  lng             Float?
+  neighborhoodId  String?
+  communeId       String?
+  asignadoAId     String? // Voter.id — líder de barrio/comuna que hace el seguimiento
+  estado          EstadoContactoCalle  @default(PENDIENTE)
+  voterId         String? // elector en que se convirtió
+  createdAt       DateTime             @default(now())
+
+  @@index([tenantId, fecha])
+  @@index([tenantId, asignadoAId, estado])
+  @@index([tenantId, telefonoHash])
+}

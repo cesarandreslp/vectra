@@ -22,6 +22,7 @@ import { CARGOS_NACIONALES, CARGOS_DEPARTAMENTALES, CARGOS_MUNICIPALES } from '@
 import { calcularIndiceCompromiso }   from '@/lib/compromiso'
 import { titulosDe, type TituloLider } from '@/lib/lideres'
 import { avanceMeta, compromisosParaMeta, leerTasaFuga } from '@/lib/meta-votos'
+import { cerrarContactos }            from '@/lib/contacto-calle-db'
 import { chatGroq }                   from '@vectra/ai'
 import { getTenantAiKeys }            from '@/lib/tenant-ai'
 import { revalidatePath }             from 'next/cache'
@@ -615,6 +616,7 @@ export async function createVoter(
       },
     })
     await crearQrPropio(elector.id, session.user.tenantId, db)
+    await cerrarContactos(db, session.user.tenantId, data.phone, elector.id)
     trasAltaDeElectores(db, session.user.tenantId)
 
     revalidatePath('/core/electores')

@@ -9,19 +9,24 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { IconUsers, IconCalendar, IconClipboard, IconClock, IconCheck } from '@/app/_components/icons'
+import { IconUsers, IconCalendar, IconClipboard, IconClock, IconCheck, IconPin } from '@/app/_components/icons'
 
 interface NavBarProps {
   mostrarEncuestas: boolean
   /** Solo para el doliente de alguna actividad — el resto no tiene qué gestionar ahí. */
   mostrarActividades: boolean
+  /** Candidato, jefes de debate y quien les lleva la agenda: anotan a quién saludan. */
+  mostrarCalle: boolean
 }
 
-export function NavBar({ mostrarEncuestas, mostrarActividades }: NavBarProps) {
+export function NavBar({ mostrarEncuestas, mostrarActividades, mostrarCalle }: NavBarProps) {
   const pathname = usePathname()
 
   const tabs = [
     { href: '/pwa', label: 'Mis electores', icon: IconUsers, activo: pathname === '/pwa' },
+    ...(mostrarCalle
+      ? [{ href: '/pwa/calle', label: 'Calle', icon: IconPin, activo: pathname.startsWith('/pwa/calle') }]
+      : []),
     { href: '/pwa/reuniones', label: 'Reuniones', icon: IconCalendar, activo: pathname.startsWith('/pwa/reuniones') },
     { href: '/pwa/agenda', label: 'Agenda', icon: IconClock, activo: pathname.startsWith('/pwa/agenda') },
     ...(mostrarActividades

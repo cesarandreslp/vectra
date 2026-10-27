@@ -13,6 +13,7 @@
 
 import { createHash, randomUUID } from 'crypto'
 import { headers }                from 'next/headers'
+import { cerrarContactos } from '@/lib/contacto-calle-db'
 import { superadminDb, getTenantDb, encrypt } from '@vectra/db'
 import { getTenantConnection }    from '@/lib/tenant'
 import { crearAlertaDuplicado }   from '@/app/(tenant)/core/actions'
@@ -170,6 +171,8 @@ export async function registrarseConQR(
   // Su propio QR queda listo de inmediato para que, si a su vez capta a
   // alguien, esa persona quede bajo él — sin esperar a que "sea líder".
   const qrTokenPropio = await crearQrPropio(nuevoElector.id, tenantId, db)
+  // Si el candidato lo había saludado en la calle, ese contacto queda cerrado.
+  await cerrarContactos(db, tenantId, data.telefono, nuevoElector.id)
   trasAltaDeElectores(db, tenantId)
 
   // Incrementar contador de registros del QR

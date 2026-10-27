@@ -6,6 +6,7 @@ import { LogoutButton } from '@/app/_components/logout-button'
 import { NavBar } from './_components/nav-bar'
 import { getTenantDb } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
+import { capacidadCalle } from '@/lib/contacto-calle-db'
 
 /**
  * Antes /pwa no tenía guardia a nivel de página — dependía solo de que la API
@@ -41,13 +42,15 @@ export default async function PwaLayout({ children }: { children: React.ReactNod
 
   // La pestaña de actividades solo tiene sentido para quien responde por alguna:
   // el doliente. Para el resto no existe.
+  // La de calle, para el candidato, los jefes de debate y quien les lleva la agenda.
+  const db = getTenantDb(await getTenantConnection(session.user.tenantId))
   let esDoliente = false
   if (session.user.voterId) {
-    const db = getTenantDb(await getTenantConnection(session.user.tenantId))
     esDoliente = (await db.actividad.count({
       where: { tenantId: session.user.tenantId, dolienteId: session.user.voterId },
     })) > 0
   }
+  const mostrarCalle = Boolean(await capacidadCalle(session, db))
 
   return (
     // Sin este fondo explícito, el navegador aplica su oscurecimiento automático
@@ -75,7 +78,7 @@ export default async function PwaLayout({ children }: { children: React.ReactNod
         />
       </div>
       {children}
-      <NavBar mostrarEncuestas={session.user.activeModules.includes('ENCUESTAS')} mostrarActividades={esDoliente} />
+      <NavBar mostrarEncuestas={session.user.activeModules.includes('ENCUESTAS')} mostrarActividades={esDoliente} mostrarCalle={mostrarCalle} />
     </div>
   )
 }

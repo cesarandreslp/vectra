@@ -15,6 +15,7 @@ import { useRouter }       from 'next/navigation'
 import { IconPhone }       from '@/app/_components/icons'
 import { SuscripcionPush } from './_components/suscripcion-push'
 import { Invitar }         from './_components/invitar'
+import { BandejaCalle }    from './_components/bandeja-calle'
 import { ImportarMiGente } from './_components/importar-mi-gente'
 import { BannerEncuesta }  from './encuestas/_components/banner-encuesta'
 
@@ -115,6 +116,10 @@ export default function PwaHomePage() {
 
       <SuscripcionPush />
       <BannerEncuesta />
+
+      {data?.yo?.qrToken && (
+        <BandejaCalle qrToken={data.yo.qrToken} tenantSlug={data.tenantSlug ?? ''} nombre={data.yo.nombre} />
+      )}
 
       {data?.yo?.qrToken && (
         <div style={{ marginBottom: '1rem' }}>
