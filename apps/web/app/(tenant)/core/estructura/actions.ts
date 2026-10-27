@@ -3,8 +3,9 @@
 /**
  * Vista compuesta de la estructura humana de la campaña (solo lectura).
  * No modela nada nuevo: junta lo que ya vive repartido —cargo/sede en
- * TenantConfig, líderes en Commune/Neighborhood, staff en User, tesorero en
- * FinanceConfig— para verlo en una pantalla. Cada bloque se edita en su sitio.
+ * TenantConfig, líderes en Commune/Neighborhood, staff en User— para verlo en
+ * una pantalla. Cada bloque se edita en su sitio. Los cargos requeridos van
+ * aparte, en actions-cargos.ts.
  */
 
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
@@ -23,15 +24,9 @@ const ROL_LABEL: Record<string, string> = {
   LIDER: 'Líder', TESTIGO: 'Testigo', PERSONALIZADO: 'Personalizado',
 }
 
-// Roles de cumplimiento del primer anillo: no son roles fijos del sistema, se
-// arman como rol personalizado. Detectamos al jurídico por el nombre del rol.
-const JURIDICO_RE = /jur[íi]dic|abogad|asesor.*legal|\blegal\b/i
-
 export interface EstructuraView {
   candidato:      { nombre: string; cargo: string | null }
-  tesorero:       { nombre: string | null } | null // null si FINANZAS no está activo
-  asesorJuridico: string | null // nombre del staff con rol jurídico, o null (sugerido)
-  sede:           { nombre: string | null; direccion: string | null; lider: string | null }
+  sede:          { nombre: string | null; direccion: string | null; lider: string | null }
   territorio:     { comunas: number; comunasConLider: number; barrios: number; barriosConLider: number }
   staff:          { email: string; nombre: string | null; rol: string; activo: boolean }[]
 }
@@ -41,11 +36,8 @@ export async function getEstructura(): Promise<EstructuraView> {
   const tenantId = session.user.tenantId
   const db       = getTenantDb(await getTenantConnection(tenantId))
 
-  const [cfg, financeCfg, comunas, comunasConLider, barrios, barriosConLider, usuarios] = await Promise.all([
+  const [cfg, comunas, comunasConLider, barrios, barriosConLider, usuarios] = await Promise.all([
     db.tenantConfig.findUnique({ where: { tenantId } }),
-    session.user.activeModules.includes('FINANZAS')
-      ? db.financeConfig.findUnique({ where: { tenantId }, include: { tesorero: { select: { name: true } } } })
-      : Promise.resolve(null),
     db.commune.count(),
     db.commune.count({ where: { liderId: { not: null } } }),
     db.neighborhood.count(),
@@ -64,16 +56,11 @@ export async function getEstructura(): Promise<EstructuraView> {
     sedeLider = v?.name ?? null
   }
 
-  // ¿Ya hay un asesor jurídico? Buscamos un staff cuyo rol personalizado suene a jurídico.
-  const jur = usuarios.find((u) => u.customRole?.name && JURIDICO_RE.test(u.customRole.name))
-
   return {
     candidato: {
       nombre: session.user.tenantName ?? 'Campaña',
       cargo:  cfg?.electionOffice ? CARGO_LABEL[cfg.electionOffice] ?? cfg.electionOffice : null,
     },
-    tesorero:       session.user.activeModules.includes('FINANZAS') ? { nombre: financeCfg?.tesorero?.name ?? null } : null,
-    asesorJuridico: jur ? (jur.name ?? jur.email) : null,
     sede:       { nombre: cfg?.sedeNombre ?? null, direccion: cfg?.sedeDireccion ?? null, lider: sedeLider },
     territorio: { comunas, comunasConLider, barrios, barriosConLider },
     staff: usuarios.map((u) => ({

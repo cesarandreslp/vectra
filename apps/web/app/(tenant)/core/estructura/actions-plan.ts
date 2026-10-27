@@ -10,7 +10,7 @@
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantDb, superadminDb } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
-import { calcularCascada, esperadoHoy, type FactoresCascada, type Niveles } from './_lib/cascada'
+import { calcularCascada, esperadoHoy, factoresDe, type FactoresCascada, type Niveles } from './_lib/cascada'
 
 export interface LiderPlan {
   id:              string
@@ -43,13 +43,7 @@ export async function getPlanEstructura(): Promise<PlanView> {
     db.hitoEstructura.findMany({ where: { tenantId }, orderBy: { fecha: 'asc' } }),
     superadminDb.tenant.findUnique({ where: { id: tenantId }, select: { createdAt: true } }),
   ])
-  const factores = {
-    tasaFuga:                    cfg?.tasaFuga ?? 0.2,
-    tasaConversion:              cfg?.tasaConversion ?? 0.4,
-    compromisosPorMultiplicador: cfg?.compromisosPorMultiplicador ?? 12,
-    multiplicadoresPorLider:     cfg?.multiplicadoresPorLider ?? 10,
-    nivelLider:                  cfg?.nivelLider ?? 1,
-  }
+  const factores = { ...factoresDe(cfg), nivelLider: cfg?.nivelLider ?? 1 }
   const n = factores.nivelLider
 
   // Profundidad desde el candidato (0). Las raíces que no son el candidato

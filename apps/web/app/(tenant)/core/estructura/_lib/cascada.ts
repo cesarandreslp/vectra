@@ -6,6 +6,16 @@ export interface FactoresCascada {
   multiplicadoresPorLider:     number
 }
 
+/** Los factores guardados en TenantConfig, con su valor por defecto donde falten. */
+export function factoresDe(cfg: { [K in keyof FactoresCascada]?: number | null } | null): FactoresCascada {
+  return {
+    tasaFuga:                    cfg?.tasaFuga ?? 0.2,
+    tasaConversion:              cfg?.tasaConversion ?? 0.4,
+    compromisosPorMultiplicador: cfg?.compromisosPorMultiplicador ?? 12,
+    multiplicadoresPorLider:     cfg?.multiplicadoresPorLider ?? 10,
+  }
+}
+
 export interface Niveles {
   contactos:       number
   compromisos:     number

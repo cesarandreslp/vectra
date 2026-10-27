@@ -1,9 +1,11 @@
 import Link from 'next/link'
 import type { EstructuraView } from '../actions'
+import type { CargosView } from '../actions-cargos'
+import { CargosRequeridos } from './cargos-requeridos'
 
 /** Vista compuesta de solo lectura: cada bloque enlaza a donde se edita. */
-export function EstructuraPanel({ data }: { data: EstructuraView }) {
-  const { candidato, tesorero, asesorJuridico, sede, territorio, staff } = data
+export function EstructuraPanel({ data, cargos }: { data: EstructuraView; cargos: CargosView }) {
+  const { candidato, sede, territorio, staff } = data
   const total     = territorio.comunas + territorio.barrios
   const conLider  = territorio.comunasConLider + territorio.barriosConLider
   const cobertura = total ? Math.round((conLider / total) * 100) : 0
@@ -16,29 +18,11 @@ export function EstructuraPanel({ data }: { data: EstructuraView }) {
         <Persona nombre={candidato.nombre} sub={candidato.cargo ? `Candidato · ${candidato.cargo}` : 'Candidato · cargo sin definir'} />
       </Bloque>
 
-      <Bloque titulo="Roles de cumplimiento (sugeridos)" editar="/core/configuracion">
+      <Bloque titulo={`Cargos requeridos${candidato.cargo ? ` · campaña a ${candidato.cargo}` : ''}`} editar="/core/configuracion">
         <p style={notaStyle}>
-          El primer anillo que responde por la legalidad de la campaña. No son roles fijos:
-          se arman como rol personalizado en Configuración.
+          El equipo que pide este tipo de campaña. Los líderes de zona salen de la meta en cascada.
         </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-          <RolFila
-            rol="Tesorero"
-            descripcion="La plata: topes, rendición de cuentas (Cuentas Claras) e informes al CNE."
-            estado={tesorero ? (tesorero.nombre ?? 'Sin asignar') : 'Requiere módulo FINANZAS'}
-            asignado={Boolean(tesorero?.nombre)}
-            editar={tesorero && !tesorero.nombre ? '/finanzas/configuracion' : undefined}
-            editarLabel="asignar"
-          />
-          <RolFila
-            rol="Asesor jurídico"
-            descripcion="La ley: habilitación del candidato, protección de datos y reclamaciones del día E."
-            estado={asesorJuridico ?? 'Sugerido — sin asignar'}
-            asignado={Boolean(asesorJuridico)}
-            editar={asesorJuridico ? undefined : '/core/configuracion'}
-            editarLabel="crear rol"
-          />
-        </div>
+        <CargosRequeridos data={cargos} />
       </Bloque>
 
       <Bloque titulo="Sede" editar="/core/configuracion">
@@ -102,23 +86,6 @@ function Persona({ nombre, sub }: { nombre: string; sub: string }) {
     <div>
       <p style={{ margin: 0, fontWeight: 500, fontSize: '0.9rem', color: '#0f172a' }}>{nombre}</p>
       <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b' }}>{sub}</p>
-    </div>
-  )
-}
-
-function RolFila({ rol, descripcion, estado, asignado, editar, editarLabel }: {
-  rol: string; descripcion: string; estado: string; asignado: boolean; editar?: string; editarLabel?: string
-}) {
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.75rem' }}>
-        <span style={{ fontWeight: 500, fontSize: '0.9rem', color: '#0f172a' }}>{rol}</span>
-        <span style={{ fontSize: '0.8rem', color: asignado ? '#0f172a' : '#b45309', whiteSpace: 'nowrap' }}>
-          {estado}
-          {editar && <> · <Link href={editar} style={{ color: '#1e40af' }}>{editarLabel}</Link></>}
-        </span>
-      </div>
-      <p style={{ margin: '0.1rem 0 0', fontSize: '0.75rem', color: '#64748b' }}>{descripcion}</p>
     </div>
   )
 }
