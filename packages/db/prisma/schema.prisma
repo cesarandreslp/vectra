@@ -301,6 +301,11 @@ model Voter {
   // Cargos de la plantilla de la campaña que ocupa o conversa (ver CargoAsignacion).
   cargos        CargoAsignacion[]
 
+  // Lista de los 100: prospectos a líder que esta persona lleva, y el
+  // prospecto que fue esta persona antes de aceptar (0..1).
+  prospectosACargo ProspectoLider[] @relation("ProspectoResponsable")
+  prospectoOrigen  ProspectoLider?  @relation("ProspectoVoter")
+
   leader       Voter?        @relation("VoterHierarchy", fields: [leaderId], references: [id])
   followers    Voter[]       @relation("VoterHierarchy")
   neighborhood Neighborhood? @relation("VoterBarrio", fields: [neighborhoodId], references: [id])
@@ -628,6 +633,37 @@ model CargoAsignacion {
   voter Voter? @relation(fields: [voterId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, cargo, indice])
+}
+
+enum EtapaProspecto {
+  CANDIDATO
+  CONVERSADO
+  ACEPTO
+  NO_ACEPTO
+}
+
+/// "Lista de los 100": embudo de reclutamiento de líderes. Aparte de
+/// MeetingProspecto (que es solo quién fue a una reunión): este se sigue por
+/// etapas hasta que acepta y queda enlazado al Voter que actúa como líder.
+/// Una fecha por paso; si se devuelve de etapa se borran las posteriores.
+model ProspectoLider {
+  id            String         @id @default(cuid())
+  tenantId      String
+  nombre        String
+  // CIFRADO: campo PII — se cifra con AES-256 antes de persistir. Nunca sale al cliente.
+  phone         String?
+  notas         String?
+  etapa         EtapaProspecto @default(CANDIDATO)
+  responsableId String? // Voter que lo lleva
+  voterId       String?        @unique // al aceptar: el Voter que actúa como líder en el árbol
+  createdAt     DateTime       @default(now()) // entró como candidato
+  conversadoEn  DateTime?
+  decididoEn    DateTime? // aceptó o no aceptó
+
+  responsable Voter? @relation("ProspectoResponsable", fields: [responsableId], references: [id], onDelete: SetNull)
+  voter       Voter? @relation("ProspectoVoter", fields: [voterId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, etapa])
 }
 
 // ─── MODELOS TENANT — MÓDULO FORMACIÓN ───────────────────────────────────────
