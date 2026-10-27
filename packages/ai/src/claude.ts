@@ -21,6 +21,8 @@ export async function chatClaude(
   userMessage: string,
   apiKey: string | undefined = process.env.ANTHROPIC_API_KEY,
   effort: 'low' | 'medium' | 'high' = 'high',
+  /** JSON Schema: si viene, la respuesta es JSON que cumple el esquema (structured outputs). */
+  schema?: Record<string, unknown>,
 ): Promise<string> {
   if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY no está configurada (ni global ni por campaña).')
@@ -34,7 +36,7 @@ export async function chatClaude(
     max_tokens:    32000,
     betas:         ['server-side-fallback-2026-07-01'],
     fallbacks:     'default',
-    output_config: { effort },
+    output_config: { effort, ...(schema && { format: { type: 'json_schema' as const, schema } }) },
     system:        systemPrompt,
     messages:      [{ role: 'user', content: userMessage }],
   }).finalMessage()

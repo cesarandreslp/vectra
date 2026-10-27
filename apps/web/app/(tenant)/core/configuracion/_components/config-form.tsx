@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { coloresDeLogo } from '@/lib/color-de-logo'
-import { guardarConfiguracion, listarMunicipios, type ConfiguracionView, type Cargo, type Opcion } from '../actions'
+import { guardarConfiguracion, listarMunicipios, type ConfiguracionView, type Cargo, type ModoAgente, type Opcion } from '../actions'
 
 const CARGOS: { value: Cargo; label: string }[] = [
   { value: 'ALCALDE',       label: 'Alcalde/Alcaldesa' },
@@ -20,6 +20,7 @@ export function ConfigForm({ inicial, departamentos }: { inicial: ConfiguracionV
   const [zhipuKey,  setZhipuKey]  = useState('')
   const [mistralKey, setMistralKey] = useState('')
   const [anthropicKey, setAnthropicKey] = useState('')
+  const [modoAgente, setModoAgente] = useState<ModoAgente>(inicial.modoAgente)
   const [color,     setColor]     = useState(inicial.primaryColor ?? '#7d2839')
   const [domain,    setDomain]    = useState(inicial.domain ?? '')
   const [logoUrl,   setLogoUrl]   = useState(inicial.logoUrl)
@@ -103,6 +104,7 @@ export function ConfigForm({ inicial, departamentos }: { inicial: ConfiguracionV
         zhipuApiKey:  zhipuKey || undefined,
         mistralApiKey: mistralKey || undefined,
         anthropicApiKey: anthropicKey || undefined,
+        modoAgente,
         primaryColor: color,
         domain,
         electionOffice:               cargo,
@@ -277,6 +279,14 @@ export function ConfigForm({ inicial, departamentos }: { inicial: ConfiguracionV
           Claude analiza la estrategia de la campaña: avance contra metas, hitos y
           correctivos.
         </p>
+        <Campo label="Agente semanal de estrategia">
+          <select value={modoAgente} onChange={(e) => setModoAgente(e.target.value as ModoAgente)} style={estiloInput}>
+            <option value="AUTONOMO">Aplica los correctivos solo</option>
+            <option value="SOLO_INFORME">Solo informa, no cambia nada</option>
+            <option value="APAGADO">Apagado</option>
+          </select>
+          <p style={estiloHint}>Cada lunes revisa el avance y corrige metas, contactos y tareas. Ver Analytics → Estrategia.</p>
+        </Campo>
 
         <p style={estiloHint}>
           Todas se guardan cifradas. Déjalas en blanco para no cambiarlas. Si no

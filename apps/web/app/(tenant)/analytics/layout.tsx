@@ -4,7 +4,7 @@ import { AppShell, type NavItem } from '@/app/_components/app-shell'
 
 const SCREENS_ANALYTICS = [
   'ANALYTICS_DASHBOARD', 'ANALYTICS_TERRITORIO', 'ANALYTICS_LIDERES',
-  'ANALYTICS_PROYECCION', 'ANALYTICS_CONFIGURACION',
+  'ANALYTICS_PROYECCION', 'ANALYTICS_ESTRATEGIA', 'ANALYTICS_CONFIGURACION',
 ]
 
 export default async function AnalyticsLayout({ children }: { children: React.ReactNode }) {
@@ -26,6 +26,7 @@ export default async function AnalyticsLayout({ children }: { children: React.Re
     ...(puedeVer('ANALYTICS_TERRITORIO')    ? [{ href: '/analytics/territorio', label: 'Territorio' } as NavItem] : []),
     ...(puedeVer('ANALYTICS_LIDERES')       ? [{ href: '/analytics/lideres', label: 'Líderes' } as NavItem] : []),
     ...(puedeVer('ANALYTICS_PROYECCION')    ? [{ href: '/analytics/proyeccion', label: 'Proyección' } as NavItem] : []),
+    ...(puedeVer('ANALYTICS_ESTRATEGIA')    ? [{ href: '/analytics/estrategia', label: 'Estrategia' } as NavItem] : []),
     ...(puedeVer('ANALYTICS_CONFIGURACION') ? [{ href: '/analytics/configuracion', label: 'Configuración' } as NavItem] : []),
   ]
 

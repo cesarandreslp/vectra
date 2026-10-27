@@ -141,18 +141,18 @@ model GlobalTrainingMaterial {
 /// La autenticación es global: un email pertenece a UN solo tenant en toda la
 /// plataforma. El authorize busca el user por email sin necesidad de subdominio.
 model User {
-  id           String   @id @default(cuid())
+  id           String      @id @default(cuid())
   tenantId     String
   name         String? // Nombre completo (opcional para no romper registros existentes)
-  email        String   @unique // Único en toda la plataforma — login universal
+  email        String      @unique // Único en toda la plataforma — login universal
   passwordHash String // Nunca almacenar contraseña en texto plano
   role         UserRole
   // Referencia suelta al Voter.id de este usuario en SU base de tenant (User vive
   // en la DB del superadmin, Voter en la del tenant — no puede ser @relation).
   // Para roles LIDER/TESTIGO: acota qué ve a su propio sub-árbol de electores.
   voterId      String?
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
   // Solo tiene sentido si role = PERSONALIZADO — de dónde salen sus permisos reales.
   customRoleId String?
   customRole   CustomRole? @relation(fields: [customRoleId], references: [id])
@@ -267,8 +267,8 @@ model Voter {
   censoVerificadoEn DateTime?
 
   // Módulo Encuestas
-  conversationState  ConversationState  @default(PENDIENTE)
-  consent            Boolean            @default(false)
+  conversationState  ConversationState       @default(PENDIENTE)
+  consent            Boolean                 @default(false)
   surveyContactDate  DateTime?
   surveyResponseDate DateTime?
   surveyResponses    SurveyResponse[]
@@ -277,18 +277,18 @@ model Voter {
   meetingAttendances MeetingAttendance[]
 
   // Agenda reservable (candidato / jefes de debate) y convocatorias top-down
-  agendaPropia            AgendaEntrada[]             @relation("AgendaAnfitrion")
-  agendaReservas          AgendaEntrada[]              @relation("AgendaReservante")
-  aperturasAgendaPropia   AgendaApertura[]            @relation("AgendaAperturaAnfitrion")
-  aperturasAgendaGestion  AgendaApertura[]            @relation("AgendaAperturaGestor")
-  convocatoriasCreadas    Convocatoria[]
-  convocatoriasRecibidas  ConvocatoriaDestinatario[]
+  agendaPropia           AgendaEntrada[]            @relation("AgendaAnfitrion")
+  agendaReservas         AgendaEntrada[]            @relation("AgendaReservante")
+  aperturasAgendaPropia  AgendaApertura[]           @relation("AgendaAperturaAnfitrion")
+  aperturasAgendaGestion AgendaApertura[]           @relation("AgendaAperturaGestor")
+  convocatoriasCreadas   Convocatoria[]
+  convocatoriasRecibidas ConvocatoriaDestinatario[]
 
   // Actividades sociales: grupos temporales que coordina o integra
-  gruposCoordinados       GrupoActividad[]           @relation("GrupoResponsable")
-  membresiasGrupo         MiembroGrupo[]             @relation("MiembroGrupoVoter")
-  actividadesADoliente    Actividad[]                @relation("ActividadDoliente")
-  perfil                  PerfilSimpatizante?        @relation("PerfilDelVoter")
+  gruposCoordinados    GrupoActividad[]    @relation("GrupoResponsable")
+  membresiasGrupo      MiembroGrupo[]      @relation("MiembroGrupoVoter")
+  actividadesADoliente Actividad[]         @relation("ActividadDoliente")
+  perfil               PerfilSimpatizante? @relation("PerfilDelVoter")
 
   // Cargos territoriales (aparte del árbol de captación): qué barrios y comunas
   // coordina esta persona.
@@ -296,10 +296,10 @@ model Voter {
   comunasACargo Commune[]      @relation("ComunaLider")
 
   // Config financiera donde esta persona figura como tesorero (0..1 por tenant).
-  tesoreriaDe   FinanceConfig[] @relation("Tesorero")
+  tesoreriaDe FinanceConfig[] @relation("Tesorero")
 
   // Cargos de la plantilla de la campaña que ocupa o conversa (ver CargoAsignacion).
-  cargos        CargoAsignacion[]
+  cargos CargoAsignacion[]
 
   // Lista de los 100: prospectos a líder que esta persona lleva, y el
   // prospecto que fue esta persona antes de aceptar (0..1).
@@ -310,8 +310,8 @@ model Voter {
   followers    Voter[]       @relation("VoterHierarchy")
   neighborhood Neighborhood? @relation("VoterBarrio", fields: [neighborhoodId], references: [id])
   votingTable  VotingTable?  @relation(fields: [votingTableId], references: [id])
-  referredBy  Voter?       @relation("VoterReferrals", fields: [referredById], references: [id])
-  referrals   Voter[]      @relation("VoterReferrals")
+  referredBy   Voter?        @relation("VoterReferrals", fields: [referredById], references: [id])
+  referrals    Voter[]       @relation("VoterReferrals")
 
   // Un elector no puede estar duplicado dentro del mismo tenant (por cédula cifrada)
   @@unique([tenantId, cedula])
@@ -418,15 +418,15 @@ model Commune {
 
 /// Barrio (zona urbana) o vereda (zona rural) dentro de una comuna/corregimiento.
 model Neighborhood {
-  id        String @id @default(cuid())
+  id        String  @id @default(cuid())
   name      String
   communeId String
   boundary  Json? // Polígono real: array de [lat, lng] (orden Leaflet), sin huecos
   /// Líder del barrio: con quién se coordina lo que pasa acá.
   liderId   String?
 
-  commune   Commune @relation(fields: [communeId], references: [id])
-  lider     Voter?  @relation("BarrioLider", fields: [liderId], references: [id])
+  commune    Commune @relation(fields: [communeId], references: [id])
+  lider      Voter?  @relation("BarrioLider", fields: [liderId], references: [id])
   habitantes Voter[] @relation("VoterBarrio")
 }
 
@@ -435,9 +435,9 @@ model Neighborhood {
 /// del identificador del formulario E-14 (depto + municipio + ZONA + puesto + mesa).
 /// OJO: distinta de Commune (comuna/corregimiento administrativo, capa social).
 model Zona {
-  id             String @id @default(cuid())
+  id             String  @id @default(cuid())
   municipalityId String
-  code           String  // "01", "02"… como la reporta la Registraduría
+  code           String // "01", "02"… como la reporta la Registraduría
   name           String? // opcional, descriptivo
 
   municipality Municipality    @relation(fields: [municipalityId], references: [id])
@@ -574,21 +574,24 @@ model TenantConfig {
   // Apaga el canal WhatsApp sin borrar las credenciales guardadas — la fuente
   // principal es la respuesta in-app, WhatsApp queda opcional por switch.
   whatsappSurveyEnabled Boolean @default(true)
-  whatsappToken       String?
-  whatsappPhoneId     String?
-  whatsappVerifyToken String?
-  botName             String? @default("Asistente Virtual")
-  surveyDailyLimit    Int     @default(250)
+  whatsappToken         String?
+  whatsappPhoneId       String?
+  whatsappVerifyToken   String?
+  botName               String? @default("Asistente Virtual")
+  surveyDailyLimit      Int     @default(250)
 
   // IA por campaña — CIFRADAS en reposo (AES-256-GCM). Si están vacías, se usan
   // las claves globales del sistema (GROQ_API_KEY / ZHIPU_API_KEY / MISTRAL_API_KEY).
-  groqApiKey  String?
-  zhipuApiKey String?
+  groqApiKey      String?
+  zhipuApiKey     String?
   // Respaldo: solo entra a leer el acta cuando Groq o Zhipu fallan, para que el
   // consenso no se quede con una sola lectura.
-  mistralApiKey String?
+  mistralApiKey   String?
   // Claude (Anthropic): análisis de la estrategia de campaña.
   anthropicApiKey String?
+  // Agente semanal de estrategia: AUTONOMO aplica correctivos, SOLO_INFORME
+  // diagnostica sin tocar nada, APAGADO no corre. Interruptor de emergencia.
+  modoAgente      ModoAgente @default(AUTONOMO)
 
   // Branding por campaña
   logoUrl      String? // URL del logo en Vercel Blob
@@ -805,14 +808,14 @@ model Certificate {
 /// gobernación y presidencia la foto y la agrupación NO son opcionales: es
 /// como el testigo identifica el renglón en el acta impresa (ver docs/e14.webp).
 model Candidate {
-  id            String  @id @default(cuid())
-  tenantId      String
-  name          String
-  party         String? // agrupación: partido o movimiento
-  partyLogoUrl  String? // logo de la agrupación — Vercel Blob
-  photoUrl      String? // foto del candidato — Vercel Blob
-  isOwn         Boolean @default(false) // true = nuestro candidato (se sincroniza de Voter.isCandidate)
-  order         Int     @default(0) // número en el tarjetón
+  id           String  @id @default(cuid())
+  tenantId     String
+  name         String
+  party        String? // agrupación: partido o movimiento
+  partyLogoUrl String? // logo de la agrupación — Vercel Blob
+  photoUrl     String? // foto del candidato — Vercel Blob
+  isOwn        Boolean @default(false) // true = nuestro candidato (se sincroniza de Voter.isCandidate)
+  order        Int     @default(0) // número en el tarjetón
 
   @@index([tenantId])
 }
@@ -1192,13 +1195,13 @@ model SurveyCargo {
 
 /// Tipo de pregunta en la encuesta
 enum SurveyPreguntaType {
-  FREE_TEXT       // abierta, la IA identifica un candidato entre los del cargo
-  BOOLEAN         // sí / no
-  SINGLE_CHOICE   // una opción entre varias (radio)
+  FREE_TEXT // abierta, la IA identifica un candidato entre los del cargo
+  BOOLEAN // sí / no
+  SINGLE_CHOICE // una opción entre varias (radio)
   MULTIPLE_CHOICE // varias opciones (checkboxes)
-  DROPDOWN        // una opción, en lista desplegable
-  PARAGRAPH       // texto libre largo, SIN IA
-  SCALE           // escala numérica (scaleMin..scaleMax), ej. 1-5
+  DROPDOWN // una opción, en lista desplegable
+  PARAGRAPH // texto libre largo, SIN IA
+  SCALE // escala numérica (scaleMin..scaleMax), ej. 1-5
 }
 
 /// Pregunta asociada a un cargo en la encuesta
@@ -1369,27 +1372,27 @@ model MeetingProspecto {
 /// (con título, NUNCA visible para el elector). El elector solo consulta
 /// disponible=true AND reservadoPor=null.
 model AgendaEntrada {
-  id           String   @id @default(cuid())
-  tenantId     String
-  anfitrionId  String // Voter con agenda propia (candidato o jefe de debate)
-  startsAt     DateTime
-  endsAt       DateTime
-  disponible   Boolean // true = hueco publicado para reservar; false = compromiso privado del anfitrión
-  titulo       String? // solo compromisos (disponible=false) — nunca se expone a electores
-  reservadoPor String? // Voter del elector que reservó (solo si disponible=true)
-  motivo       String? // lo que puso el elector al reservar
-  createdAt    DateTime @default(now())
+  id                  String        @id @default(cuid())
+  tenantId            String
+  anfitrionId         String // Voter con agenda propia (candidato o jefe de debate)
+  startsAt            DateTime
+  endsAt              DateTime
+  disponible          Boolean // true = hueco publicado para reservar; false = compromiso privado del anfitrión
+  titulo              String? // solo compromisos (disponible=false) — nunca se expone a electores
+  reservadoPor        String? // Voter del elector que reservó (solo si disponible=true)
+  motivo              String? // lo que puso el elector al reservar
+  createdAt           DateTime      @default(now())
   // Dirección física de la entrada (para logística/ruta) — geocodificada con
   // el mismo mecanismo que Voter.address (ver lib/geocode.ts). lat/lng null
   // hasta que se geocodifique o si la dirección no se pudo resolver.
-  direccion    String?
-  lat          Float?
-  lng          Float?
-  ordenRuta    Int? // posición manual dentro de la ruta sugerida del día (null = sin definir)
-  cumplido     Boolean  @default(false) // marcado por quien maneja la agenda al arrancar/completar la ruta
-  estado       EstadoAgenda? // null = pendiente; lo marca quien maneja la agenda
-  retrasoMin   Int? // minutos que arrancó tarde (solo REALIZADA); null/0 = a tiempo
-  recordatorioEnviado Boolean @default(false) // push de "empieza en 30 min" ya enviado; se resetea si cambia la hora
+  direccion           String?
+  lat                 Float?
+  lng                 Float?
+  ordenRuta           Int? // posición manual dentro de la ruta sugerida del día (null = sin definir)
+  cumplido            Boolean       @default(false) // marcado por quien maneja la agenda al arrancar/completar la ruta
+  estado              EstadoAgenda? // null = pendiente; lo marca quien maneja la agenda
+  retrasoMin          Int? // minutos que arrancó tarde (solo REALIZADA); null/0 = a tiempo
+  recordatorioEnviado Boolean       @default(false) // push de "empieza en 30 min" ya enviado; se resetea si cambia la hora
 
   anfitrion  Voter  @relation("AgendaAnfitrion", fields: [anfitrionId], references: [id], onDelete: Cascade)
   reservante Voter? @relation("AgendaReservante", fields: [reservadoPor], references: [id], onDelete: SetNull)
@@ -1474,24 +1477,24 @@ enum InsumoEstado {
 /// Actividad social de campaña. El "qué" y el "cuándo"; el "dónde/quién" vive
 /// en sus grupos.
 model Actividad {
-  id          String          @id @default(cuid())
-  tenantId    String
-  nombre      String
-  categoria   String? // salud, mascotas, recreación, ambiental, etc.
-  descripcion String?
-  fecha       DateTime?
-  estado      ActividadEstado @default(PLANEADA)
+  id                     String          @id @default(cuid())
+  tenantId               String
+  nombre                 String
+  categoria              String? // salud, mascotas, recreación, ambiental, etc.
+  descripcion            String?
+  fecha                  DateTime?
+  estado                 ActividadEstado @default(PLANEADA)
   // Doliente: el responsable de que la actividad ocurra. Obligatorio — no hay
   // actividad sin alguien que responda por ella. Restrict: no se puede borrar
   // al elector mientras tenga actividades a cargo (primero se reasignan).
-  dolienteId  String
+  dolienteId             String
   // Aprobación del presupuesto: la hace el área financiera (tesorero) sobre el
   // total de insumos. Sin ella la actividad no pasa de PLANEADA — no se ejecuta.
   // Si cambian los insumos, la aprobación se cae y hay que rehacerla.
-  presupuestoAprobado    Boolean   @default(false)
+  presupuestoAprobado    Boolean         @default(false)
   presupuestoAprobadoPor String? // email del usuario que aprobó (User vive en la DB del superadmin)
   presupuestoAprobadoEn  DateTime?
-  createdAt   DateTime        @default(now())
+  createdAt              DateTime        @default(now())
 
   doliente Voter            @relation("ActividadDoliente", fields: [dolienteId], references: [id])
   grupos   GrupoActividad[]
@@ -1513,28 +1516,28 @@ model PerfilSimpatizante {
   tenantId String
   voterId  String @unique
 
-  oficio         String? // a qué se dedica
-  habilidades    String[] // etiquetas libres: conduce, cocina, primeros auxilios, sonido…
-  herramientas   String[] // lo que puede poner: carpa, megáfono, olla comunitaria…
+  oficio          String? // a qué se dedica
+  habilidades     String[] // etiquetas libres: conduce, cocina, primeros auxilios, sonido…
+  herramientas    String[] // lo que puede poner: carpa, megáfono, olla comunitaria…
   // Franjas en las que puede: tokens DIA_FRANJA (ej. "SAB_MANANA"). Se cruzan
   // con el horario de los grupos para no convocar a alguien que no puede.
-  disponibilidad String[]
-  vehiculo       VehiculoPropio  @default(NINGUNO)
-  nivelEducativo NivelEducativo?
+  disponibilidad  String[]
+  vehiculo        VehiculoPropio  @default(NINGUNO)
+  nivelEducativo  NivelEducativo?
   /// "¿En qué?" del título de base. Solo tiene sentido de TECNICO para arriba:
   /// un bachiller no es bachiller "en" algo.
-  tituloEn       String?
-  posgrado       Posgrado?
+  tituloEn        String?
+  posgrado        Posgrado?
   /// "¿En qué?" del posgrado, que rara vez es lo mismo que el pregrado.
-  posgradoEn     String?
+  posgradoEn      String?
   /// Certificaciones y cursos: etiquetas libres, igual que habilidades
   /// (ej. "manipulación de alimentos", "alturas", "primeros auxilios").
   certificaciones String[]
-  experiencia    String? // experiencia previa en campaña o actividades sociales
-  zonaAccion     String? // barrio o zona donde se mueve
-  aceptaWhatsapp Boolean         @default(false)
-  nota           String?
-  actualizadoEn  DateTime        @updatedAt
+  experiencia     String? // experiencia previa en campaña o actividades sociales
+  zonaAccion      String? // barrio o zona donde se mueve
+  aceptaWhatsapp  Boolean         @default(false)
+  nota            String?
+  actualizadoEn   DateTime        @updatedAt
 
   voter Voter @relation("PerfilDelVoter", fields: [voterId], references: [id], onDelete: Cascade)
 
@@ -1544,7 +1547,7 @@ model PerfilSimpatizante {
 /// Grupo temporal que ejecuta una actividad en un lugar puntual. Una actividad
 /// puede tener varios; se arman para la ocasión y no persisten como estructura.
 model GrupoActividad {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   tenantId      String
   actividadId   String
   nombre        String // ej: "Parque San José" o "Brigada norte"
@@ -1556,7 +1559,7 @@ model GrupoActividad {
   inicio        DateTime?
   duracionMin   Int?
   responsableId String? // Voter que coordina el grupo
-  createdAt     DateTime @default(now())
+  createdAt     DateTime  @default(now())
 
   actividad   Actividad      @relation(fields: [actividadId], references: [id], onDelete: Cascade)
   responsable Voter?         @relation("GrupoResponsable", fields: [responsableId], references: [id], onDelete: SetNull)
@@ -1684,4 +1687,65 @@ model ContactoCalle {
   @@index([tenantId, fecha])
   @@index([tenantId, asignadoAId, estado])
   @@index([tenantId, telefonoHash])
+}
+
+// ─── AGENTE SEMANAL DE ESTRATEGIA ────────────────────────────────────────────
+
+enum ModoAgente {
+  AUTONOMO
+  SOLO_INFORME
+  APAGADO
+}
+
+enum EstadoAnalisis {
+  OK
+  ERROR
+}
+
+enum EstadoCorrectivo {
+  APLICADO
+  RECHAZADO
+  DESHECHO
+  PROPUESTO // modo SOLO_INFORME: válido pero no se aplicó
+}
+
+/// Una corrida semanal del agente: lo que vio (snapshot sin PII), lo que
+/// concluyó y los correctivos que propuso. Una por semana y tenant.
+model AnalisisEstrategia {
+  id          String         @id @default(cuid())
+  tenantId    String
+  semana      DateTime // lunes de la semana (00:00 hora Colombia)
+  estado      EstadoAnalisis
+  diagnostico String?
+  prioridades Json? // string[]
+  snapshot    Json // lo que recibió el modelo (alias en vez de nombres)
+  alias       Json? // alias → id, para mostrar nombres reales; nunca sale al modelo
+  error       String?
+  createdAt   DateTime       @default(now())
+
+  correctivos CorrectivoEstrategia[]
+
+  @@unique([tenantId, semana])
+}
+
+/// Registro de cada correctivo: aplicado, rechazado por los topes o deshecho.
+/// `antes` permite deshacer; solo se deshace si el valor actual sigue siendo `despues`.
+model CorrectivoEstrategia {
+  id            String           @id @default(cuid())
+  tenantId      String
+  analisisId    String
+  tipo          String // META_LIDER, META_COMUNA, REASIGNAR_CONTACTO, AVISO
+  objetivoId    String?
+  antes         Json?
+  despues       Json?
+  motivo        String
+  estado        EstadoCorrectivo
+  motivoRechazo String?
+  deshechoPor   String? // email de quien lo deshizo
+  deshechoEn    DateTime?
+  createdAt     DateTime         @default(now())
+
+  analisis AnalisisEstrategia @relation(fields: [analisisId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, analisisId])
 }

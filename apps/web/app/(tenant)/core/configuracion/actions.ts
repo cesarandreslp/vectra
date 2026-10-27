@@ -13,12 +13,15 @@ import { revalidatePath }        from 'next/cache'
 
 const CARGOS = ['ALCALDE', 'CONCEJAL', 'GOBERNADOR', 'DIPUTADO', 'REPRESENTANTE', 'SENADOR', 'PRESIDENTE'] as const
 export type Cargo = (typeof CARGOS)[number]
+const MODOS = ['AUTONOMO', 'SOLO_INFORME', 'APAGADO'] as const
+export type ModoAgente = (typeof MODOS)[number]
 
 export interface ConfiguracionView {
   hasGroqKey:   boolean
   hasZhipuKey:  boolean
   hasMistralKey: boolean
   hasAnthropicKey: boolean
+  modoAgente:   ModoAgente
   logoUrl:      string | null
   primaryColor: string | null
   domain:       string | null
@@ -33,6 +36,7 @@ export interface GuardarConfigInput {
   zhipuApiKey?:  string  // vacío/omitido = no cambiar
   mistralApiKey?: string  // respaldo — vacío/omitido = no cambiar
   anthropicApiKey?: string // vacío/omitido = no cambiar
+  modoAgente?:   ModoAgente
   primaryColor?: string  // hex, "" = limpiar
   domain?:       string  // "" = limpiar
   electionOffice?:               Cargo | ''  // '' = limpiar
@@ -59,6 +63,7 @@ export async function getConfiguracion(): Promise<ConfiguracionView> {
     hasZhipuKey:  Boolean(cfg?.zhipuApiKey),
     hasMistralKey: Boolean(cfg?.mistralApiKey),
     hasAnthropicKey: Boolean(cfg?.anthropicApiKey),
+    modoAgente:   cfg?.modoAgente ?? 'AUTONOMO',
     logoUrl:      cfg?.logoUrl ?? null,
     primaryColor: cfg?.primaryColor ?? null,
     domain:       tenant?.domain ?? null,
@@ -101,6 +106,9 @@ export async function guardarConfiguracion(
   if (input.primaryColor && !/^#[0-9a-fA-F]{6}$/.test(input.primaryColor)) {
     return { success: false, error: 'El color primario debe ser un hex como #7d2839.' }
   }
+  if (input.modoAgente && !MODOS.includes(input.modoAgente)) {
+    return { success: false, error: 'Modo del agente inválido.' }
+  }
   if (input.electionOffice && !CARGOS.includes(input.electionOffice)) {
     return { success: false, error: 'Cargo de elección inválido.' }
   }
@@ -112,6 +120,7 @@ export async function guardarConfiguracion(
   if (input.zhipuApiKey?.trim()) dataConfig.zhipuApiKey = encrypt(input.zhipuApiKey.trim())
   if (input.mistralApiKey?.trim()) dataConfig.mistralApiKey = encrypt(input.mistralApiKey.trim())
   if (input.anthropicApiKey?.trim()) dataConfig.anthropicApiKey = encrypt(input.anthropicApiKey.trim())
+  if (input.modoAgente) dataConfig.modoAgente = input.modoAgente
   if (input.primaryColor !== undefined) dataConfig.primaryColor = input.primaryColor || null
   if (input.electionOffice !== undefined) dataConfig.electionOffice = input.electionOffice || null
   if (input.electionDepartmentCode !== undefined) dataConfig.electionDepartmentCode = input.electionDepartmentCode || null
