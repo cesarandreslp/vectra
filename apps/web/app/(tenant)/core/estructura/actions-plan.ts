@@ -8,9 +8,9 @@
  */
 
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
-import { getTenantDb } from '@vectra/db'
+import { getTenantDb, superadminDb } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
-import { calcularCascada, type FactoresCascada, type Niveles } from './_lib/cascada'
+import { calcularCascada, esperadoHoy, type FactoresCascada, type Niveles } from './_lib/cascada'
 
 export interface LiderPlan {
   id:              string
@@ -26,6 +26,9 @@ export interface PlanView {
   necesario:  Niveles | null // null sin meta configurada
   real:       Niveles
   lideres:    LiderPlan[] // ordenados por mayor faltante
+  hitos:      number      // cuántos hay definidos
+  proximo:    (Niveles & { fecha: Date; nota: string | null }) | null
+  esperado:   Niveles | null // a hoy, interpolado entre hitos; null sin hitos
 }
 
 interface FilaLider { id: string; nombre: string; targetVotes: number; multiplicadores: bigint; compromisos: bigint }
@@ -35,7 +38,11 @@ export async function getPlanEstructura(): Promise<PlanView> {
   const tenantId = session.user.tenantId
   const db       = getTenantDb(await getTenantConnection(tenantId))
 
-  const cfg = await db.tenantConfig.findUnique({ where: { tenantId } })
+  const [cfg, hitos, tenant] = await Promise.all([
+    db.tenantConfig.findUnique({ where: { tenantId } }),
+    db.hitoEstructura.findMany({ where: { tenantId }, orderBy: { fecha: 'asc' } }),
+    superadminDb.tenant.findUnique({ where: { id: tenantId }, select: { createdAt: true } }),
+  ])
   const factores = {
     tasaFuga:                    cfg?.tasaFuga ?? 0.2,
     tasaConversion:              cfg?.tasaConversion ?? 0.4,
@@ -96,5 +103,8 @@ export async function getPlanEstructura(): Promise<PlanView> {
       multiplicadores: lideres.reduce((s, l) => s + l.multiplicadores, 0),
     },
     lideres,
+    hitos: hitos.length,
+    // Antes del primer hito se arranca de cero en la fecha de alta del tenant.
+    ...esperadoHoy(hitos, tenant?.createdAt ?? new Date(), new Date()),
   }
 }

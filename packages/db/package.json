@@ -27,6 +27,7 @@
     "db:sembrar-zonas-prueba": "tsx src/sembrar-zonas-prueba.ts",
     "db:sembrar-red-prueba-buga": "tsx src/sembrar-red-prueba-buga.ts",
     "db:sembrar-testigos-prueba": "tsx src/sembrar-testigos-prueba.ts",
+    "db:sembrar-hitos-buga": "tsx src/sembrar-hitos-buga.ts",
     "db:backfill-qr-electores": "tsx src/backfill-qr-electores.ts",
     "generate": "prisma generate --schema=./prisma/schema.prisma",
     "postinstall": "prisma generate --schema=./prisma/schema.prisma"

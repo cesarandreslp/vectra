@@ -2,14 +2,14 @@ import type { PlanView } from '../actions-plan'
 import type { Niveles } from '../_lib/cascada'
 import { Bloque } from './estructura-panel'
 
-const NIVELES: { key: keyof Niveles; label: string }[] = [
+export const NIVELES: { key: keyof Niveles; label: string }[] = [
   { key: 'contactos',       label: 'Contactos' },
   { key: 'compromisos',     label: 'Compromisos' },
   { key: 'multiplicadores', label: 'Multiplicadores' },
   { key: 'lideres',         label: 'Líderes de zona' },
 ]
 
-const fmt = (n: number) => n.toLocaleString('es-CO')
+export const fmt = (n: number) => n.toLocaleString('es-CO')
 
 /** Meta en cascada: lo que la meta exige por nivel contra lo que hay en la red. */
 export function MetaCascada({ plan }: { plan: PlanView }) {
@@ -77,9 +77,9 @@ export function MetaCascada({ plan }: { plan: PlanView }) {
   )
 }
 
-const nota: React.CSSProperties  = { margin: '0 0 0.75rem', fontSize: '0.78rem', color: '#64748b' }
-const tabla: React.CSSProperties = { width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }
-const th: React.CSSProperties    = { textAlign: 'left', fontWeight: 500, color: '#64748b', fontSize: '0.75rem', padding: '0.35rem 0.5rem', borderBottom: '1px solid #e2e8f0' }
-const thN: React.CSSProperties   = { ...th, textAlign: 'right' }
-const td: React.CSSProperties    = { padding: '0.4rem 0.5rem', borderBottom: '1px solid #f1f5f9', color: '#0f172a' }
-const tdN: React.CSSProperties   = { ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }
+export const nota: React.CSSProperties  = { margin: '0 0 0.75rem', fontSize: '0.78rem', color: '#64748b' }
+export const tabla: React.CSSProperties = { width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }
+export const th: React.CSSProperties    = { textAlign: 'left', fontWeight: 500, color: '#64748b', fontSize: '0.75rem', padding: '0.35rem 0.5rem', borderBottom: '1px solid #e2e8f0' }
+export const thN: React.CSSProperties   = { ...th, textAlign: 'right' }
+export const td: React.CSSProperties    = { padding: '0.4rem 0.5rem', borderBottom: '1px solid #f1f5f9', color: '#0f172a' }
+export const tdN: React.CSSProperties   = { ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }

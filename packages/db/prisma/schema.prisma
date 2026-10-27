@@ -587,6 +587,22 @@ model TenantConfig {
   updatedAt DateTime @updatedAt
 }
 
+// Hito del plan de la estructura: lo que la red debe tener a una fecha.
+// /core/estructura interpola en línea recta entre hitos para saber si se va a tiempo.
+model HitoEstructura {
+  id              String   @id @default(cuid())
+  tenantId        String
+  fecha           DateTime
+  contactos       Int
+  compromisos     Int
+  lideres         Int
+  multiplicadores Int
+  nota            String?
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId, fecha])
+}
+
 // ─── MODELOS TENANT — MÓDULO FORMACIÓN ───────────────────────────────────────
 // Modelos específicos del módulo de Formación y Capacitación.
 

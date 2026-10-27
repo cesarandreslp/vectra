@@ -68,3 +68,75 @@ export async function guardarFactoresPlan(input: FactoresPlan): Promise<Resultad
   revalidatePath('/core/estructura')
   return { success: true }
 }
+
+// ── Hitos con fecha ──────────────────────────────────────────────────────────
+
+export interface HitoView {
+  id:              string
+  fecha:           string // YYYY-MM-DD
+  contactos:       number
+  compromisos:     number
+  lideres:         number
+  multiplicadores: number
+  nota:            string | null
+}
+
+export type HitoInput = Omit<HitoView, 'id'>
+
+function validarHito(h: HitoInput): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(h.fecha) || isNaN(Date.parse(h.fecha))) return 'Fecha inválida.'
+  const nums = [h.contactos, h.compromisos, h.lideres, h.multiplicadores]
+  if (!nums.every((n) => Number.isInteger(n) && n >= 0)) return 'Las cantidades deben ser enteros ≥ 0.'
+  return null
+}
+
+function datosHito(h: HitoInput) {
+  return {
+    fecha:           new Date(`${h.fecha}T00:00:00Z`),
+    contactos:       h.contactos,
+    compromisos:     h.compromisos,
+    lideres:         h.lideres,
+    multiplicadores: h.multiplicadores,
+    nota:            h.nota?.trim() || null,
+  }
+}
+
+function revalidarHitos() {
+  revalidatePath('/core/configuracion')
+  revalidatePath('/core/estructura')
+}
+
+export async function listarHitos(): Promise<HitoView[]> {
+  const { tenantId, db } = await sesionYDb('view')
+  const hitos = await db.hitoEstructura.findMany({ where: { tenantId }, orderBy: { fecha: 'asc' } })
+  return hitos.map((h) => ({
+    id: h.id, fecha: h.fecha.toISOString().slice(0, 10), nota: h.nota,
+    contactos: h.contactos, compromisos: h.compromisos, lideres: h.lideres, multiplicadores: h.multiplicadores,
+  }))
+}
+
+export async function crearHito(input: HitoInput): Promise<Resultado> {
+  const { tenantId, db } = await sesionYDb('edit')
+  const error = validarHito(input)
+  if (error) return { success: false, error }
+  await db.hitoEstructura.create({ data: { tenantId, ...datosHito(input) } })
+  revalidarHitos()
+  return { success: true }
+}
+
+export async function actualizarHito(id: string, input: HitoInput): Promise<Resultado> {
+  const { tenantId, db } = await sesionYDb('edit')
+  const error = validarHito(input)
+  if (error) return { success: false, error }
+  const { count } = await db.hitoEstructura.updateMany({ where: { id, tenantId }, data: datosHito(input) })
+  if (!count) return { success: false, error: 'El hito no existe.' }
+  revalidarHitos()
+  return { success: true }
+}
+
+export async function eliminarHito(id: string): Promise<Resultado> {
+  const { tenantId, db } = await sesionYDb('edit')
+  await db.hitoEstructura.deleteMany({ where: { id, tenantId } })
+  revalidarHitos()
+  return { success: true }
+}
