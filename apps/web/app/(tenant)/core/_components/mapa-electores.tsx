@@ -9,7 +9,7 @@ import { usePantallaCompleta, BotonPantallaCompleta, ESTILO_MAPA } from '@/app/(
 import { useLimiteMapa, aplicarLimite } from '@/app/(tenant)/_components/limite-mapa'
 import { PanelPuesto } from './panel-puesto'
 import { SinUbicar } from './sin-ubicar'
-import { dibujarCapaCalorComunas, comunasConMeta, temperaturaDe, colorDe, etiquetaDe, type TemperaturaZona } from './calor-comunas'
+import { dibujarCapaCalorComunas, comunasConMeta, temperaturaDe, colorDe, etiquetaDe, avance, type TemperaturaZona } from './calor-comunas'
 
 const COLOR_ESTADO: Record<string, string> = {
   SIN_CONTACTAR: '#94a3b8',
@@ -100,7 +100,7 @@ function dibujarCapaComunas(L: typeof import('leaflet'), capa: import('leaflet')
       color: c.color, weight: 2, fillColor: c.color, fillOpacity: 0.35,
     })
       .bindPopup(`<b>${c.name}</b><br>${c.totalElectores} elector(es)` +
-        (c.metaVotos ? `<br>Avance: ${c.comprometidos} de ${c.metaVotos} votos meta (${pctMeta(c)} %)` : ''))
+        (c.metaVotos ? `<br>Avance: ${c.comprometidos} de ${c.compromisosMeta} compromisos (${avance(c)} %) · meta ${c.metaVotos} votos` : ''))
       .addTo(capa)
   })
   // Encima de las comunas sombreadas, los electores ubicados (mismos puntos que "por residencia").
@@ -471,15 +471,12 @@ function ControlesCalor({ puntos, comunas }: { puntos: VoterGeo[]; comunas: Comu
   )
 }
 
-/** Comprometidos + voto seguro sobre la meta de la comuna. */
-function pctMeta(c: ComunaGeo): number {
-  return c.metaVotos ? Math.round((c.comprometidos / c.metaVotos) * 100) : 0
-}
 
 function ControlesComuna({ comunas }: { comunas: ComunaGeo[] }) {
   // Las de mayor meta primero: son las que más pesan para llegar al total.
   const ordenadas = [...comunas].sort((a, b) => (b.metaVotos ?? 0) - (a.metaVotos ?? 0) || b.totalElectores - a.totalElectores)
   const meta = comunas.reduce((a, c) => a + (c.metaVotos ?? 0), 0)
+  const necesarios = comunas.reduce((a, c) => a + (c.compromisosMeta ?? 0), 0)
   const logrado = comunas.reduce((a, c) => a + c.comprometidos, 0)
   return (
     <div style={{ marginBottom: '0.75rem' }}>
@@ -496,13 +493,13 @@ function ControlesComuna({ comunas }: { comunas: ComunaGeo[] }) {
             {/* El punto es la leyenda: ata el nombre a su polígono en el mapa. */}
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: c.color }} />
             {c.metaVotos
-              ? <>{c.name}: {c.comprometidos}/{c.metaVotos} <span style={{ color: pctMeta(c) >= 100 ? '#15803d' : '#94a3b8', fontWeight: 500 }}>({pctMeta(c)} %)</span></>
+              ? <>{c.name}: {c.comprometidos}/{c.compromisosMeta} <span style={{ color: avance(c) >= 100 ? '#15803d' : '#94a3b8', fontWeight: 500 }}>({avance(c)} %)</span></>
               : <>{c.name}: {c.totalElectores}</>}
           </span>
         ))}
       </div>
       <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.4rem' }}>
-        {meta > 0 && <><b style={{ color: '#334155' }}>Total: {logrado} de {meta} votos meta ({Math.round((logrado / meta) * 100)} %)</b> · comprometidos + voto seguro sobre la meta de cada comuna (se edita en Territorio). </>}
+        {meta > 0 && <><b style={{ color: '#334155' }}>Total: {logrado} de {necesarios} compromisos ({Math.round((logrado / necesarios) * 100)} %) para {meta} votos meta</b> · comprometidos + voto seguro sobre lo que pide la meta de cada comuna descontando la fuga (la meta se edita en Territorio). </>}
         Solo cuenta electores ya ubicados en el mapa (vista &quot;por residencia&quot;).
       </p>
     </div>

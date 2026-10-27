@@ -15,6 +15,7 @@ import { chatZhipu }           from '@vectra/ai'
 import { getTenantAiKeys }     from '@/lib/tenant-ai'
 import { idsLideres }          from '@/app/(tenant)/core/actions'
 import { revalidatePath }      from 'next/cache'
+import { avanceMeta, compromisosParaMeta, leerTasaFuga, TASA_FUGA_POR_DEFECTO } from '@/lib/meta-votos'
 
 // ── Tipos exportados ──────────────────────────────────────────────────────────
 
@@ -180,9 +181,9 @@ export async function getAnalyticsDashboard(): Promise<DashboardKpi> {
   const lideresActivos   = lideresConActividad
   const lideresInactivos = totalLideres - lideresActivos
 
-  // % avance global: (comprometidos + voto_seguro) / meta
+  // % avance global: (comprometidos + voto_seguro) sobre lo que pide la meta descontando la fuga
   const pctAvance = config?.metaVotos
-    ? Math.round((comprometidos / config.metaVotos) * 100)
+    ? avanceMeta(comprometidos, config.metaVotos, config.tasaFuga ?? TASA_FUGA_POR_DEFECTO)
     : null
 
   // Días restantes hasta la elección
@@ -225,6 +226,7 @@ export async function getAnalyticsDashboard(): Promise<DashboardKpi> {
 
 export async function getAnalysisByTerritory(): Promise<TerritoryRow[]> {
   const { db, tenantId } = await getDbAndTenant('ANALYTICS_TERRITORIO')
+  const tasaFuga = await leerTasaFuga(db, tenantId)
 
   // Quién es líder lo decide titulosPorLider() en CORE, no un HAVING acá.
   // Antes estas dos consultas repetían la regla en SQL (>= N directos) y se
@@ -293,9 +295,9 @@ export async function getAnalysisByTerritory(): Promise<TerritoryRow[]> {
       divipola:       r.divipola,
       registrados,
       comprometidos,
-      pctAvance:      meta > 0 ? Math.round((comprometidos / meta) * 100) : 0,
+      pctAvance:      avanceMeta(comprometidos, meta, tasaFuga),
       meta,
-      brecha:         Math.max(0, meta - comprometidos),
+      brecha:         meta > 0 ? Math.max(0, compromisosParaMeta(meta, tasaFuga) - comprometidos) : 0,
       lideresActivos: Number(r.lideres_activos),
     }
   })
@@ -311,9 +313,9 @@ export async function getAnalysisByTerritory(): Promise<TerritoryRow[]> {
       divipola:       '—',
       registrados,
       comprometidos,
-      pctAvance:      meta > 0 ? Math.round((comprometidos / meta) * 100) : 0,
+      pctAvance:      avanceMeta(comprometidos, meta, tasaFuga),
       meta,
-      brecha:         Math.max(0, meta - comprometidos),
+      brecha:         meta > 0 ? Math.max(0, compromisosParaMeta(meta, tasaFuga) - comprometidos) : 0,
       lideresActivos: Number(sa.lideres_activos),
     })
   }
@@ -390,6 +392,7 @@ export async function getLeaderAnalytics(filters?: LeaderFilters): Promise<Leade
   const ahora     = Date.now()
   const tresDias  = 3 * 24 * 60 * 60 * 1000
   const sieteDias = 7 * 24 * 60 * 60 * 1000
+  const tasaFuga  = await leerTasaFuga(db, tenantId)
 
   const rows: LeaderAnalyticsRow[] = leaders.map(leader => {
     const electoresAsignados = leader.followers.length
@@ -397,9 +400,7 @@ export async function getLeaderAnalytics(filters?: LeaderFilters): Promise<Leade
       v => v.commitmentStatus === 'COMPROMETIDO' || v.commitmentStatus === 'VOTO_SEGURO'
     ).length
 
-    const pctAvance = leader.targetVotes > 0
-      ? Math.round((comprometidos / leader.targetVotes) * 100)
-      : 0
+    const pctAvance = avanceMeta(comprometidos, leader.targetVotes, tasaFuga)
 
     // Última actividad: MAX entre createdAt y lastContact de todos los voters
     let ultimaAct: Date | null = null
@@ -410,9 +411,7 @@ export async function getLeaderAnalytics(filters?: LeaderFilters): Promise<Leade
 
     // Índice de fidelidad (0-100)
     // base: (comprometidos / meta) * 60 (max 60)
-    const base = leader.targetVotes > 0
-      ? Math.min(60, Math.round((comprometidos / leader.targetVotes) * 60))
-      : 0
+    const base = Math.min(60, Math.round(avanceMeta(comprometidos, leader.targetVotes, tasaFuga) * 0.6))
 
     // actividad: < 3 días +20, < 7 días +10, > 7 días +0
     let puntosActividad = 0
@@ -558,7 +557,7 @@ export async function generarAnalisisLider(leaderId: string): Promise<LeaderAnal
     metricas: {
       totalElectores:   totalVoters,
       comprometidos,
-      pctAvance:        leader.targetVotes > 0 ? Math.round((comprometidos / leader.targetVotes) * 100) : 0,
+      pctAvance:        avanceMeta(comprometidos, leader.targetVotes, await leerTasaFuga(db, tenantId)),
       registrosQR:      porQR,
       registrosManuales: porManual,
       registrosUltimos30Dias: registrosUlt30,

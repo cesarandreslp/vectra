@@ -1,3 +1,5 @@
+import { compromisosParaMeta } from '@/lib/meta-votos'
+
 /** Factores editables de la meta en cascada (viven en TenantConfig). */
 export interface FactoresCascada {
   tasaFuga:                    number // fracción de compromisos que no llega a votar
@@ -25,7 +27,7 @@ export interface Niveles {
 
 /** De la meta de votos hacia abajo: lo necesario en cada nivel, siempre redondeado hacia arriba. */
 export function calcularCascada(metaVotos: number, f: FactoresCascada): Niveles {
-  const compromisos     = Math.ceil(metaVotos / (1 - f.tasaFuga))
+  const compromisos     = compromisosParaMeta(metaVotos, f.tasaFuga)
   const contactos       = Math.ceil(compromisos / f.tasaConversion)
   const multiplicadores = Math.ceil(compromisos / f.compromisosPorMultiplicador)
   const lideres         = Math.ceil(multiplicadores / f.multiplicadoresPorLider)

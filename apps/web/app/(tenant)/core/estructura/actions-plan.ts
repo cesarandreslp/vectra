@@ -10,6 +10,7 @@
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantDb, superadminDb } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
+import { compromisosParaMeta } from '@/lib/meta-votos'
 import { calcularCascada, esperadoHoy, factoresDe, type FactoresCascada, type Niveles } from './_lib/cascada'
 
 export interface LiderPlan {
@@ -17,7 +18,7 @@ export interface LiderPlan {
   nombre:          string
   multiplicadores: number
   compromisos:     number // de su subárbol, él incluido
-  esperado:        number // targetVotes si lo tiene; si no, multiplicadoresPorLider × compromisosPorMultiplicador
+  esperado:        number // compromisos: los que pide su targetVotes (con fuga) o, sin meta propia, multiplicadoresPorLider × compromisosPorMultiplicador
 }
 
 export interface PlanView {
@@ -29,6 +30,8 @@ export interface PlanView {
   hitos:      number      // cuántos hay definidos
   proximo:    (Niveles & { fecha: Date; nota: string | null }) | null
   esperado:   Niveles | null // a hoy, interpolado entre hitos; null sin hitos
+  /** Reparto de la meta global en las comunas (Territorio): debería sumar metaVotos. */
+  metasComunas: { suma: number; conMeta: number; total: number }
 }
 
 interface FilaLider { id: string; nombre: string; targetVotes: number; multiplicadores: bigint; compromisos: bigint }
@@ -38,10 +41,13 @@ export async function getPlanEstructura(): Promise<PlanView> {
   const tenantId = session.user.tenantId
   const db       = getTenantDb(await getTenantConnection(tenantId))
 
-  const [cfg, hitos, tenant] = await Promise.all([
+  const [cfg, hitos, tenant, sumaComunas, comunas, comunasConMeta] = await Promise.all([
     db.tenantConfig.findUnique({ where: { tenantId } }),
     db.hitoEstructura.findMany({ where: { tenantId }, orderBy: { fecha: 'asc' } }),
     superadminDb.tenant.findUnique({ where: { id: tenantId }, select: { createdAt: true } }),
+    db.commune.aggregate({ _sum: { metaVotos: true } }),
+    db.commune.count(),
+    db.commune.count({ where: { metaVotos: { not: null } } }),
   ])
   const factores = { ...factoresDe(cfg), nivelLider: cfg?.nivelLider ?? 1 }
   const n = factores.nivelLider
@@ -83,7 +89,7 @@ export async function getPlanEstructura(): Promise<PlanView> {
       nombre:          f.nombre,
       multiplicadores: Number(f.multiplicadores),
       compromisos:     Number(f.compromisos),
-      esperado:        f.targetVotes > 0 ? f.targetVotes : porDefecto,
+      esperado:        f.targetVotes > 0 ? compromisosParaMeta(f.targetVotes, factores.tasaFuga) : porDefecto,
     }))
     .sort((a, b) => (b.esperado - b.compromisos) - (a.esperado - a.compromisos))
 
@@ -100,5 +106,6 @@ export async function getPlanEstructura(): Promise<PlanView> {
     hitos: hitos.length,
     // Antes del primer hito se arranca de cero en la fecha de alta del tenant.
     ...esperadoHoy(hitos, tenant?.createdAt ?? new Date(), new Date()),
+    metasComunas: { suma: sumaComunas._sum.metaVotos ?? 0, conMeta: comunasConMeta, total: comunas },
   }
 }

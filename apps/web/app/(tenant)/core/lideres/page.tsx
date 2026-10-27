@@ -108,6 +108,7 @@ export default async function LideresPage({ searchParams }: Props) {
                 <BarraProgreso
                   valor={lider.comprometidos}
                   meta={lider.targetVotes}
+                  necesarios={lider.compromisosMeta}
                   pct={lider.pctAvance}
                 />
 

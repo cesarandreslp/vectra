@@ -78,6 +78,18 @@ export async function getMunicipalityByDivipola(
 
 // ── Comunas / corregimientos ────────────────────────────────────────────────
 
+/** Meta global de la campaña y lo que suman las metas de TODAS las comunas, para avisar si no cuadran. */
+export async function getRepartoMeta(): Promise<{ metaVotos: number | null; sumaComunas: number }> {
+  const session  = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR'], 'CORE_TERRITORIO')
+  const tenantId = session.user.tenantId
+  const db       = await dbTenant(tenantId)
+  const [cfg, suma] = await Promise.all([
+    db.tenantConfig.findUnique({ where: { tenantId }, select: { metaVotos: true } }),
+    db.commune.aggregate({ _sum: { metaVotos: true } }),
+  ])
+  return { metaVotos: cfg?.metaVotos ?? null, sumaComunas: suma._sum.metaVotos ?? 0 }
+}
+
 export async function listCommunes(municipalityId: string): Promise<CommuneSummary[]> {
   const session = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR'], 'CORE_TERRITORIO')
   const db      = await dbTenant(session.user.tenantId)
@@ -147,6 +159,7 @@ export async function updateCommune(
 
   revalidatePath('/core/territorio')
   revalidatePath('/core') // el mapa por comuna muestra el avance contra la meta
+  revalidatePath('/core/estructura') // y Estructura avisa si las metas no suman la global
   return { success: true }
 }
 

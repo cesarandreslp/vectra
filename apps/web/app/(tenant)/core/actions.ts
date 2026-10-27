@@ -21,6 +21,7 @@ import { censoEnSegundoPlano }        from '@/lib/censo'
 import { CARGOS_NACIONALES, CARGOS_DEPARTAMENTALES, CARGOS_MUNICIPALES } from '@/lib/jurisdiccion'
 import { calcularIndiceCompromiso }   from '@/lib/compromiso'
 import { titulosDe, type TituloLider } from '@/lib/lideres'
+import { avanceMeta, compromisosParaMeta, leerTasaFuga } from '@/lib/meta-votos'
 import { chatGroq }                   from '@vectra/ai'
 import { getTenantAiKeys }            from '@/lib/tenant-ai'
 import { revalidatePath }             from 'next/cache'
@@ -67,6 +68,8 @@ export interface LeaderSummary {
   zone:           string | null
   status:         string
   targetVotes:    number
+  /** Compromisos que pide targetVotes descontando la fuga (0 sin meta). */
+  compromisosMeta: number
   totalElectores: number
   comprometidos:  number
   isCandidate:    boolean
@@ -465,7 +468,10 @@ export async function listLeaders(filters?: LeaderFilters): Promise<LeaderSummar
     ? (session.user.voterId ? await idsSubarbol(session.user.voterId, session.user.tenantId, db) : new Set<string>())
     : null
 
-  const titulos = await titulosPorLider(session.user.tenantId, db)
+  const [titulos, tasaFuga] = await Promise.all([
+    titulosPorLider(session.user.tenantId, db),
+    leerTasaFuga(db, session.user.tenantId),
+  ])
 
   const condiciones: any[] = [{ tenantId: session.user.tenantId }]
   // Buscar por id puntual (ej. la ficha de un líder recién creado, sin
@@ -515,13 +521,12 @@ export async function listLeaders(filters?: LeaderFilters): Promise<LeaderSummar
       zone:           l.zone,
       status:         l.status,
       targetVotes:    l.targetVotes,
+      compromisosMeta: l.targetVotes > 0 ? compromisosParaMeta(l.targetVotes, tasaFuga) : 0,
       totalElectores: l.followers.length,
       comprometidos,
       isCandidate:    l.isCandidate,
       tieneAgenda:    l.tieneAgenda,
-      pctAvance:      l.targetVotes > 0
-        ? Math.round((comprometidos / l.targetVotes) * 100)
-        : 0,
+      pctAvance:      avanceMeta(comprometidos, l.targetVotes, tasaFuga),
       parentLeaderId: l.leaderId,
       titulos:        titulos.get(l.id) ?? [],
     }
@@ -1821,6 +1826,8 @@ export interface ComunaGeo {
   comprometidos:  number
   /** Votos que la campaña se propone sacar aquí (Territorio). null = sin meta. */
   metaVotos:      number | null
+  /** Compromisos que pide esa meta descontando la fuga (lib/meta-votos). null = sin meta. */
+  compromisosMeta: number | null
   /** Mismo color que muestra esta zona en Territorio. */
   color:          string
 }
@@ -1831,7 +1838,7 @@ export async function getElectoresPorComuna(): Promise<ComunaGeo[]> {
   const db       = await obtenerDbTenant(session.user.tenantId)
   const tenantId = session.user.tenantId
 
-  const [comunas, electores] = await Promise.all([
+  const [comunas, electores, tasaFuga] = await Promise.all([
     // Se traen TODAS, no solo las que tienen polígono: el color depende de la
     // posición dentro de la lista completa del municipio ordenada por nombre,
     // que es la misma que usa Territorio. Filtrar antes correría los índices y
@@ -1841,6 +1848,7 @@ export async function getElectoresPorComuna(): Promise<ComunaGeo[]> {
       where:  { tenantId, lat: { not: null }, lng: { not: null } },
       select: { lat: true, lng: true, commitmentStatus: true },
     }),
+    leerTasaFuga(db, tenantId),
   ])
 
   const porMunicipio = new Map<string, string[]>()
@@ -1861,6 +1869,7 @@ export async function getElectoresPorComuna(): Promise<ComunaGeo[]> {
       return {
         id: c.id, name: c.name, boundary, totalElectores: dentro.length, comprometidos,
         metaVotos: c.metaVotos, color: colores.get(c.id)!,
+        compromisosMeta: c.metaVotos ? compromisosParaMeta(c.metaVotos, tasaFuga) : null,
       }
     })
 }

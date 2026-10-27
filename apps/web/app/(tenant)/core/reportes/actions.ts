@@ -4,6 +4,7 @@ import { getTenantDb } from '@vectra/db'
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
 import { puntoEnPoligono } from '@/lib/geometry'
+import { compromisosParaMeta, leerTasaFuga } from '@/lib/meta-votos'
 import { titulosDe, TITULOS } from '@/lib/lideres'
 import { CLAVE_BLANCO, CLAVE_NULOS, datosDeTransmision, votosDeE14, totalVotos, type Votos } from '@/lib/escrutinio'
 import { consolidarE14, type ConsolidadoE14 } from '@/lib/consolidado-escrutinio'
@@ -102,27 +103,29 @@ async function reporteCompromiso(db: Db, tenantId: string): Promise<Reporte> {
 }
 
 async function reporteMetas(db: Db, tenantId: string): Promise<Reporte> {
-  const [zonas, votantes] = await Promise.all([
+  const [zonas, votantes, tasaFuga] = await Promise.all([
     db.commune.findMany({ where: { metaVotos: { not: null } }, select: { name: true, type: true, metaVotos: true, boundary: true } }),
     db.voter.findMany({ where: { tenantId, lat: { not: null }, lng: { not: null } }, select: { lat: true, lng: true, commitmentStatus: true } }),
+    leerTasaFuga(db, tenantId),
   ])
-  let meta = 0, registrados = 0, comprometidos = 0
+  let meta = 0, necesarios = 0, registrados = 0, comprometidos = 0
   const filas = zonas
     .map((z) => {
       const borde = z.boundary as [number, number][] | null
       const dentro = borde ? votantes.filter((v) => puntoEnPoligono([v.lat!, v.lng!], borde)) : []
       const comp = dentro.filter((v) => esComprometido(v.commitmentStatus)).length
-      meta += z.metaVotos!; registrados += dentro.length; comprometidos += comp
-      return [z.name, z.type === 'COMUNA' ? 'Comuna' : 'Corregimiento', z.metaVotos!, dentro.length, comp,
-        `${pct(comp, z.metaVotos!)} %`, Math.max(0, z.metaVotos! - comp)] as Celda[]
+      const nec = compromisosParaMeta(z.metaVotos!, tasaFuga)
+      meta += z.metaVotos!; necesarios += nec; registrados += dentro.length; comprometidos += comp
+      return [z.name, z.type === 'COMUNA' ? 'Comuna' : 'Corregimiento', z.metaVotos!, nec, dentro.length, comp,
+        `${pct(comp, nec)} %`, Math.max(0, nec - comp)] as Celda[]
     })
     .sort((a, b) => (b[2] as number) - (a[2] as number))
   return {
     titulo: 'Avance de metas por comuna',
-    descripcion: 'Avance = comprometidos + voto seguro que viven en la zona (electores ubicados en el mapa). La meta se edita en Territorio.',
-    columnas: ['Zona', 'Tipo', 'Meta de votos', 'Registrados', 'Comprometidos', 'Avance', 'Faltan'],
+    descripcion: 'Avance = comprometidos + voto seguro que viven en la zona (electores ubicados en el mapa) sobre los compromisos que pide la meta descontando la fuga. La meta se edita en Territorio.',
+    columnas: ['Zona', 'Tipo', 'Meta de votos', 'Compromisos necesarios', 'Registrados', 'Comprometidos', 'Avance', 'Faltan'],
     filas,
-    totales: ['Total', '', meta, registrados, comprometidos, `${pct(comprometidos, meta)} %`, Math.max(0, meta - comprometidos)],
+    totales: ['Total', '', meta, necesarios, registrados, comprometidos, `${pct(comprometidos, necesarios)} %`, Math.max(0, necesarios - comprometidos)],
   }
 }
 

@@ -3,7 +3,8 @@ import { COLOR_TEMPERATURA, ETIQUETA_TEMPERATURA, type Temperatura } from '@/lib
 
 /**
  * Mapa de calor contra la meta: cada comuna/corregimiento se pinta según cuánto
- * de su meta de votos lleva (comprometidos + voto seguro). Una comuna que debe
+ * de su meta lleva: comprometidos + voto seguro sobre los compromisos que pide
+ * su meta de votos descontando la fuga (lib/meta-votos). Una comuna que debe
  * sacar 50 y tiene 2 es fría, por comprometidos que estén esos 2. Sin nadie
  * registrado: blanco ("sin presencia").
  */
@@ -15,8 +16,9 @@ export const CORTE_CALIENTE = 80 // % desde el que es caliente
 
 const COLOR_VACIO = '#ffffff'
 
+/** Compromisos sobre los que pide la meta de la comuna, ya descontada la fuga. */
 export function avance(c: ComunaGeo): number {
-  return c.metaVotos ? Math.round((c.comprometidos / c.metaVotos) * 100) : 0
+  return c.compromisosMeta ? Math.round((c.comprometidos / c.compromisosMeta) * 100) : 0
 }
 
 export function temperaturaDe(c: ComunaGeo): TemperaturaZona {
@@ -49,7 +51,7 @@ export function dibujarCapaCalorComunas(L: typeof import('leaflet'), capa: impor
       color: t === 'vacio' ? '#94a3b8' : COLOR_TEMPERATURA[t], weight: 1.5, dashArray: t === 'vacio' ? '4' : undefined,
       fillColor: colorDe(t), fillOpacity: t === 'vacio' ? 0.75 : 0.55,
     })
-      .bindPopup(`<b>${c.name}</b><br>${c.comprometidos} de ${c.metaVotos} votos meta (${avance(c)} %)<br>${c.totalElectores} elector(es) registrados`)
+      .bindPopup(`<b>${c.name}</b><br>${c.comprometidos} de ${c.compromisosMeta} compromisos (${avance(c)} %) · meta ${c.metaVotos} votos<br>${c.totalElectores} elector(es) registrados`)
       .addTo(capa)
   }
 }

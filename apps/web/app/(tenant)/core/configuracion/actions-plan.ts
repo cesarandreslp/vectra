@@ -64,8 +64,8 @@ export async function guardarFactoresPlan(input: FactoresPlan): Promise<Resultad
   }
   await db.tenantConfig.upsert({ where: { tenantId }, update: data, create: { tenantId, ...data } })
 
-  revalidatePath('/core/configuracion')
-  revalidatePath('/core/estructura')
+  // La fuga cambia el avance que muestran el mapa, los líderes y Analytics.
+  revalidatePath('/', 'layout')
   return { success: true }
 }
 

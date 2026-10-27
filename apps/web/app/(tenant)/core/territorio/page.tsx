@@ -1,6 +1,7 @@
 import { requireAuthOrRedirect } from '@/lib/auth-helpers'
 import { listarDepartamentos }   from '../configuracion/actions'
-import { getDefaultMunicipioDivipola, getMunicipalityByDivipola, listCommunes, listVotingStationsAdmin, getSede } from './actions'
+import { getDefaultMunicipioDivipola, getMunicipalityByDivipola, listCommunes, listVotingStationsAdmin, getSede, getRepartoMeta } from './actions'
+import { descuadreMetas }        from '@/lib/meta-votos'
 import { listVoterOptions }        from '../actions'
 import { SedePanel }               from './_components/sede-panel'
 import { SelectorMunicipio }     from './_components/selector-municipio'
@@ -26,9 +27,10 @@ export default async function TerritorioPage({ searchParams }: Props) {
     divipola ? getMunicipalityByDivipola(divipola) : Promise.resolve(null),
   ])
 
-  const [comunas, puestos, electores, sede] = municipio
-    ? await Promise.all([listCommunes(municipio.id), listVotingStationsAdmin(municipio.id), listVoterOptions(), getSede()])
-    : [[], [], [], null]
+  const [comunas, puestos, electores, sede, reparto] = municipio
+    ? await Promise.all([listCommunes(municipio.id), listVotingStationsAdmin(municipio.id), listVoterOptions(), getSede(), getRepartoMeta()])
+    : [[], [], [], null, null]
+  const descuadre = reparto && descuadreMetas(reparto.metaVotos, reparto.sumaComunas)
 
   return (
     <div>
@@ -53,6 +55,11 @@ export default async function TerritorioPage({ searchParams }: Props) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1.5rem' }}>
           {sede && <SedePanel sede={sede} electores={electores} />}
           <ImportarPanel municipalityId={municipio.id} />
+          {descuadre && (
+            <p style={{ margin: 0, fontSize: '0.85rem', color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '0.6rem 0.9rem', borderRadius: 8 }}>
+              ⚠ {descuadre} La meta de la campaña se edita en Configuración.
+            </p>
+          )}
           <ComunasPanel municipalityId={municipio.id} comunasIniciales={comunas} electores={electores} />
           <PuestosPanel municipalityId={municipio.id} puestosIniciales={puestos} />
         </div>

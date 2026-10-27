@@ -4,12 +4,13 @@
  */
 
 interface BarraProgresoProps {
-  valor: number
-  meta:  number
-  pct:   number // 0-100
+  valor:       number
+  meta:        number // en votos
+  necesarios:  number // compromisos que pide la meta descontando la fuga
+  pct:         number // 0-100, valor sobre necesarios
 }
 
-export function BarraProgreso({ valor, meta, pct }: BarraProgresoProps) {
+export function BarraProgreso({ valor, meta, necesarios, pct }: BarraProgresoProps) {
   // Color según nivel de avance
   const colorBarra =
     pct >= 80 ? '#22c55e' :
@@ -41,7 +42,7 @@ export function BarraProgreso({ valor, meta, pct }: BarraProgresoProps) {
         />
       </div>
       <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '3px' }}>
-        {valor} / {meta} votos meta
+        {valor} / {necesarios} compromisos · meta {meta} votos
       </div>
     </div>
   )

@@ -116,7 +116,7 @@ export default async function FichaLiderPage({ params }: Props) {
         <Metrica titulo="Meta de votos"   valor={String(lider.targetVotes)} />
         <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1.25rem' }}>
           <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem' }}>Avance</div>
-          <BarraProgreso valor={lider.comprometidos} meta={lider.targetVotes} pct={lider.pctAvance} />
+          <BarraProgreso valor={lider.comprometidos} meta={lider.targetVotes} necesarios={lider.compromisosMeta} pct={lider.pctAvance} />
         </div>
       </div>
 

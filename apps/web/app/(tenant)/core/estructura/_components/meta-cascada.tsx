@@ -1,6 +1,7 @@
 import type { PlanView } from '../actions-plan'
 import type { Niveles } from '../_lib/cascada'
 import { Bloque } from './estructura-panel'
+import { descuadreMetas } from '@/lib/meta-votos'
 
 export const NIVELES: { key: keyof Niveles; label: string }[] = [
   { key: 'contactos',       label: 'Contactos' },
@@ -13,7 +14,8 @@ export const fmt = (n: number) => n.toLocaleString('es-CO')
 
 /** Meta en cascada: lo que la meta exige por nivel contra lo que hay en la red. */
 export function MetaCascada({ plan }: { plan: PlanView }) {
-  const { metaVotos, necesario, real, lideres, factores } = plan
+  const { metaVotos, necesario, real, lideres, factores, metasComunas } = plan
+  const descuadre = descuadreMetas(metaVotos, metasComunas.suma)
 
   return (
     <Bloque titulo="Meta en cascada" editar="/core/configuracion">
@@ -26,6 +28,12 @@ export function MetaCascada({ plan }: { plan: PlanView }) {
             {Math.round(factores.tasaConversion * 100)} % · {factores.compromisosPorMultiplicador} compromisos por
             multiplicador · {factores.multiplicadoresPorLider} multiplicadores por líder (nivel {factores.nivelLider}).
           </p>
+          {descuadre && (
+            <p style={{ ...nota, color: '#b45309', background: '#fffbeb', padding: '0.5rem 0.75rem', borderRadius: 8 }}>
+              ⚠ {descuadre}{metasComunas.conMeta < metasComunas.total && ` ${metasComunas.total - metasComunas.conMeta} de ${metasComunas.total} zonas no tienen meta.`}{' '}
+              <a href="/core/territorio" style={{ color: '#1e40af' }}>Ajustar en Territorio →</a>
+            </p>
+          )}
           <table style={tabla}>
             <thead>
               <tr><th style={th}>Nivel</th><th style={thN}>Necesario</th><th style={thN}>Real</th><th style={thN}>Faltante</th></tr>
