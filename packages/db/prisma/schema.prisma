@@ -552,6 +552,16 @@ model TenantConfig {
   sedeDireccion String?
   sedeLiderId   String? // Voter.id — quien responde por la sede
 
+  // Meta en cascada (/core/estructura): de metaVotos se deducen compromisos,
+  // contactos, multiplicadores y líderes necesarios. Ver estructura/_lib/cascada.
+  tasaFuga                    Float @default(0.2) // compromisos que no llegan a votar
+  tasaConversion              Float @default(0.4) // contactos que terminan en compromiso
+  compromisosPorMultiplicador Int   @default(12)
+  multiplicadoresPorLider     Int   @default(10)
+  // Profundidad desde el candidato que cuenta como líder de zona; el nivel
+  // siguiente son sus multiplicadores.
+  nivelLider                  Int   @default(1)
+
   // Configuración Módulo Encuestas (WhatsApp & Limites)
   // Apaga el canal WhatsApp sin borrar las credenciales guardadas — la fuente
   // principal es la respuesta in-app, WhatsApp queda opcional por switch.

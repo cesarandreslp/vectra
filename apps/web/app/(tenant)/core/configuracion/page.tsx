@@ -4,14 +4,16 @@ import Link from 'next/link'
 import { listarRoles } from './actions-roles'
 import { ConfigForm }     from './_components/config-form'
 import { RolesPanel }     from './_components/roles-panel'
+import { getFactoresPlan } from './actions-plan'
+import { PlanForm }       from './_components/plan-form'
 
 export const metadata = { title: 'Configuración' }
 
 /** Configuración de la campaña — solo ADMIN_CAMPANA. */
 export default async function ConfiguracionPage() {
   await requireAuthOrRedirect(['ADMIN_CAMPANA'])
-  const [cfg, departamentos, roles] = await Promise.all([
-    getConfiguracion(), listarDepartamentos(), listarRoles(),
+  const [cfg, departamentos, roles, plan] = await Promise.all([
+    getConfiguracion(), listarDepartamentos(), listarRoles(), getFactoresPlan(),
   ])
 
   return (
@@ -23,6 +25,14 @@ export default async function ConfiguracionPage() {
         Claves de IA propias, dominio y branding de tu campaña.
       </p>
       <ConfigForm inicial={cfg} departamentos={departamentos} />
+
+      <h2 style={{ fontSize: '1.15rem', fontWeight: 700, margin: '2rem 0 0.35rem' }}>Plan de la estructura</h2>
+      <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1rem' }}>
+        De la meta de votos salen los contactos, compromisos, multiplicadores y
+        líderes que necesita la red. Se compara contra la realidad en{' '}
+        <Link href="/core/estructura" style={{ color: '#1e40af', fontWeight: 600 }}>Estructura</Link>.
+      </p>
+      <PlanForm inicial={plan} />
 
       <h2 style={{ fontSize: '1.15rem', fontWeight: 700, margin: '2rem 0 0.35rem' }}>Roles y permisos</h2>
       <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1rem' }}>

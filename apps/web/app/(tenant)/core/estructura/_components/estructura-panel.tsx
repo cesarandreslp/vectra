@@ -85,9 +85,9 @@ export function EstructuraPanel({ data }: { data: EstructuraView }) {
   )
 }
 
-function Bloque({ titulo, editar, children }: { titulo: string; editar: string; children: React.ReactNode }) {
+export function Bloque({ titulo, editar, children }: { titulo: string; editar: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '1rem 1.25rem' }}>
+    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '1rem 1.25rem', overflowX: 'auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
         <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{titulo}</span>
         <Link href={editar} style={{ fontSize: '0.75rem', color: '#1e40af', whiteSpace: 'nowrap' }}>editar en {editar} →</Link>

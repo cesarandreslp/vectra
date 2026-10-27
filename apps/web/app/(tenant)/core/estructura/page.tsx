@@ -2,13 +2,15 @@ import Link from 'next/link'
 import { requireAuthOrRedirect } from '@/lib/auth-helpers'
 import { getEstructura } from './actions'
 import { EstructuraPanel } from './_components/estructura-panel'
+import { getPlanEstructura } from './actions-plan'
+import { MetaCascada } from './_components/meta-cascada'
 
 export const metadata = { title: 'Estructura' }
 
 /** Estructura humana de la campaña — vista de solo lectura (ADMIN_CAMPANA / COORDINADOR). */
 export default async function EstructuraPage() {
   await requireAuthOrRedirect(['ADMIN_CAMPANA', 'COORDINADOR'], '/login', ['CORE_ESTRUCTURA'])
-  const data = await getEstructura()
+  const [data, plan] = await Promise.all([getEstructura(), getPlanEstructura()])
 
   return (
     <div>
@@ -30,7 +32,10 @@ export default async function EstructuraPage() {
           Armar estructura en Configuración →
         </Link>
       </div>
-      <EstructuraPanel data={data} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <MetaCascada plan={plan} />
+        <EstructuraPanel data={data} />
+      </div>
     </div>
   )
 }
