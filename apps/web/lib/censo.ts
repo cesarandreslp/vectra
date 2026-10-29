@@ -73,7 +73,7 @@ export function interpretarJob(job: Json): { estado: EstadoCenso; lugar: Json | 
 }
 
 /** Guarda lo que devolvió la API para un elector. jobId null = ya no hay nada que esperar. */
-async function guardarResultado(
+export async function guardarResultado(
   db: Db, voterId: string, r: { estado: EstadoCenso; lugar: Json | null },
 ): Promise<void> {
   const v = await db.voter.update({
@@ -204,31 +204,11 @@ export async function encolarCenso(db: Db, tenantId: string, voter: { id: string
     await db.voter.update({ where: { id: voter.id }, data: { censoEstado: 'PENDIENTE', censoJobId: r.job_id } })
   } catch (err) {
     console.error(`[censo] no se pudo encolar el elector ${voter.id}:`, err instanceof Error ? err.message : err)
-    await db.voter.update({ where: { id: voter.id }, data: { censoEstado: 'ERROR', censoVerificadoEn: new Date() } })
-  }
-}
-
-/**
- * Consulta de UN elector, para el botón de la ficha: va por la ruta síncrona,
- * que normalmente contesta el resultado en la misma llamada (200). Si la API se
- * demora devuelve 202 con job_id y el elector queda PENDIENTE, igual que en el
- * lote: lo recoge el próximo "Revisar resultado" o el webhook.
- */
-export async function consultarCensoAhora(db: Db, voter: { id: string; cedula: string }): Promise<void> {
-  try {
-    const cc = decrypt(voter.cedula).replace(/\D/g, '')
-    if (!/^\d{3,10}$/.test(cc)) throw new Error('la cédula no tiene el formato que acepta la API (3 a 10 dígitos)')
-
-    const r = await llamarApi('/v1/consulta', { tipo: 'registraduria', cc })
-
-    const resultado = interpretarJob(r) // null = 202, quedó encolada
-    if (resultado) return guardarResultado(db, voter.id, resultado)
-
-    if (typeof r.job_id !== 'string') throw new Error(String(r.error ?? r.message ?? 'respuesta inesperada de la API'))
-    await db.voter.update({ where: { id: voter.id }, data: { censoEstado: 'PENDIENTE', censoJobId: r.job_id } })
-  } catch (err) {
-    console.error(`[censo] falló la consulta del elector ${voter.id}:`, err instanceof Error ? err.message : err)
-    await db.voter.update({ where: { id: voter.id }, data: { censoEstado: 'ERROR', censoVerificadoEn: new Date() } })
+    // Sin pisar un resultado que el navegador ya trajo de la Registraduría mientras tanto.
+    await db.voter.updateMany({
+      where: { id: voter.id, OR: [{ censoEstado: null }, { censoEstado: { in: ['PENDIENTE', 'ERROR'] } }] },
+      data:  { censoEstado: 'ERROR', censoVerificadoEn: new Date() },
+    })
   }
 }
 

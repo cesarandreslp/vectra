@@ -7,6 +7,7 @@ import {
   type CreateVoterInput, type CommitmentStatus, type StationOption, type VoterEditable,
 } from '../../actions'
 import { Selector, Texto } from './campo-formulario'
+import { verificarEnRegistraduria } from './censo'
 
 interface FormularioElectorProps {
   /** Con elector: edita ese. Sin él: crea uno nuevo. */
@@ -57,13 +58,16 @@ export function FormularioElector({ elector, leaderIdInicial = '' }: FormularioE
 
       if (elector) {
         const res = await updateVoter(elector.id, input)
-        if (res.success) router.push(`/core/electores/${elector.id}`)
-        else setError(res.error)
+        if (!res.success) return setError(res.error)
+        if (cedula.trim() !== elector.cedula) await verificarEnRegistraduria(elector.id, cedula)
+        router.push(`/core/electores/${elector.id}`)
         return
       }
 
       const res = await createVoter(input)
       if (res.success) {
+        // Dónde vota, desde este navegador (la Registraduría bloquea al servidor).
+        await verificarEnRegistraduria(res.voterId, cedula)
         setExito(true)
         // Limpiar para crear otro
         setCedula(''); setNombre(''); setApodo(''); setTelefono(''); setDireccion('')

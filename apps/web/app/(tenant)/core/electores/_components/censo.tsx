@@ -2,7 +2,15 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { verificarCensoElector, verificarPadronCenso } from '../../actions-censo'
+import { cedulaParaCenso, guardarCensoRegistraduria, verificarPadronCenso } from '../../actions-censo'
+import { consultarRegistraduria } from '@/lib/censo-registraduria'
+
+/** Consulta a la Registraduría desde este navegador y guarda el resultado en el elector. */
+export async function verificarEnRegistraduria(voterId: string, cedula?: string) {
+  const cc = cedula ?? await cedulaParaCenso(voterId)
+  if (!cc) return { success: false, error: 'Elector no encontrado.' }
+  return guardarCensoRegistraduria(voterId, await consultarRegistraduria(cc))
+}
 
 interface BotonCensoProps {
   /** Con voterId verifica a ese elector; sin él corre un lote sobre el padrón. */
@@ -19,7 +27,7 @@ export function BotonCenso({ voterId, pendiente }: BotonCensoProps) {
     setMensaje(null)
     startTransition(async () => {
       if (voterId) {
-        const r = await verificarCensoElector(voterId)
+        const r = await verificarEnRegistraduria(voterId)
         if (!r.success) setMensaje(r.error ?? 'No se pudo verificar.')
       } else {
         const r = await verificarPadronCenso()
@@ -60,7 +68,7 @@ const TEXTO_ESTADO: Record<string, string> = {
   PENDIENTE:     'Consultando a la Registraduría…',
   NOVEDAD:       'Con novedad en el censo',
   NO_ENCONTRADO: 'No aparece en el censo electoral',
-  ERROR:         'La consulta falló — se reintenta en el próximo lote',
+  ERROR:         'La consulta a la Registraduría falló — vuelve a intentarlo',
 }
 
 const texto = (v: unknown) => (typeof v === 'string' && v.trim() ? v : null)
