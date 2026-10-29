@@ -70,6 +70,17 @@ export async function guardarCensoRegistraduria(
   return { success: true }
 }
 
+/** Electores sin resultado del censo: la tanda que recorre la cola de verificación. */
+export async function electoresSinVerificar(limite = 150): Promise<{ id: string; name: string }[]> {
+  const { db, tenantId } = await dbConPermiso()
+  return db.voter.findMany({
+    where:   { tenantId, OR: [{ censoEstado: null }, { censoEstado: { in: ['PENDIENTE', 'ERROR'] } }] },
+    select:  { id: true, name: true },
+    orderBy: { name: 'asc' },
+    take:    limite,
+  })
+}
+
 /** Listado: un lote de hasta 200 sobre el padrón. Se repite hasta que no queden. */
 export async function verificarPadronCenso(): Promise<
   { success: true; encolados: number; revisados: number; restantes: number } | { success: false; error: string }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { datosConsultaAsistida, guardarCensoRegistraduria } from '../../actions-censo'
 import {
@@ -16,16 +16,13 @@ const RESULTADOS = [
 ]
 
 const paso: React.CSSProperties = { fontSize: '0.85rem', color: '#475569' }
-const boton: React.CSSProperties = {
-  background: '#f1f5f9', color: '#475569', padding: '0.5rem 1rem', borderRadius: '6px',
-  fontSize: '0.875rem', border: '1px solid #e2e8f0', cursor: 'pointer',
-}
+const boton: React.CSSProperties = { background: '#f1f5f9', color: '#475569', padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.875rem', border: '1px solid #e2e8f0', cursor: 'pointer' }
 
 /**
  * Consulta asistida: copia la cédula, abre la página oficial en otra pestaña y
  * registra lo que la persona vio allí. Ver lib/censo-registraduria.ts.
  */
-export function ConsultaAsistida({ voterId }: { voterId: string }) {
+export function ConsultaAsistida({ voterId, onGuardado, autoAbrir }: { voterId: string; onGuardado?: () => void; autoAbrir?: boolean }) {
   const router = useRouter()
   const [datos, setDatos]     = useState<{ cedula: string; puestos: PuestoConocido[] } | null>(null)
   const [estado, setEstado]   = useState<EstadoRegistraduria>('ENCONTRADO')
@@ -37,6 +34,8 @@ export function ConsultaAsistida({ voterId }: { voterId: string }) {
   const [mensaje, setMensaje] = useState('')
   const [aviso, setAviso]     = useState<string | null>(null)
   const [enCurso, startTransition] = useTransition()
+
+  useEffect(() => { if (autoAbrir) abrir() }, []) // eslint-disable-line react-hooks/exhaustive-deps  // cola: carga la cédula sola
 
   function abrir() {
     startTransition(async () => {
@@ -86,6 +85,7 @@ export function ConsultaAsistida({ voterId }: { voterId: string }) {
     startTransition(async () => {
       const r = await guardarCensoRegistraduria(voterId, { estado: est, lugar })
       if (!r.success) return setAviso(r.error ?? 'No se pudo guardar.')
+      if (onGuardado) return onGuardado()
       setDatos(null)
       router.refresh()
     })

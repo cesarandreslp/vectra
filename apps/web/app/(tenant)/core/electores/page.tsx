@@ -40,6 +40,15 @@ export default async function ElectoresPage({ searchParams }: Props) {
             <>
               <BotonCenso />
               <Link
+                href="/core/electores/verificar"
+                style={{
+                  background: '#f1f5f9', color: '#475569', padding: '0.5rem 1rem',
+                  borderRadius: '6px', textDecoration: 'none', fontSize: '0.875rem', border: '1px solid #e2e8f0',
+                }}
+              >
+                Verificar censo
+              </Link>
+              <Link
                 href="/core/importar"
                 style={{
                   background: '#f1f5f9', color: '#475569', padding: '0.5rem 1rem',
