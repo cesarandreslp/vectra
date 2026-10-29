@@ -9,8 +9,6 @@
 import assert from 'node:assert/strict'
 import { createHmac } from 'crypto'
 import { firmaValida, interpretarJob } from './censo'
-import { interpretarRegistraduria } from './censo-registraduria'
-
 const secreto = 'whsec_prueba'
 const cuerpo  = '{"job_id":"abc","status":"done"}'
 const ahora   = 1_800_000_000
@@ -49,25 +47,5 @@ assert.equal(interpretarJob({ job_id: 'abc', status: 'pending' }), null, '202 de
 const novedad = interpretarJob({ success: true, data: { estado: 'novedad', mensaje: 'Documento con novedad' } })
 assert.equal(novedad?.estado, 'NOVEDAD')
 assert.equal(novedad?.lugar?.mensaje, 'Documento con novedad')
-
-// Consulta oficial de la Registraduría (desde el navegador) → misma forma de censoLugar
-const oficial = interpretarRegistraduria({
-  ok: true, encontrado: true,
-  data: { nuip: '1020304050', nom_depto: 'VALLE', nom_mun: 'BUGA', nom_puesto: 'SEDE GUADALAJARA', direccion: 'CL 1 # 2-3', mesa: 7 },
-  mapa: { lat: '3.9', lng: '-76.3', url: 'https://maps.google.com/?q=3.9,-76.3' },
-})
-assert.equal(oficial?.estado, 'ENCONTRADO')
-assert.equal(oficial?.lugar.puesto, 'SEDE GUADALAJARA')
-assert.equal(oficial?.lugar.departamento, 'VALLE')
-assert.equal(oficial?.lugar.mesa, '7', 'asignarMesasDelCenso lee la mesa como texto')
-assert.equal(oficial?.lugar.latitud, 3.9)
-assert.equal(oficial?.lugar.mapa_url, 'https://maps.google.com/?q=3.9,-76.3')
-assert.equal(Object.values(oficial?.lugar ?? {}).includes('1020304050'), false, 'la cédula en claro no se guarda')
-const mayus = interpretarRegistraduria({ ok: true, encontrado: true, data: { PUESTO: 'COLEGIO', MESA: '3', MUNICIPIO: 'BUGA' } })
-assert.equal(mayus?.lugar.puesto, 'COLEGIO', 'claves en MAYÚSCULA')
-assert.equal(mayus?.lugar.latitud, undefined, 'sin mapa no inventa coordenadas')
-assert.equal(interpretarRegistraduria({ ok: true, encontrado: false, novedad: true, mensaje: 'Cancelada' })?.estado, 'NOVEDAD')
-assert.equal(interpretarRegistraduria({ ok: true, encontrado: false, mensaje: 'No está' })?.estado, 'NO_ENCONTRADO')
-assert.equal(interpretarRegistraduria({ ok: false, error: 'x' }), null, 'error de la API')
 
 console.log('censo: ok')

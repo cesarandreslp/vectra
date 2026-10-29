@@ -6,7 +6,7 @@ import { requireModuleOrScreen } from '@/lib/auth-helpers'
 import { getTenantConnection } from '@/lib/tenant'
 import { decrypt } from '@vectra/db'
 import { censoConfigurado, guardarResultado, procesarCensoPendientes } from '@/lib/censo'
-import type { ResultadoRegistraduria } from '@/lib/censo-registraduria'
+import type { PuestoConocido, ResultadoRegistraduria } from '@/lib/censo-registraduria'
 
 const NO_CONFIGURADA = 'La API del censo no está configurada (CENSO_API_URL / CENSO_API_KEY).'
 
@@ -17,42 +17,54 @@ async function dbConPermiso() {
 }
 
 /**
- * Cédula en claro para que el navegador consulte a la Registraduría desde la
- * ficha. Mismo permiso que editar al elector, donde la cédula ya se ve.
+ * Lo que necesita la consulta asistida: la cédula en claro para copiarla a la
+ * página oficial (mismo permiso que editar al elector, donde ya se ve) y los
+ * puestos de la campaña, para elegir de una lista en vez de digitar.
  */
-export async function cedulaParaCenso(voterId: string): Promise<string | null> {
+export async function datosConsultaAsistida(
+  voterId: string,
+): Promise<{ cedula: string; puestos: PuestoConocido[] } | null> {
   const { db, tenantId } = await dbConPermiso()
   const v = await db.voter.findFirst({ where: { id: voterId, tenantId }, select: { cedula: true } })
-  return v ? decrypt(v.cedula) : null
+  if (!v) return null
+  const puestos = await db.votingStation.findMany({
+    select:  { name: true, municipality: { select: { name: true, department: { select: { name: true } } } } },
+    orderBy: { name: 'asc' },
+  })
+  return {
+    cedula:  decrypt(v.cedula),
+    puestos: puestos.map((p) => ({
+      nombre: p.name, municipio: p.municipality.name, departamento: p.municipality.department.name,
+    })),
+  }
 }
 
 const ESTADOS = new Set(['ENCONTRADO', 'NOVEDAD', 'NO_ENCONTRADO'])
 const CAMPOS  = ['estado', 'departamento', 'municipio', 'puesto', 'direccion', 'mesa', 'latitud', 'longitud', 'mapa_url', 'mensaje']
 
 /**
- * Guarda lo que el navegador trajo de la Registraduría (lib/censo-registraduria).
+ * Guarda lo que la persona vio en la página oficial (lib/censo-registraduria).
  * Viene del cliente: solo pasan los campos conocidos, texto corto o número finito.
- * null = la consulta falló y el elector queda en ERROR.
  */
 export async function guardarCensoRegistraduria(
-  voterId: string, r: ResultadoRegistraduria | null,
+  voterId: string, r: ResultadoRegistraduria,
 ): Promise<{ success: boolean; error?: string }> {
   const { db, tenantId } = await dbConPermiso()
   if (!await db.voter.findFirst({ where: { id: voterId, tenantId }, select: { id: true } })) {
     return { success: false, error: 'Elector no encontrado.' }
   }
+  if (!ESTADOS.has(r?.estado)) return { success: false, error: 'Resultado inválido.' }
 
-  if (!r || !ESTADOS.has(r.estado)) {
-    await db.voter.update({ where: { id: voterId }, data: { censoEstado: 'ERROR', censoVerificadoEn: new Date() } })
-  } else {
-    const lugar: Record<string, string | number> = {}
-    for (const k of CAMPOS) {
-      const v = r.lugar?.[k]
-      if (typeof v === 'string' && v.length <= 300) lugar[k] = v
-      else if (typeof v === 'number' && Number.isFinite(v)) lugar[k] = v
-    }
-    await guardarResultado(db, voterId, { estado: r.estado, lugar })
+  const lugar: Record<string, string | number> = {}
+  for (const k of CAMPOS) {
+    const v = r.lugar?.[k]
+    if (typeof v === 'string' && v.trim() && v.length <= 300) lugar[k] = v.trim()
+    else if (typeof v === 'number' && Number.isFinite(v)) lugar[k] = v
   }
+  if (r.estado === 'ENCONTRADO' && (!lugar.puesto || !lugar.mesa)) {
+    return { success: false, error: 'Falta el puesto o la mesa.' }
+  }
+  await guardarResultado(db, voterId, { estado: r.estado, lugar })
 
   revalidatePath(`/core/electores/${voterId}`)
   return { success: true }

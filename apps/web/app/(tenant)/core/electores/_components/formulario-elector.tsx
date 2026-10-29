@@ -7,8 +7,6 @@ import {
   type CreateVoterInput, type CommitmentStatus, type StationOption, type VoterEditable,
 } from '../../actions'
 import { Selector, Texto } from './campo-formulario'
-import { verificarEnRegistraduria } from './censo'
-
 interface FormularioElectorProps {
   /** Con elector: edita ese. Sin él: crea uno nuevo. */
   elector?:        VoterEditable
@@ -28,7 +26,7 @@ export function FormularioElector({ elector, leaderIdInicial = '' }: FormularioE
   const [lideres,   setLideres]   = useState<{ id: string; name: string }[]>([])
   const [puestos,   setPuestos]   = useState<StationOption[]>([])
   const [error,     setError]     = useState<string | null>(null)
-  const [exito,     setExito]     = useState(false)
+  const [exito,     setExito]     = useState<string | null>(null)
 
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
@@ -58,21 +56,18 @@ export function FormularioElector({ elector, leaderIdInicial = '' }: FormularioE
 
       if (elector) {
         const res = await updateVoter(elector.id, input)
-        if (!res.success) return setError(res.error)
-        if (cedula.trim() !== elector.cedula) await verificarEnRegistraduria(elector.id, cedula)
-        router.push(`/core/electores/${elector.id}`)
+        if (res.success) router.push(`/core/electores/${elector.id}`)
+        else setError(res.error)
         return
       }
 
+      setExito(null)
       const res = await createVoter(input)
       if (res.success) {
-        // Dónde vota, desde este navegador (la Registraduría bloquea al servidor).
-        await verificarEnRegistraduria(res.voterId, cedula)
-        setExito(true)
+        setExito(res.voterId)
         // Limpiar para crear otro
         setCedula(''); setNombre(''); setApodo(''); setTelefono(''); setDireccion('')
         setLeaderId(leaderIdInicial); setEstado('SIN_CONTACTAR'); setPuestoId(''); setMesaId('')
-        setTimeout(() => setExito(false), 3000)
       } else {
         setError(res.error)
       }
@@ -121,7 +116,9 @@ export function FormularioElector({ elector, leaderIdInicial = '' }: FormularioE
 
       {exito && (
         <div style={{ padding: '0.625rem', background: '#dcfce7', color: '#166534', borderRadius: '6px', fontSize: '0.875rem' }}>
-          Elector creado correctamente.
+          Elector creado correctamente.{' '}
+          {/* La Registraduría no permite consultarla automáticamente: se verifica a mano en la ficha. */}
+          <a href={`/core/electores/${exito}`} style={{ color: '#166534', fontWeight: 600 }}>Verificar dónde vota →</a>
         </div>
       )}
 

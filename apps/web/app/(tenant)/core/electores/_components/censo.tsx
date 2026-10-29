@@ -2,23 +2,11 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { cedulaParaCenso, guardarCensoRegistraduria, verificarPadronCenso } from '../../actions-censo'
-import { consultarRegistraduria } from '@/lib/censo-registraduria'
+import { verificarPadronCenso } from '../../actions-censo'
+import { ConsultaAsistida } from './censo-asistido'
 
-/** Consulta a la Registraduría desde este navegador y guarda el resultado en el elector. */
-export async function verificarEnRegistraduria(voterId: string, cedula?: string) {
-  const cc = cedula ?? await cedulaParaCenso(voterId)
-  if (!cc) return { success: false, error: 'Elector no encontrado.' }
-  return guardarCensoRegistraduria(voterId, await consultarRegistraduria(cc))
-}
-
-interface BotonCensoProps {
-  /** Con voterId verifica a ese elector; sin él corre un lote sobre el padrón. */
-  voterId?:  string
-  pendiente?: boolean
-}
-
-export function BotonCenso({ voterId, pendiente }: BotonCensoProps) {
+/** Lote sobre el padrón con la API automática (solo si hay CENSO_API_KEY válida). */
+export function BotonCenso() {
   const router = useRouter()
   const [enCurso, startTransition] = useTransition()
   const [mensaje, setMensaje] = useState<string | null>(null)
@@ -26,23 +14,15 @@ export function BotonCenso({ voterId, pendiente }: BotonCensoProps) {
   function verificar() {
     setMensaje(null)
     startTransition(async () => {
-      if (voterId) {
-        const r = await verificarEnRegistraduria(voterId)
-        if (!r.success) setMensaje(r.error ?? 'No se pudo verificar.')
-      } else {
-        const r = await verificarPadronCenso()
-        setMensaje(r.success
-          ? `${r.encolados} enviados a verificar · ${r.revisados} consultas revisadas · quedan ${r.restantes} sin resultado`
-          : r.error)
-      }
+      const r = await verificarPadronCenso()
+      setMensaje(r.success
+        ? `${r.encolados} enviados a verificar · ${r.revisados} consultas revisadas · quedan ${r.restantes} sin resultado`
+        : r.error)
       router.refresh()
     })
   }
 
-  const texto = enCurso ? 'Consultando…'
-    : !voterId ? 'Verificar padrón en el censo'
-    : pendiente ? 'Revisar resultado'
-    : 'Verificar en el censo'
+  const texto = enCurso ? 'Consultando…' : 'Verificar padrón en el censo'
 
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
@@ -68,7 +48,7 @@ const TEXTO_ESTADO: Record<string, string> = {
   PENDIENTE:     'Consultando a la Registraduría…',
   NOVEDAD:       'Con novedad en el censo',
   NO_ENCONTRADO: 'No aparece en el censo electoral',
-  ERROR:         'La consulta a la Registraduría falló — vuelve a intentarlo',
+  ERROR:         'Sin verificar (la consulta automática no respondió)',
 }
 
 const texto = (v: unknown) => (typeof v === 'string' && v.trim() ? v : null)
@@ -98,7 +78,7 @@ export function FichaCenso({ voterId, estado, lugar, puedeVerificar }: FichaCens
       )}
       {puedeVerificar && (
         <div style={{ marginTop: '0.4rem' }}>
-          <BotonCenso voterId={voterId} pendiente={estado === 'PENDIENTE'} />
+          <ConsultaAsistida voterId={voterId} />
         </div>
       )}
     </div>
