@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Vectra — Censo electoral",
+  "version": "1.0.0",
+  "description": "Lleva a Vectra el lugar de votación que la persona consulta en la página oficial de la Registraduría, y cierra esa pestaña.",
+  "permissions": ["storage"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    { "matches": ["https://consultacenso.registraduria.gov.co/*"], "js": ["registraduria.js"] },
+    { "matches": ["https://*.oss-vectra.com/*", "https://vectra-web.vercel.app/*", "http://localhost/*"], "js": ["vectra.js"] }
+  ]
+}

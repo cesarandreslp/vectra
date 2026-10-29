@@ -9,6 +9,8 @@
 import assert from 'node:assert/strict'
 import { createHmac } from 'crypto'
 import { firmaValida, interpretarJob } from './censo'
+import { leerResultadoPegado } from './censo-registraduria'
+
 const secreto = 'whsec_prueba'
 const cuerpo  = '{"job_id":"abc","status":"done"}'
 const ahora   = 1_800_000_000
@@ -48,4 +50,18 @@ const novedad = interpretarJob({ success: true, data: { estado: 'novedad', mensa
 assert.equal(novedad?.estado, 'NOVEDAD')
 assert.equal(novedad?.lugar?.mensaje, 'Documento con novedad')
 
+// Lo que se copia de consultacenso.registraduria.gov.co (Ctrl+A, Ctrl+C)
+const pagina = `No. Identificación:\n31372675\nINFORMACIÓN DEL LUGAR DE VOTACIÓN\nNUIP\tDEPARTAMENTO\tMUNICIPIO\tPUESTO\tDIRECCIÓN\tMESA\n31372675\tVALLE\tBUGA\tSEDE GUADALAJARA\tCRA 27 No 14-23\t4\nSeñor Ciudadano:`
+const pegado = leerResultadoPegado(pagina)
+assert.equal(pegado?.nuip, '31372675')
+assert.equal(pegado?.resultado.estado, 'ENCONTRADO')
+assert.deepEqual(pegado?.resultado.lugar, {
+  estado: 'encontrado', departamento: 'VALLE', municipio: 'BUGA', puesto: 'SEDE GUADALAJARA', direccion: 'CRA 27 No 14-23', mesa: '4',
+})
+assert.equal('nuip' in (pegado?.resultado.lugar ?? {}), false, 'la cédula en claro no se guarda')
+const porLineas = leerResultadoPegado('NUIP\nDEPARTAMENTO\nMUNICIPIO\nPUESTO\nDIRECCIÓN\nMESA\n31372675\nVALLE\nBUGA\nSEDE GUADALAJARA\nCRA 27 No 14-23\n4')
+assert.equal(porLineas?.resultado.lugar.mesa, '4', 'una celda por línea')
+assert.equal(leerResultadoPegado('NOVEDAD:\nEl documento no se encuentra en el censo electoral')?.resultado.estado, 'NO_ENCONTRADO')
+assert.equal(leerResultadoPegado('NOVEDAD: CANCELADA POR MUERTE\nDocumento cancelado')?.resultado.estado, 'NOVEDAD')
+assert.equal(leerResultadoPegado('cualquier cosa'), null)
 console.log('censo: ok')

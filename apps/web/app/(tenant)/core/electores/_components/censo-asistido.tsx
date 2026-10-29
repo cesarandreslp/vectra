@@ -3,8 +3,11 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { datosConsultaAsistida, guardarCensoRegistraduria } from '../../actions-censo'
-import { CONSULTA_OFICIAL, type EstadoRegistraduria, type PuestoConocido } from '@/lib/censo-registraduria'
+import {
+  CONSULTA_OFICIAL, leerResultadoPegado, puestoMasComun, sinTildes, type EstadoRegistraduria, type PuestoConocido,
+} from '@/lib/censo-registraduria'
 import { Campo, Selector, Texto, estiloInput } from './campo-formulario'
+import { useResultadoExtension } from './censo-extension'
 
 const RESULTADOS = [
   { value: 'ENCONTRADO',    label: 'Aparece con puesto y mesa' },
@@ -12,6 +15,7 @@ const RESULTADOS = [
   { value: 'NOVEDAD',       label: 'Tiene novedad' },
 ]
 
+const paso: React.CSSProperties = { fontSize: '0.85rem', color: '#475569' }
 const boton: React.CSSProperties = {
   background: '#f1f5f9', color: '#475569', padding: '0.5rem 1rem', borderRadius: '6px',
   fontSize: '0.875rem', border: '1px solid #e2e8f0', cursor: 'pointer',
@@ -39,11 +43,7 @@ export function ConsultaAsistida({ voterId }: { voterId: string }) {
       const d = await datosConsultaAsistida(voterId)
       if (!d) return setAviso('Elector no encontrado.')
       setDatos(d)
-      // El municipio más común entre los puestos de la campaña sirve de valor inicial.
-      const veces = new Map<string, number>()
-      for (const p of d.puestos) veces.set(p.municipio, (veces.get(p.municipio) ?? 0) + 1)
-      const base = d.puestos.reduce<PuestoConocido | null>(
-        (m, p) => (!m || veces.get(p.municipio)! > veces.get(m.municipio)! ? p : m), null)
+      const base = puestoMasComun(d.puestos)
       setMunicipio(base?.municipio ?? ''); setDepartamento(base?.departamento ?? '')
     })
   }
@@ -51,7 +51,7 @@ export function ConsultaAsistida({ voterId }: { voterId: string }) {
   // Síncrono dentro del clic: el portapapeles y la pestaña nueva exigen gesto del usuario.
   function irARegistraduria() {
     if (datos) navigator.clipboard?.writeText(datos.cedula).catch(() => {})
-    window.open(CONSULTA_OFICIAL, '_blank', 'noopener')
+    window.open(`${CONSULTA_OFICIAL}#vectra`, '_blank', 'noopener') // #vectra: la extensión solo actúa ahí
   }
 
   function elegirPuesto(nombre: string) {
@@ -60,18 +60,43 @@ export function ConsultaAsistida({ voterId }: { voterId: string }) {
     if (p) { setMunicipio(p.municipio); setDepartamento(p.departamento) }
   }
 
-  function guardar(e: React.FormEvent) {
-    e.preventDefault()
+  /**
+   * Resultado de la página oficial: pegado a mano (llena el formulario para
+   * revisar) o entregado por la extensión (se guarda de una).
+   */
+  function recibir(texto: string, guardarYa: boolean) {
+    const r = leerResultadoPegado(texto)
+    if (!r) return setAviso('No se reconoce un resultado. Copia toda la página oficial (Ctrl+A, Ctrl+C) después de consultar.')
+    if (r.nuip && datos && r.nuip !== datos.cedula.replace(/\D/g, '')) {
+      return setAviso('El resultado es de otra cédula: consulta la de este elector.')
+    }
     setAviso(null)
-    const lugar: Record<string, string> = estado === 'ENCONTRADO'
-      ? { estado: 'encontrado', puesto, mesa, municipio, departamento, direccion }
-      : { estado: estado === 'NOVEDAD' ? 'novedad' : 'no_encontrado', mensaje }
+    const l = { ...r.resultado.lugar } as Record<string, string>
+    // Si el puesto ya existe en la campaña se usan su nombre y municipio completos.
+    const conocido = datos?.puestos.find((p) => sinTildes(p.nombre) === sinTildes(l.puesto ?? ''))
+    if (conocido) Object.assign(l, { puesto: conocido.nombre, municipio: conocido.municipio, departamento: conocido.departamento })
+    if (guardarYa) return enviar(r.resultado.estado, l)
+    setEstado(r.resultado.estado); setMensaje(l.mensaje ?? '')
+    setPuesto(l.puesto ?? ''); setMesa(l.mesa ?? ''); setDireccion(l.direccion ?? '')
+    if (l.municipio) { setMunicipio(l.municipio); setDepartamento(l.departamento ?? '') }
+  }
+  useResultadoExtension(datos !== null, (texto) => recibir(texto, true))
+
+  function enviar(est: EstadoRegistraduria, lugar: Record<string, string>) {
     startTransition(async () => {
-      const r = await guardarCensoRegistraduria(voterId, { estado, lugar })
+      const r = await guardarCensoRegistraduria(voterId, { estado: est, lugar })
       if (!r.success) return setAviso(r.error ?? 'No se pudo guardar.')
       setDatos(null)
       router.refresh()
     })
+  }
+
+  function guardar(e: React.FormEvent) {
+    e.preventDefault()
+    setAviso(null)
+    enviar(estado, estado === 'ENCONTRADO'
+      ? { estado: 'encontrado', puesto, mesa, municipio, departamento, direccion }
+      : { estado: estado === 'NOVEDAD' ? 'novedad' : 'no_encontrado', mensaje })
   }
 
   if (!datos) {
@@ -87,13 +112,15 @@ export function ConsultaAsistida({ voterId }: { voterId: string }) {
 
   return (
     <form onSubmit={guardar} style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', padding: '0.75rem', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#f8fafc' }}>
-      <div style={{ fontSize: '0.85rem', color: '#475569' }}>
-        1. Copia la cédula <strong>{datos.cedula}</strong> y consúltala en la página oficial.
-      </div>
+      <div style={paso}>1. Copia la cédula <strong>{datos.cedula}</strong> y consúltala en la página oficial.</div>
       <button type="button" onClick={irARegistraduria} style={{ ...boton, alignSelf: 'flex-start' }}>
         Copiar cédula y abrir Registraduría ↗
       </button>
-      <div style={{ fontSize: '0.85rem', color: '#475569' }}>2. Registra lo que muestra:</div>
+      <Campo label="2. Con la extensión llega solo. Sin ella: allá Ctrl+A, Ctrl+C; aquí Ctrl+V">
+        <textarea rows={2} style={{ ...estiloInput, resize: 'vertical' }} placeholder="Pega aquí la página de la Registraduría y se llena solo"
+          onPaste={(e) => { e.preventDefault(); recibir(e.clipboardData.getData('text'), false) }} />
+      </Campo>
+      <div style={paso}>3. Revisa y guarda (o escribe a mano si no pegaste):</div>
       <Selector label="Resultado" value={estado} onChange={(v) => setEstado(v as EstadoRegistraduria)} opciones={RESULTADOS} />
       {estado === 'ENCONTRADO' ? (
         <>
