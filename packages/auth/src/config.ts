@@ -359,26 +359,34 @@ const REVALIDAR_MS = 5 * 60_000
  * inactivado → no. Si la base no responde, sí: un corte de la base no puede
  * sacar a todo el mundo.
  */
-async function sesionVigente(token: Record<string, unknown>): Promise<boolean> {
+/**
+ * false = cortar la sesión. Si sigue vigente devuelve los módulos activos de la
+ * campaña, para que prender o apagar un módulo se vea sin volver a iniciar sesión.
+ */
+async function sesionVigente(token: Record<string, unknown>): Promise<false | { modulos?: string[] }> {
   try {
     const userId = token.userId as string | undefined
     const tenantId = token.tenantId as string | undefined
     if (!userId || !tenantId) return false
     if (tenantId === SUPERADMIN_TENANT_ID) {
-      return Boolean((await superadminDb.user.findUnique({ where: { id: userId }, select: { isActive: true } }))?.isActive)
+      return (await superadminDb.user.findUnique({ where: { id: userId }, select: { isActive: true } }))?.isActive ? {} : false
     }
-    const tenant = await superadminDb.tenant.findUnique({ where: { id: tenantId }, select: { isActive: true, connectionString: true } })
+    const tenant = await superadminDb.tenant.findUnique({
+      where: { id: tenantId },
+      select: { isActive: true, connectionString: true, modules: { where: { isActive: true }, select: { moduleKey: true } } },
+    })
     if (!tenant?.isActive) return false
+    const modulos = tenant.modules.map((m) => m.moduleKey)
     if (!userId.startsWith('voter:')) {
       const u = await superadminDb.user.findUnique({ where: { id: userId }, select: { isActive: true } })
       if (!u?.isActive) return false
     }
     const voterId = (token.voterId as string | null | undefined) ?? (userId.startsWith('voter:') ? userId.slice(6) : null)
-    if (!voterId) return true
+    if (!voterId) return { modulos }
     const v = await getTenantDb(decrypt(tenant.connectionString)).voter.findUnique({ where: { id: voterId }, select: { status: true } })
-    return v?.status === 'ACTIVO'
+    return v?.status === 'ACTIVO' ? { modulos } : false
   } catch {
-    return true
+    return {}
   }
 }
 
@@ -511,10 +519,12 @@ const nextAuth: NextAuthResult = NextAuth((req) => ({
       // Cada 5 min se vuelve a mirar si la persona (o su campaña) sigue activa:
       // inactivar a alguien le corta la sesión en minutos, no cuando vence el JWT.
       if (Date.now() - ((token.verificadoEn as number | undefined) ?? 0) > REVALIDAR_MS) {
-        if (!(await sesionVigente(token))) {
+        const vigente = await sesionVigente(token)
+        if (!vigente) {
           await registrarAcceso({ tenantId: (token.tenantId as string) ?? null, userId: (token.userId as string) ?? null, accion: 'SESION_CORTADA' })
           return null
         }
+        if (vigente.modulos) token.activeModules = vigente.modulos
         token.verificadoEn = Date.now()
       }
       return token
