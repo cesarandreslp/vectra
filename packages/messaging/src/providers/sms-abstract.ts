@@ -1,6 +1,6 @@
 /**
  * Proveedor SMS abstracto (mock) para desarrollo.
- * Loguea el intento y retorna éxito simulado.
+ * Sin proveedor real: registra el intento y FALLA, para que nada figure como enviado sin serlo.
  * TODO: reemplazar con proveedor real (Twilio, Masivapp, etc.)
  */
 
@@ -12,9 +12,10 @@ export class AbstractSmsProvider implements MessagingProvider {
 
   async send(payload: MessagePayload): Promise<SendResult> {
     console.log(
-      '[SMS-MOCK] Para:', payload.to,
+      '[SMS-MOCK] Sin proveedor. Para: ···' + payload.to.slice(-4),
       '| Mensaje:', payload.body.substring(0, 50)
     )
-    return { success: true, providerMsgId: 'mock-' + Date.now() }
+    // Antes devolvía éxito simulado y la campaña quedaba ENVIADA sin que saliera nada.
+    return { success: false, error: 'No hay proveedor de SMS contratado: el mensaje no se envió.' }
   }
 }
