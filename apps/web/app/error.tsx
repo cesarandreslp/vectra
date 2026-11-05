@@ -13,7 +13,6 @@
  */
 export default function Error({
   error,
-  reset,
 }: {
   error: Error & { digest?: string }
   reset: () => void
@@ -43,7 +42,10 @@ export default function Error({
 
       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
         <button
-          onClick={reset}
+          // Recarga completa, no reset(): si la pestaña quedó con una versión
+          // anterior al último despliegue ("Failed to find Server Action"),
+          // solo bajar el JS nuevo lo arregla. reset() reintentaría lo mismo.
+          onClick={() => window.location.reload()}
           style={{
             padding: '0.6rem 1.1rem', fontSize: '0.875rem', borderRadius: '8px',
             border: 'none', background: '#1e40af', color: '#fff',
