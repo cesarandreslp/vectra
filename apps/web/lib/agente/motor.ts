@@ -21,15 +21,15 @@ const RESPALDO = 'Gracias por escribirnos. En este momento no puedo responderte 
 const HISTORIAL = 12
 const EN_CURSO = ['CONTACTADO', 'CONSENTIMIENTO_PENDIENTE', 'CONSENTIDO', 'RESPONDIENDO'] as const
 
-export type Canal = 'WHATSAPP' | 'TELEGRAM'
-const NOMBRE_CANAL: Record<Canal, string> = { WHATSAPP: 'WhatsApp', TELEGRAM: 'Telegram' }
+export type Canal = 'WHATSAPP' | 'TELEGRAM' | 'EMAIL'
+const NOMBRE_CANAL: Record<Canal, string> = { WHATSAPP: 'WhatsApp', TELEGRAM: 'Telegram', EMAIL: 'correo' }
 
 export interface Entrada {
   tenantId:       string
   db:             Db
   canal:          Canal
-  clave:          string        // identidad en el canal: hash del celular (WhatsApp) o del chat (Telegram)
-  destino:        string        // a dónde responder: celular o chat id
+  clave:          string        // identidad en el canal: hash del celular, del chat (Telegram) o de la dirección (correo)
+  destino:        string        // a dónde responder: celular, chat id o dirección de correo
   telefono:       string | null // celular si el canal lo da (WhatsApp); con él se reconoce al elector
   texto:          string
   providerMsgId?: string
@@ -104,7 +104,7 @@ export async function atender(e: Entrada): Promise<void> {
     autorizado = false
   }
   if (salida?.temas.length) await db.mensajeConversacion.update({ where: { id: entranteId }, data: { temas: salida.temas } })
-  if (salida?.registro && autorizado) await aplicarRegistro(db, tenantId, conv, salida.registro, e.telefono)
+  if (salida?.registro && autorizado) await aplicarRegistro(db, tenantId, conv, salida.registro, e.telefono, NOMBRE_CANAL[e.canal])
 
   const motivo = salida ? salida.escalar : 'El agente no pudo responder'
   if (motivo && !(conv.escaladaEn && !conv.atendidaEn)) {
@@ -166,7 +166,7 @@ async function contexto(
 async function aplicarRegistro(
   db: Db, tenantId: string,
   conv: { id: string; voterId: string | null; contactoId: string | null },
-  reg: Registro, celular: string | null,
+  reg: Registro, celular: string | null, canal: string,
 ) {
   if (conv.voterId) {
     if (reg.voluntario) await db.voter.update({ where: { id: conv.voterId }, data: { esSimpatizante: true } })
@@ -202,7 +202,9 @@ async function aplicarRegistro(
       id: randomUUID(), tenantId, fecha: new Date(), anfitrionId: candidato.id, origen: 'CHAT',
       nombre: reg.nombre, telefono: telefono ? encrypt(telefono) : null, telefonoHash: hashTelefono(telefono),
       temperatura: reg.apoyo, intereses: reg.intereses, quiereSerVoluntario: reg.voluntario,
-      nota: celular ? 'Llegó por WhatsApp (agente)' : 'Llegó por Telegram (agente): sin celular, pídeselo al hacerle seguimiento',
+      nota: celular
+        ? `Llegó por ${canal} (agente)`
+        : `Llegó por ${canal} (agente), sin celular: su conversación está en Comunicaciones → Conversaciones; pídeselo al hacerle seguimiento`,
       neighborhoodId: zona?.barrioId ?? null, communeId: zona?.comunaId ?? null, asignadoAId: zona?.responsable ?? null,
     },
     select: { id: true },

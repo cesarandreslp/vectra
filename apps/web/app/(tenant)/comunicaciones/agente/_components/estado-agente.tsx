@@ -51,7 +51,7 @@ export function EstadoAgente({ vista }: { vista: VistaAgente }) {
         </div>
       )}
 
-      {!vista.whatsappListo && !vista.telegramBot && (
+      {!vista.whatsappListo && !vista.telegramBot && !vista.correoUrl && (
         <p className="text-xs text-slate-500 m-0">
           No hay ningún canal conectado: aunque esté encendido, no le llega ningún mensaje.
         </p>

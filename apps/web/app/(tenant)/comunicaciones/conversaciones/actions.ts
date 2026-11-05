@@ -11,10 +11,12 @@ import { sendMessage } from '@vectra/messaging'
 import { getTenantConnection } from '@/lib/tenant'
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
 import { enviarTelegram } from '@/lib/telegram'
+import { cargarSmtp } from '@/lib/smtp'
+import { textoAHtml } from '@/lib/correo-entrada'
 
 export interface FilaConversacion {
   id:              string
-  canal:           string // WHATSAPP | TELEGRAM
+  canal:           string // WHATSAPP | TELEGRAM | EMAIL
   nombre:          string
   telefonoFinal:   string // últimos 4 dígitos
   ultimoMensajeEn: string
@@ -105,6 +107,18 @@ export async function responderConversacion(id: string, texto: string): Promise<
     db.tenantConfig.findUnique({ where: { tenantId }, select: { whatsappToken: true, whatsappPhoneId: true, telegramBotToken: true } }),
   ])
   if (!c) return { success: false, error: 'Conversación no encontrada.' }
+
+  if (c.canal === 'EMAIL') {
+    const smtp = await cargarSmtp(db, tenantId)
+    if (!smtp) return { success: false, error: 'El correo de la campaña (SMTP) no está configurado.' }
+    const m = await sendMessage({ to: decrypt(c.telefono), channel: 'EMAIL', subject: 'Respuesta de la campaña', body: textoAHtml(cuerpo) }, smtp)
+    if (!m.success) return { success: false, error: `El correo no salió (${m.error}).` }
+    await db.mensajeConversacion.create({
+      data: { conversacionId: c.id, entrante: false, texto: cuerpo, autorId: session.user.userId, providerMsgId: m.providerMsgId },
+    })
+    revalidatePath('/comunicaciones/conversaciones')
+    return { success: true }
+  }
 
   if (c.canal === 'TELEGRAM') {
     if (!config?.telegramBotToken) return { success: false, error: 'El bot de Telegram no está conectado.' }

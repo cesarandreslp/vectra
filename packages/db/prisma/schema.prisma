@@ -606,6 +606,9 @@ model TenantConfig {
   // genera Vectra al conectar y Telegram lo devuelve en cada webhook.
   telegramBotToken      String?
   telegramWebhookSecret String?
+  // Correo de entrada (agente, vía Postmark Inbound): secreto de la autenticación
+  // básica de la URL del webhook. Las respuestas salen por smtpConfig.
+  correoEntradaSecreto  String?
   botName               String? @default("Asistente Virtual")
   surveyDailyLimit      Int     @default(250)
 
@@ -1838,8 +1841,8 @@ model Conversacion {
   id              String            @id @default(cuid())
   tenantId        String
   canal           CanalConversacion
-  telefonoHash    String // WhatsApp: hashTelefono(celular) · Telegram: sha256("telegram:" + chatId)
-  // CIFRADO: campo PII — a dónde responderle (celular en WhatsApp, chat id en Telegram).
+  telefonoHash    String // WhatsApp: hashTelefono(celular) · Telegram: sha256("telegram:" + chatId) · correo: sha256("email:" + dirección)
+  // CIFRADO: campo PII — a dónde responderle (celular, chat id de Telegram o dirección de correo).
   telefono        String
   voterId         String?
   contactoId      String? // ContactoCalle.id

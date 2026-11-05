@@ -11,6 +11,7 @@ import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { getTenantDb, superadminDb, encrypt, decrypt } from '@vectra/db'
 import { getMe, setWebhook, deleteWebhook } from '@/lib/telegram'
+import { USUARIO_WEBHOOK } from '@/lib/correo-entrada'
 import { getTenantConnection } from '@/lib/tenant'
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
 
@@ -29,6 +30,8 @@ export interface VistaAgente {
   usuarios:            { id: string; nombre: string }[]
   whatsappListo:       boolean
   telegramBot:         string | null // @usuario del bot conectado
+  correoUrl:           string | null // URL (con usuario y clave) para el webhook de entrada de Postmark
+  smtpListo:           boolean
 }
 
 type Resultado = { success: true } | { success: false; error: string }
@@ -51,6 +54,15 @@ function textosDe(a: Partial<TextosAgente> | null | undefined): TextosAgente {
   }
 }
 
+/** Dirección pública de un webhook de esta campaña; con clave, en el formato de autenticación básica que usa Postmark. */
+async function urlWebhook(ruta: string, slug: string | null, clave?: string): Promise<string | null> {
+  const h = await headers()
+  const host = h.get('x-forwarded-host') ?? h.get('host')
+  if (!host) return null
+  const credenciales = clave ? `${USUARIO_WEBHOOK}:${clave}@` : ''
+  return `https://${credenciales}${host}/api/webhooks/${ruta}?c=${encodeURIComponent(slug ?? '')}`
+}
+
 async function usuariosDelTenant(tenantId: string) {
   const us = await superadminDb.user.findMany({
     where:   { tenantId, isActive: true, role: { in: ['ADMIN_CAMPANA', 'COORDINADOR', 'PERSONALIZADO'] } },
@@ -61,10 +73,10 @@ async function usuariosDelTenant(tenantId: string) {
 }
 
 export async function getAgente(): Promise<VistaAgente> {
-  const { tenantId, db } = await sesionYDb('view')
+  const { session, tenantId, db } = await sesionYDb('view')
   const [a, config, usuarios] = await Promise.all([
     db.agenteCampana.findUnique({ where: { tenantId } }),
-    db.tenantConfig.findUnique({ where: { tenantId }, select: { whatsappToken: true, whatsappPhoneId: true, whatsappAppSecret: true, telegramBotToken: true } }),
+    db.tenantConfig.findUnique({ where: { tenantId }, select: { whatsappToken: true, whatsappPhoneId: true, whatsappAppSecret: true, telegramBotToken: true, correoEntradaSecreto: true, smtpConfig: true } }),
     usuariosDelTenant(tenantId),
   ])
   const textos = textosDe(a)
@@ -80,6 +92,8 @@ export async function getAgente(): Promise<VistaAgente> {
     usuarios,
     whatsappListo:       Boolean(config?.whatsappToken && config.whatsappPhoneId && config.whatsappAppSecret),
     telegramBot:         bot ? (bot.ok ? `@${bot.result.username}` : '(token rechazado por Telegram)') : null,
+    correoUrl:           config?.correoEntradaSecreto ? await urlWebhook('correo', session.user.tenantSlug, config.correoEntradaSecreto) : null,
+    smtpListo:           Boolean(config?.smtpConfig),
   }
 }
 
@@ -145,11 +159,9 @@ export async function conectarTelegram(token: string): Promise<Resultado> {
   const yo = await getMe(t)
   if (!yo.ok) return { success: false, error: `Telegram no aceptó el token: ${yo.error}` }
 
-  const h = await headers()
-  const host = h.get('x-forwarded-host') ?? h.get('host')
-  if (!host) return { success: false, error: 'No se pudo saber la dirección pública de Vectra.' }
+  const url = await urlWebhook('telegram', session.user.tenantSlug)
+  if (!url) return { success: false, error: 'No se pudo saber la dirección pública de Vectra.' }
   const secreto = randomBytes(32).toString('hex')
-  const url = `https://${host}/api/webhooks/telegram?c=${encodeURIComponent(session.user.tenantSlug ?? '')}`
   // Primero se guarda: si Telegram llama antes de que termine, ya encuentra el secreto.
   await db.tenantConfig.upsert({
     where:  { tenantId },
@@ -167,6 +179,22 @@ export async function desconectarTelegram(): Promise<Resultado> {
   const c = await db.tenantConfig.findUnique({ where: { tenantId }, select: { telegramBotToken: true } })
   if (c?.telegramBotToken) await deleteWebhook(decrypt(c.telegramBotToken))
   await db.tenantConfig.update({ where: { tenantId }, data: { telegramBotToken: null, telegramWebhookSecret: null } })
+  revalidatePath('/comunicaciones/agente')
+  return { success: true }
+}
+
+/** Genera la clave del webhook de correo de entrada. La URL que resulta se pega en Postmark. */
+export async function conectarCorreo(): Promise<Resultado> {
+  const { tenantId, db } = await sesionYDb('edit')
+  const secreto = randomBytes(24).toString('hex')
+  await db.tenantConfig.upsert({ where: { tenantId }, create: { tenantId, correoEntradaSecreto: secreto }, update: { correoEntradaSecreto: secreto } })
+  revalidatePath('/comunicaciones/agente')
+  return { success: true }
+}
+
+export async function desconectarCorreo(): Promise<Resultado> {
+  const { tenantId, db } = await sesionYDb('edit')
+  await db.tenantConfig.updateMany({ where: { tenantId }, data: { correoEntradaSecreto: null } })
   revalidatePath('/comunicaciones/agente')
   return { success: true }
 }

@@ -14,6 +14,7 @@ import { getTenantDb, Prisma, encrypt, decrypt, superadminDb } from '@vectra/db'
 import { sendMessage, sendBatch } from '@vectra/messaging'
 import type { SmtpConfig, MessagePayload } from '@vectra/messaging'
 import { revalidatePath }      from 'next/cache'
+import { cargarSmtp }          from '@/lib/smtp'
 import { CANALES_AUTOMATIZACION, TRIGGERS_AUTOMATIZACION, VARIABLES_AUTOMATIZACION } from '@/lib/automatizaciones-reglas'
 
 // ── Helper ───────────────────────────────────────────────────────────────────
@@ -133,17 +134,7 @@ function extractVariables(body: string): string[] {
  * Obtiene la configuración SMTP del tenant desde TenantConfig.
  * Retorna null si no está configurada.
  */
-async function loadSmtpConfig(
-  db: ReturnType<typeof getTenantDb>,
-  tenantId: string
-): Promise<SmtpConfig | null> {
-  const config = await db.tenantConfig.findUnique({
-    where: { tenantId },
-    select: { smtpConfig: true },
-  })
-  if (!config?.smtpConfig) return null
-  return config.smtpConfig as unknown as SmtpConfig
-}
+const loadSmtpConfig = cargarSmtp
 
 /**
  * Resuelve los destinatarios según los filtros de segmentación.

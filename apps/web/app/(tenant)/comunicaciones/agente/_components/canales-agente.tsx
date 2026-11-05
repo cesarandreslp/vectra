@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { conectarTelegram, desconectarTelegram, type VistaAgente } from '../actions'
+import { CanalCorreo } from './canal-correo'
 
 /** Por dónde le escriben al agente. WhatsApp se conecta en Encuestas; Telegram, acá. */
 export function CanalesAgente({ vista }: { vista: VistaAgente }) {
@@ -59,6 +60,7 @@ export function CanalesAgente({ vista }: { vista: VistaAgente }) {
           </>
         )}
       </div>
+      <CanalCorreo vista={vista} pendiente={pendiente} correr={correr} />
       {error && <p className="text-sm text-red-700 m-0">{error}</p>}
     </section>
   )

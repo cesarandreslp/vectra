@@ -11,7 +11,7 @@ export function DetalleConversacionVista({ d }: { d: DetalleConversacion }) {
         <div>
           <div className="font-semibold text-slate-900">{d.nombre}</div>
           <div className="text-xs text-slate-500">
-            {d.canal === 'TELEGRAM' ? 'Telegram (sin celular)' : `WhatsApp ${d.telefono || '· teléfono ilegible'}`} · {d.autorizo ? 'autorizó sus datos' : 'sin autorización de datos'}
+            {d.canal === 'TELEGRAM' ? 'Telegram (sin celular)' : d.canal === 'EMAIL' ? `Correo ${d.telefono}` : `WhatsApp ${d.telefono || '· teléfono ilegible'}`} · {d.autorizo ? 'autorizó sus datos' : 'sin autorización de datos'}
             {d.voterId && <> · <Link href={`/core/electores/${d.voterId}`} className="text-blue-700">ficha de elector</Link></>}
           </div>
         </div>

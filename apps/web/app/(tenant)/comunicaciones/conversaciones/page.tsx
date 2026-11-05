@@ -35,7 +35,7 @@ export default async function ConversacionesPage({ searchParams }: Props) {
             <li key={f.id}>
               <Link href={qs({ c: f.id })} className={`block px-4 py-3 hover:bg-slate-50 ${f.id === c ? 'bg-slate-50' : ''}`}>
                 <div className="flex justify-between gap-2 text-sm">
-                  <span className="font-semibold text-slate-800">{f.nombre} <span className="font-normal text-slate-400">{f.canal === 'TELEGRAM' ? 'Telegram' : `···${f.telefonoFinal}`}</span></span>
+                  <span className="font-semibold text-slate-800">{f.nombre} <span className="font-normal text-slate-400">{f.canal === 'TELEGRAM' ? 'Telegram' : f.canal === 'EMAIL' ? 'correo' : `···${f.telefonoFinal}`}</span></span>
                   <span className="text-xs text-slate-400 whitespace-nowrap">{hora(f.ultimoMensajeEn)}</span>
                 </div>
                 {f.pendiente && <div className="text-xs text-red-700 mt-0.5">⚠ {f.motivo}</div>}
