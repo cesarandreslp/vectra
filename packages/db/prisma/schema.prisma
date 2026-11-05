@@ -25,7 +25,8 @@ datasource db {
 
 /// Roles del sistema. Define qué rutas y datos puede acceder cada usuario.
 enum UserRole {
-  SUPERADMIN // Acceso total a la plataforma y todos los tenants
+  SUPERADMIN // Acceso total a la plataforma y todos los tenants (máximo 2 activos)
+  OPERADOR // Panel del SaaS sin manejo de cuentas: crea y edita campañas, módulos y material; no crea usuarios de plataforma ni cierra campañas
   ADMIN_CAMPANA // Administrador de una campaña específica
   COORDINADOR // Coordinador de zona o municipio
   LIDER // Líder comunitario con red de electores

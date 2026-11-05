@@ -2,7 +2,8 @@
 
 /**
  * Server Actions del superadmin.
- * Toda acción verifica rol SUPERADMIN antes de operar.
+ * Toda acción verifica el rol antes de operar: SUPERADMIN u OPERADOR, salvo las
+ * que tocan cuentas (updateTenantAdmin), que son solo SUPERADMIN.
  * La connectionString NUNCA aparece en ningún valor de retorno.
  */
 
@@ -20,6 +21,9 @@ import { revalidatePath } from 'next/cache'
 import { requireAuth } from '@/lib/auth-helpers'
 import { invalidarCacheTenant } from '@/lib/tenant'
 import { ALL_MODULES } from './modules'
+
+// Sin export: un archivo 'use server' solo puede exportar funciones async.
+const ROLES_PANEL: ('SUPERADMIN' | 'OPERADOR')[] = ['SUPERADMIN', 'OPERADOR']
 
 // ── Tipos exportados ──────────────────────────────────────────────────────────
 
@@ -66,7 +70,7 @@ export async function createTenant(
   data: CreateTenantInput
 ): Promise<{ success: true; tenantId: string } | { success: false; error: string }> {
   try {
-    await requireAuth(['SUPERADMIN'])
+    await requireAuth(ROLES_PANEL)
 
     // Validar slug: solo minúsculas, números y guiones, mínimo 3 caracteres
     const regexSlug = /^[a-z0-9-]{3,}$/
@@ -143,7 +147,7 @@ export async function createTenant(
  * NUNCA incluye connectionString en el retorno.
  */
 export async function listTenants(): Promise<TenantSummary[]> {
-  await requireAuth(['SUPERADMIN'])
+  await requireAuth(ROLES_PANEL)
 
   const tenants = await superadminDb.tenant.findMany({
     orderBy: { createdAt: 'desc' },
@@ -177,7 +181,7 @@ export async function toggleTenantStatus(
   tenantId: string
 ): Promise<{ success: boolean; isActive: boolean }> {
   try {
-    await requireAuth(['SUPERADMIN'])
+    await requireAuth(ROLES_PANEL)
 
     const actual = await superadminDb.tenant.findUnique({
       where:  { id: tenantId },
@@ -214,7 +218,7 @@ export interface TenantEditData {
 
 /** Carga los datos editables de un tenant + su admin principal (el más antiguo). */
 export async function getTenantForEdit(tenantId: string): Promise<TenantEditData> {
-  await requireAuth(['SUPERADMIN'])
+  await requireAuth(ROLES_PANEL)
 
   const tenant = await superadminDb.tenant.findUnique({
     where:  { id: tenantId },
@@ -241,7 +245,7 @@ export async function updateTenant(
   data: { name: string; slug: string; domain: string | null },
 ): Promise<{ success: true } | { success: false; error: string }> {
   try {
-    await requireAuth(['SUPERADMIN'])
+    await requireAuth(ROLES_PANEL)
 
     const name   = data.name.trim()
     const slug   = data.slug.trim().toLowerCase()
@@ -339,7 +343,7 @@ export async function getTenantModules(tenantId: string): Promise<{
   tenant: { id: string; name: string; slug: string }
   modules: TenantModuleStatus[]
 }> {
-  await requireAuth(['SUPERADMIN'])
+  await requireAuth(ROLES_PANEL)
 
   const tenant = await superadminDb.tenant.findUnique({
     where:   { id: tenantId },
@@ -373,7 +377,7 @@ export async function toggleModule(
   moduleKey: ModuleKey,
 ): Promise<{ success: boolean; isActive: boolean }> {
   try {
-    await requireAuth(['SUPERADMIN'])
+    await requireAuth(ROLES_PANEL)
 
     if (moduleKey === 'CORE') {
       return { success: false, isActive: true }
@@ -441,7 +445,7 @@ export interface GlobalMaterialSummary {
 
 /** Lista todos los materiales globales ordenados por `order` */
 export async function listGlobalMaterials(): Promise<GlobalMaterialSummary[]> {
-  await requireAuth(['SUPERADMIN'])
+  await requireAuth(ROLES_PANEL)
 
   return superadminDb.globalTrainingMaterial.findMany({
     orderBy: { order: 'asc' },
@@ -456,7 +460,7 @@ export async function createGlobalMaterial(formData: FormData): Promise<
   { success: true; id: string } | { success: false; error: string }
 > {
   try {
-    await requireAuth(['SUPERADMIN'])
+    await requireAuth(ROLES_PANEL)
 
     const title       = formData.get('title') as string
     const description = (formData.get('description') as string) || null
@@ -507,7 +511,7 @@ export async function toggleMaterialStatus(
   id: string
 ): Promise<{ success: boolean; isActive: boolean }> {
   try {
-    await requireAuth(['SUPERADMIN'])
+    await requireAuth(ROLES_PANEL)
 
     const actual = await superadminDb.globalTrainingMaterial.findUnique({
       where: { id }, select: { isActive: true },
@@ -534,7 +538,7 @@ export async function reorderMaterial(
   newOrder: number,
 ): Promise<{ success: boolean }> {
   try {
-    await requireAuth(['SUPERADMIN'])
+    await requireAuth(ROLES_PANEL)
 
     await superadminDb.globalTrainingMaterial.update({
       where: { id },
@@ -555,7 +559,7 @@ export async function deleteGlobalMaterial(
   id: string
 ): Promise<{ success: boolean }> {
   try {
-    await requireAuth(['SUPERADMIN'])
+    await requireAuth(ROLES_PANEL)
 
     const material = await superadminDb.globalTrainingMaterial.findUnique({
       where: { id }, select: { fileUrl: true },

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { auth } from '@vectra/auth'
 import { DataTable } from '@vectra/ui'
 import { listTenants, toggleTenantStatus, type TenantSummary } from '../../actions'
 
@@ -6,6 +7,7 @@ export const metadata = { title: 'Clientes — Superadmin' }
 
 export default async function ClientesPage() {
   const tenants = await listTenants()
+  const esSuperadmin = (await auth())?.user?.role === 'SUPERADMIN' // cerrar campañas: solo SUPERADMIN
 
   return (
     <div>
@@ -105,12 +107,14 @@ export default async function ClientesPage() {
                     >
                       Módulos
                     </Link>
-                    <Link
-                      href={`/superadmin/clientes/${tenant.id}/cierre`}
-                      className="text-slate-500 text-xs font-semibold hover:underline"
-                    >
-                      Cerrar
-                    </Link>
+                    {esSuperadmin && (
+                      <Link
+                        href={`/superadmin/clientes/${tenant.id}/cierre`}
+                        className="text-slate-500 text-xs font-semibold hover:underline"
+                      >
+                        Cerrar
+                      </Link>
+                    )}
                     <ToggleForm tenantId={tenant.id} isActive={tenant.isActive} />
                   </div>
                 )

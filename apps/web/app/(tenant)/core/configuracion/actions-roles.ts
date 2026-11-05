@@ -177,7 +177,7 @@ export async function crearUsuario(input: CrearUsuarioInput) {
   if (input.role === 'PERSONALIZADO' && !input.customRoleId) {
     return { success: false, error: 'Elige un rol personalizado.' }
   }
-  if (input.role === 'SUPERADMIN') return { success: false, error: 'No puedes crear cuentas SUPERADMIN desde aquí.' }
+  if (input.role === 'SUPERADMIN' || input.role === 'OPERADOR') return { success: false, error: 'No puedes crear cuentas de la plataforma desde aquí.' }
 
   // La fecha se valida de formato acá; que sea OBLIGATORIA y 18+ depende del rol
   // (solo testigos), y eso se decide en cada rama de abajo.

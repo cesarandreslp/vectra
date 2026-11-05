@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
+import { auth } from '@vectra/auth'
 import { getEstadoCierre } from '../../../../actions-cierre'
 import { CerrarCampana } from './_components/cerrar-campana'
 
@@ -9,6 +10,7 @@ const fecha = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('e
 
 export default async function CierrePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  if ((await auth())?.user?.role !== 'SUPERADMIN') redirect('/superadmin/clientes')
   const e = await getEstadoCierre(id)
   if (!e) notFound()
 

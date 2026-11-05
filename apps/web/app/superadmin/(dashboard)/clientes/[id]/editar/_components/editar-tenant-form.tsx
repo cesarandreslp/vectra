@@ -15,7 +15,8 @@ function Aviso({ msg }: { msg: { ok: boolean; text: string } | null }) {
   )
 }
 
-export function EditarTenantForm({ tenant }: { tenant: TenantEditData }) {
+/** puedeEditarAdmin: solo SUPERADMIN toca la cuenta del admin (el OPERADOR no maneja cuentas). */
+export function EditarTenantForm({ tenant, puedeEditarAdmin }: { tenant: TenantEditData; puedeEditarAdmin: boolean }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
 
@@ -83,7 +84,7 @@ export function EditarTenantForm({ tenant }: { tenant: TenantEditData }) {
       </form>
 
       {/* Admin del tenant */}
-      <form onSubmit={guardarAdmin} className="rounded-xl border border-slate-200 bg-white p-5 flex flex-col gap-4">
+      {puedeEditarAdmin && <form onSubmit={guardarAdmin} className="rounded-xl border border-slate-200 bg-white p-5 flex flex-col gap-4">
         <h2 className="text-sm font-bold text-slate-900">Administrador de la campaña</h2>
 
         <div>
@@ -100,7 +101,7 @@ export function EditarTenantForm({ tenant }: { tenant: TenantEditData }) {
           <button type="submit" disabled={pending || !tenant.adminUserId} className={btn}>Guardar admin</button>
           <Aviso msg={msgAdmin} />
         </div>
-      </form>
+      </form>}
     </div>
   )
 }

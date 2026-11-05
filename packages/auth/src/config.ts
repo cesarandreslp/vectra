@@ -18,6 +18,7 @@ import { superadminDb, getTenantDb, decrypt, registrarAcceso, loginBloqueado, ha
  */
 export type UserRole =
   | 'SUPERADMIN'
+  | 'OPERADOR'
   | 'ADMIN_CAMPANA'
   | 'COORDINADOR'
   | 'LIDER'

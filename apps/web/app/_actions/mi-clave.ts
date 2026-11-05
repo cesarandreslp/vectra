@@ -10,7 +10,7 @@ import { registrarEvento } from '@/lib/bitacora'
 type Resultado = { success: true } | { success: false; error: string }
 
 export async function cambiarMiClave(actual: string, nueva: string): Promise<Resultado> {
-  const session = await requireAuth(['SUPERADMIN', 'ADMIN_CAMPANA', 'COORDINADOR', 'LIDER', 'PERSONALIZADO'])
+  const session = await requireAuth(['SUPERADMIN', 'OPERADOR', 'ADMIN_CAMPANA', 'COORDINADOR', 'LIDER', 'PERSONALIZADO'])
   if (String(nueva ?? '').length < 10) return { success: false, error: 'La contraseña nueva debe tener al menos 10 caracteres.' }
   if (nueva === actual) return { success: false, error: 'La contraseña nueva debe ser distinta de la actual.' }
 

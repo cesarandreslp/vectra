@@ -91,6 +91,12 @@ async function main() {
       process.exit(1)
     }
 
+    // Máximo 2 superadmins activos (misma regla que /superadmin/usuarios).
+    if (await db.user.count({ where: { tenantId: SUPERADMIN_TENANT_ID, role: 'SUPERADMIN', isActive: true } }) >= 2) {
+      console.error('\nError: Ya hay 2 superadmins activos. Desactiva uno desde /superadmin/usuarios.')
+      process.exit(1)
+    }
+
     // ── Crear el usuario ──────────────────────────────────────────────────
     process.stdout.write('\nCreando usuario...')
 

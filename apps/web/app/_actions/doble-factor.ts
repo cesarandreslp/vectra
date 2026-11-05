@@ -12,7 +12,7 @@ import { nuevoSecreto, verificarTotp, uriTotp } from '@vectra/auth'
 import { requireAuth } from '@/lib/auth-helpers'
 import { registrarEvento } from '@/lib/bitacora'
 
-const ROLES = ['SUPERADMIN', 'ADMIN_CAMPANA', 'COORDINADOR', 'LIDER', 'PERSONALIZADO'] as const
+const ROLES = ['SUPERADMIN', 'OPERADOR', 'ADMIN_CAMPANA', 'COORDINADOR', 'LIDER', 'PERSONALIZADO'] as const
 type Resultado = { success: true } | { success: false; error: string }
 
 async function cuenta() {

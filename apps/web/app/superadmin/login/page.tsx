@@ -13,7 +13,7 @@ export const metadata = { title: 'Iniciar sesión — SaaS' }
 export default async function SuperadminLoginPage() {
   const session = await auth()
 
-  if (session?.user?.role === 'SUPERADMIN') {
+  if (session?.user?.role === 'SUPERADMIN' || session?.user?.role === 'OPERADOR') {
     redirect('/superadmin')
   }
 

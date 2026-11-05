@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { auth } from '@vectra/auth'
 import { getTenantForEdit } from '../../../../actions'
 import { EditarTenantForm } from './_components/editar-tenant-form'
 
@@ -7,6 +8,7 @@ export const metadata = { title: 'Editar cliente — Superadmin' }
 export default async function EditarClientePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const tenant = await getTenantForEdit(id)
+  const session = await auth()
 
   return (
     <div className="flex flex-col gap-6">
@@ -18,7 +20,7 @@ export default async function EditarClientePage({ params }: { params: Promise<{ 
         <p className="mt-1 text-xs text-slate-400 font-mono">{tenant.slug}</p>
       </div>
 
-      <EditarTenantForm tenant={tenant} />
+      <EditarTenantForm tenant={tenant} puedeEditarAdmin={session?.user?.role === 'SUPERADMIN'} />
     </div>
   )
 }

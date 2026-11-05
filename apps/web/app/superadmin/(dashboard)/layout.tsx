@@ -8,7 +8,8 @@ export default async function SuperadminDashboardLayout({
   children: React.ReactNode
 }) {
   const session = await auth()
-  if (!session?.user || session.user.role !== 'SUPERADMIN') {
+  const rol = session?.user?.role
+  if (!session?.user || (rol !== 'SUPERADMIN' && rol !== 'OPERADOR')) {
     redirect('/superadmin/login')
   }
 
@@ -17,6 +18,7 @@ export default async function SuperadminDashboardLayout({
     { href: '/superadmin/clientes',       label: 'Clientes' },
     { href: '/superadmin/clientes/nuevo', label: '+ Nuevo cliente' },
     { href: '/superadmin/formacion',      label: 'Formación' },
+    ...(rol === 'SUPERADMIN' ? [{ href: '/superadmin/usuarios', label: 'Usuarios' }] : []),
     { href: '/superadmin/seguridad',      label: 'Seguridad' },
   ]
 
