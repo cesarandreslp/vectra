@@ -13,6 +13,7 @@ import { obtenerOCrearVoterDeUsuario } from '@/lib/voter-de-usuario'
 import { getTenantDb, encrypt, decrypt } from '@vectra/db'
 import { revalidatePath }        from 'next/cache'
 import { fechasEtapa }           from './_lib/etapas'
+import { hashTelefono }          from '@/lib/contacto-calle'
 
 const ROLES = ['ADMIN_CAMPANA', 'COORDINADOR'] as const
 const RUTA  = '/core/estructura/prospectos'
@@ -131,7 +132,7 @@ export async function moverProspecto(id: string, etapa: Etapa, cedula?: string):
       const otro = await db.prospectoLider.findFirst({ where: { voterId: r.voterId, NOT: { id } }, select: { nombre: true } })
       if (otro) return { success: false, error: `Esa cédula ya está enlazada al prospecto ${otro.nombre}.` }
       // Recién creado: hereda el teléfono (mismo cifrado que Voter.phone).
-      if (!r.yaExistia && p.phone) await db.voter.update({ where: { id: r.voterId }, data: { phone: p.phone } })
+      if (!r.yaExistia && p.phone) await db.voter.update({ where: { id: r.voterId }, data: { phone: p.phone, telefonoHash: hashTelefono(decrypt(p.phone)) } })
       voterId = r.voterId
     }
   }

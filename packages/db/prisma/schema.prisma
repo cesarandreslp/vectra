@@ -209,6 +209,9 @@ model Voter {
   apodo            String? // Como le dicen normalmente — para mensajes de invitación más cercanos
   // CIFRADO: campo PII — se cifra con AES-256 antes de persistir. Ver lib/crypto.ts
   phone            String?
+  // SHA-256 del celular normalizado (lib/contacto-calle → hashTelefono). Con
+  // él se reconoce a quien escribe por WhatsApp sin descifrar el padrón.
+  telefonoHash     String?
   // Fecha de nacimiento. Da la edad → apto para votar (18+). Para un TESTIGO es
   // además su credencial de acceso (cédula + fecha de nacimiento), por eso el
   // alta de testigo la exige; para el resto del padrón es opcional.
@@ -322,6 +325,7 @@ model Voter {
   @@index([tenantId, commitmentStatus])
   @@index([tenantId, neighborhoodId])
   @@index([tenantId, censoEstado])
+  @@index([tenantId, telefonoHash])
   @@index([censoJobId])
 }
 
@@ -1685,25 +1689,29 @@ enum EstadoContactoCalle {
 /// zona le da seguimiento hasta que se registra; ahí pasa a CONVERTIDO. No
 /// cuenta como "contacto" de la meta en cascada hasta convertirse.
 model ContactoCalle {
-  id              String               @id // lo genera el celular: reenviar la cola offline no duplica
-  tenantId        String
-  fecha           DateTime
-  anfitrionId     String // Voter.id — candidato o jefe de debate dueño del contacto
-  registradoPorId String? // Voter.id — quien lo digitó (p. ej. el asistente)
-  nombre          String?
+  id                  String               @id // lo genera el celular: reenviar la cola offline no duplica
+  tenantId            String
+  fecha               DateTime
+  anfitrionId         String // Voter.id — candidato o jefe de debate dueño del contacto
+  registradoPorId     String? // Voter.id — quien lo digitó (p. ej. el asistente)
+  nombre              String?
   // CIFRADO: campo PII — se cifra con AES-256 antes de persistir.
-  telefono        String?
-  telefonoHash    String? // SHA-256 del celular normalizado (lib/contacto-calle)
-  temperatura     TemperaturaContacto?
-  nota            String?
-  lat             Float?
-  lng             Float?
-  neighborhoodId  String?
-  communeId       String?
-  asignadoAId     String? // Voter.id — líder de barrio/comuna que hace el seguimiento
-  estado          EstadoContactoCalle  @default(PENDIENTE)
-  voterId         String? // elector en que se convirtió
-  createdAt       DateTime             @default(now())
+  telefono            String?
+  telefonoHash        String? // SHA-256 del celular normalizado (lib/contacto-calle)
+  temperatura         TemperaturaContacto?
+  nota                String?
+  lat                 Float?
+  lng                 Float?
+  neighborhoodId      String?
+  communeId           String?
+  asignadoAId         String? // Voter.id — líder de barrio/comuna que hace el seguimiento
+  estado              EstadoContactoCalle  @default(PENDIENTE)
+  voterId             String? // elector en que se convirtió
+  createdAt           DateTime             @default(now())
+  // CHAT = lo abrió el agente al autorizar datos en una conversación.
+  origen              OrigenContacto       @default(CALLE)
+  intereses           String[]             @default([])
+  quiereSerVoluntario Boolean              @default(false)
 
   @@index([tenantId, fecha])
   @@index([tenantId, asignadoAId, estado])
@@ -1769,4 +1777,86 @@ model CorrectivoEstrategia {
   analisis AnalisisEstrategia @relation(fields: [analisisId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, analisisId])
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// AGENTE CONVERSACIONAL — conversa con cada ciudadano en nombre de la campaña
+// ════════════════════════════════════════════════════════════════════════════
+
+enum OrigenContacto {
+  CALLE
+  CHAT
+}
+
+enum CanalConversacion {
+  WHATSAPP
+  TELEGRAM
+  SMS
+  EMAIL
+}
+
+/// Lo que el agente sabe y puede decir (una fila por campaña). El equipo edita
+/// los textos; el agente solo usa `versionAprobada`, la copia que quedó al
+/// aprobar. Así editar no cambia lo que dice hasta que alguien lo aprueba.
+model AgenteCampana {
+  id                  String    @id @default(cuid())
+  tenantId            String    @unique
+  activo              Boolean   @default(false) // apagado = no responde nada
+  propuestas          String    @default("")
+  biografia           String    @default("")
+  tono                String    @default("")
+  lineamientos        String    @default("") // qué no decir, temas vedados
+  textoAutorizacion   String    @default("") // autorización Ley 1581 que aprobó la campaña
+  versionAprobada     Json? // { propuestas, biografia, tono, lineamientos, textoAutorizacion }
+  aprobadoEn          DateTime?
+  aprobadoPorId       String? // User.id (BD superadmin)
+  // A quién se avisa cuando el agente escala (User.id) y cuándo atienden.
+  escalamientoUserIds String[]  @default([])
+  escalamientoHorario String?
+  updatedAt           DateTime  @updatedAt
+}
+
+/// Una persona que escribe por un canal. Se reconoce por el hash del celular;
+/// si ya es elector queda voterId, si no, el ContactoCalle (origen CHAT) que
+/// se abre cuando autoriza sus datos.
+model Conversacion {
+  id              String            @id @default(cuid())
+  tenantId        String
+  canal           CanalConversacion
+  telefonoHash    String
+  // CIFRADO: campo PII — para poder responderle.
+  telefono        String
+  voterId         String?
+  contactoId      String? // ContactoCalle.id
+  // Ley 1581: sin autorizoEn no se anota ningún dato de la persona.
+  autorizoEn      DateTime?
+  rechazoEn       DateTime?
+  // Escalamiento: pendiente = escaladaEn sin atendidaEn. El agente no se pausa.
+  escaladaEn      DateTime?
+  escaladaMotivo  String?
+  atendidaEn      DateTime?
+  atendidaPorId   String? // User.id
+  ultimoMensajeEn DateTime          @default(now())
+  createdAt       DateTime          @default(now())
+
+  mensajes MensajeConversacion[]
+
+  @@unique([tenantId, canal, telefonoHash])
+  @@index([tenantId, ultimoMensajeEn])
+  @@index([tenantId, escaladaEn])
+}
+
+model MensajeConversacion {
+  id             String   @id @default(cuid())
+  conversacionId String
+  entrante       Boolean
+  texto          String
+  autorId        String? // saliente: null = el agente, User.id = respondió una persona
+  providerMsgId  String?  @unique // Meta reintenta el webhook: así no se procesa dos veces
+  temas          String[] @default([]) // de la lista cerrada de lib/agente/salida.ts
+  createdAt      DateTime @default(now())
+
+  conversacion Conversacion @relation(fields: [conversacionId], references: [id], onDelete: Cascade)
+
+  @@index([conversacionId, createdAt])
 }

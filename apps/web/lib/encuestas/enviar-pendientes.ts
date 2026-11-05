@@ -53,7 +53,8 @@ export async function enviarPendientesTenant(
   for (const voter of pendingVoters) {
     if (!voter.phone) continue
     try {
-      await conversationEngine.startConversation(voter.id, voter.phone, tenantId, tenantDb, credentials)
+      // voter.phone va cifrado en la BD: a WhatsApp hay que mandarle el número en claro.
+      await conversationEngine.startConversation(voter.id, decrypt(voter.phone), tenantId, tenantDb, credentials)
       successCount++
       // Delay ligero para no saturar la API de WhatsApp.
       await new Promise((r) => setTimeout(r, 500))

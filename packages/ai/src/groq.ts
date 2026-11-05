@@ -13,7 +13,9 @@ import type { E14ExtractionResult } from './index'
 import { E14_SYSTEM_PROMPT, parsearRespuestaE14 } from './e14-prompt'
 
 const BASE_URL     = 'https://api.groq.com/openai/v1/chat/completions'
-const MODEL        = 'llama-3.3-70b-versatile' // verificado 2026-08-14: responde 200
+// 2026-11-05: llama-3.3-70b-versatile devuelve 404 (ya no está en la cuenta) y
+// con él se caían todos los chatGroq. gpt-oss-120b es el de texto más capaz que queda.
+const MODEL        = 'openai/gpt-oss-120b'
 
 /**
  * Verificado contra la API el 2026-08-14 leyendo un E-14 real (docs/e14.webp):

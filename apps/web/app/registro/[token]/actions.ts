@@ -14,6 +14,7 @@
 import { createHash, randomUUID } from 'crypto'
 import { headers }                from 'next/headers'
 import { cerrarContactos } from '@/lib/contacto-calle-db'
+import { hashTelefono }    from '@/lib/contacto-calle'
 import { superadminDb, getTenantDb, encrypt } from '@vectra/db'
 import { getTenantConnection }    from '@/lib/tenant'
 import { crearAlertaDuplicado }   from '@/app/(tenant)/core/actions'
@@ -150,6 +151,7 @@ export async function registrarseConQR(
       name:         nombre,
       apodo:        data.apodo?.trim() || undefined,
       phone:        data.telefono ? encrypt(data.telefono) : undefined,
+      telefonoHash: hashTelefono(data.telefono),
       address:      data.direccion || undefined,
       leaderId:     qr.leaderId,
       votingTableId: data.mesaId || undefined,

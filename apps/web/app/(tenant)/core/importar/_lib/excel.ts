@@ -12,6 +12,7 @@ import * as XLSX              from 'xlsx'
 import { encrypt }            from '@vectra/db'
 import { crearAlertaDuplicado } from '../../actions'
 import { crearQrPropio }      from '@/lib/qr'
+import { hashTelefono }       from '@/lib/contacto-calle'
 import type { PrismaClient }  from '@vectra/db'
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
@@ -266,6 +267,7 @@ export async function procesarImportExcel(
             cedulaHash,
             name:        nombre,
             phone:       telRaw ? encrypt(telRaw) : undefined,
+            telefonoHash: hashTelefono(telRaw),
             address:     dirRaw || undefined,
             birthDate,
             leaderId:    liderIdFila ?? leaderId,

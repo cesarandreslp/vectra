@@ -96,7 +96,8 @@ export async function getMiDia(): Promise<MiDia | null> {
   if (!cap) return null
   const inicio = new Date(Math.floor((Date.now() - 5 * 3_600_000) / 86_400_000) * 86_400_000 + 5 * 3_600_000)
   const hoy = await db.contactoCalle.findMany({
-    where:   { tenantId, anfitrionId: cap.anfitrionId, fecha: { gte: inicio } },
+    // Solo los de calle: los que abre el agente por chat también van a nombre del candidato.
+    where:   { tenantId, anfitrionId: cap.anfitrionId, fecha: { gte: inicio }, origen: 'CALLE' },
     select:  { id: true, nombre: true, fecha: true },
     orderBy: { fecha: 'desc' },
   })

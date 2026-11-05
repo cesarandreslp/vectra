@@ -15,6 +15,7 @@ import bcrypt from 'bcryptjs'
 import { encrypt, superadminDb } from '@vectra/db'
 import type { PrismaClient } from '@vectra/db'
 import { crearQrPropio } from '@/lib/qr'
+import { hashTelefono } from '@/lib/contacto-calle'
 
 export interface ImportStaffResult {
   created: number
@@ -98,6 +99,7 @@ export async function procesarImportStaff(
             data: {
               tenantId, cedula: encrypt(cedula), cedulaHash, name: nombre,
               phone: telefono ? encrypt(telefono) : undefined,
+              telefonoHash: hashTelefono(telefono),
               zone: zona || undefined, targetVotes: meta, status: 'ACTIVO', leaderId: candidato?.id,
             },
             select: { id: true },

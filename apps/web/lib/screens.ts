@@ -56,6 +56,8 @@ export const SCREENS: Record<string, ScreenDef> = {
   COMUNICACIONES_PLANTILLAS:      { label: 'Plantillas',       modulo: 'COMUNICACIONES', path: '/comunicaciones/plantillas' },
   COMUNICACIONES_AUTOMATIZACIONES: { label: 'Automatizaciones', modulo: 'COMUNICACIONES', path: '/comunicaciones/automatizaciones' },
   COMUNICACIONES_CONFIGURACION:   { label: 'Config SMTP',      modulo: 'COMUNICACIONES', path: '/comunicaciones/configuracion' },
+  COMUNICACIONES_AGENTE:          { label: 'Agente IA',        modulo: 'COMUNICACIONES', path: '/comunicaciones/agente' },
+  COMUNICACIONES_CONVERSACIONES:  { label: 'Conversaciones',   modulo: 'COMUNICACIONES', path: '/comunicaciones/conversaciones' },
 
   FINANZAS_DASHBOARD:     { label: 'Dashboard',     modulo: 'FINANZAS', path: '/finanzas' },
   FINANZAS_GASTOS:        { label: 'Gastos',        modulo: 'FINANZAS', path: '/finanzas/gastos' },

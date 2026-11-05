@@ -2,6 +2,7 @@ import { getTenantDb } from '@vectra/db'
 import { sendMessage } from '@vectra/messaging'
 import { candidateMatcher } from './candidate-matcher'
 import { getTenantAiKeys } from '@/lib/tenant-ai'
+import { hashTelefono } from '@/lib/contacto-calle'
 
 const processingMessages = new Set<string>()
 
@@ -45,18 +46,21 @@ export class ConversationEngine {
       normalizedPhone = normalizedPhone.substring(2)
     }
 
-    // 2. Buscar elector activo (voter) en el tenant
-    const voter = await tenantDb.voter.findFirst({
-      where: { tenantId, phone: normalizedPhone },
+    // 2. Buscar elector por el hash del celular. Voter.phone va cifrado (AES con
+    // IV aleatorio): compararlo con el número en claro nunca coincidía.
+    const encontrado = await tenantDb.voter.findFirst({
+      where: { tenantId, telefonoHash: hashTelefono(normalizedPhone) ?? '-' },
       include: {
         surveyResponses: true,
       }
     })
 
-    if (!voter) {
-      console.warn(`[ENGINE] Voter NOT FOUND for phone: ${normalizedPhone}`)
+    if (!encontrado) {
+      console.warn(`[ENGINE] Voter NOT FOUND for phone hash`)
       return
     }
+    // Las respuestas salen a voter.phone: el número en claro, no el cifrado de la BD.
+    const voter = { ...encontrado, phone: normalizedPhone }
 
     console.log(`[ENGINE] Voter FOUND: ${voter.name} (${voter.id}) | State: ${voter.conversationState}`)
 

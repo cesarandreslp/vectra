@@ -3,6 +3,7 @@ import { waitUntil } from '@vercel/functions'
 import { conversationEngine } from '@/lib/encuestas/conversation-engine'
 import { getTenantConnection } from '@/lib/tenant'
 import { firmaValida } from '@/lib/whatsapp-firma'
+import { agenteActivo, atender, encuestaEnCurso } from '@/lib/agente/motor'
 import { getTenantDb, superadminDb, decrypt } from '@vectra/db'
 import { sendMessage } from '@vectra/messaging'
 
@@ -79,10 +80,10 @@ export async function POST(request: Request) {
 
       for (const message of value.messages ?? []) {
         if (message.type === 'text') {
+          const texto = message.text?.body ?? ''
           waitUntil(
-            conversationEngine
-              .processIncomingMessage(message.from, message.text?.body ?? '', message.id, tenantId, db, token, phoneNumberId)
-              .catch(err => console.error('[WEBHOOK] Engine error:', err)),
+            atenderTexto(tenantId, db, message.from, texto, message.id, token, phoneNumberId)
+              .catch(err => console.error('[WEBHOOK] Error atendiendo:', err)),
           )
         } else if (SIN_LECTURA.has(message.type) && token) {
           // ponytail: si Meta reintenta el webhook, el aviso puede salir dos veces; se deduplica cuando haya log de conversación (Fase 1).
@@ -96,4 +97,27 @@ export async function POST(request: Request) {
   }
 
   return new NextResponse('OK', { status: 200 })
+}
+
+/**
+ * Un texto lo atiende el agente si está encendido y aprobado, salvo que la
+ * persona esté a mitad de una encuesta: esa la termina la encuesta. Sin agente,
+ * queda como antes (solo encuestas).
+ */
+async function atenderTexto(
+  tenantId: string, db: ReturnType<typeof getTenantDb>, de: string, texto: string,
+  messageId: string, token: string | undefined, phoneNumberId: string,
+) {
+  if (token && await agenteActivo(db, tenantId) && !(await encuestaEnCurso(db, tenantId, de))) {
+    await atender({
+      tenantId, db, de, texto, providerMsgId: messageId,
+      enviar: async (cuerpo) => {
+        const r = await sendMessage({ to: de, channel: 'WHATSAPP', body: cuerpo }, undefined, { token, phoneNumberId })
+        if (!r.success) console.error('[WEBHOOK] Respuesta del agente no enviada:', r.error)
+        return { ok: r.success, providerMsgId: r.providerMsgId }
+      },
+    })
+    return
+  }
+  await conversationEngine.processIncomingMessage(de, texto, messageId, tenantId, db, token, phoneNumberId)
 }

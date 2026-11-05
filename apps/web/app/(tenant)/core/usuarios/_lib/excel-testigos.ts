@@ -13,6 +13,7 @@ import { encrypt, superadminDb } from '@vectra/db'
 import type { PrismaClient } from '@vectra/db'
 import { esMayorDeEdad } from '@/lib/edad'
 import { crearQrPropio } from '@/lib/qr'
+import { hashTelefono } from '@/lib/contacto-calle'
 import { parsearFechaNacimiento } from '../../importar/_lib/excel'
 
 export interface ImportTestigosResult {
@@ -121,6 +122,7 @@ export async function procesarImportTestigos(
           data: {
             tenantId, cedula: encrypt(cedula), cedulaHash, name: nombre,
             phone: telefono ? encrypt(telefono) : undefined,
+            telefonoHash: hashTelefono(telefono),
             birthDate: fecha, leaderId: candidato?.id, commitmentStatus: 'VOTO_SEGURO',
           },
           select: { id: true },

@@ -23,6 +23,7 @@ import { calcularIndiceCompromiso }   from '@/lib/compromiso'
 import { titulosDe, type TituloLider } from '@/lib/lideres'
 import { avanceMeta, compromisosParaMeta, leerTasaFuga } from '@/lib/meta-votos'
 import { cerrarContactos }            from '@/lib/contacto-calle-db'
+import { hashTelefono }               from '@/lib/contacto-calle'
 import { chatGroq }                   from '@vectra/ai'
 import { getTenantAiKeys }            from '@/lib/tenant-ai'
 import { revalidatePath }             from 'next/cache'
@@ -608,6 +609,7 @@ export async function createVoter(
         name:             data.name,
         apodo:            data.apodo?.trim() || undefined,
         phone:            phoneCifrado,
+        telefonoHash:     hashTelefono(data.phone),
         birthDate:        data.birthDate,
         address:          data.address?.trim() || undefined,
         leaderId:         data.leaderId,
@@ -711,6 +713,7 @@ export async function updateVoter(
         name:             data.name.trim(),
         apodo:            data.apodo?.trim() || null,
         phone:            data.phone?.trim() ? encrypt(data.phone.trim()) : null,
+        telefonoHash:     hashTelefono(data.phone),
         address,
         leaderId:         data.leaderId || null,
         votingTableId:    data.votingTableId || null,
@@ -756,7 +759,7 @@ export async function setVoterActivo(id: string, activo: boolean): Promise<{ suc
   // El cambio y su registro van juntos: un estado sin fecha no sirve para auditar.
   await db.$transaction([
     db.voter.update({ where: { id }, data: { status } }),
-    db.voterEstadoCambio.create({ data: { tenantId, voterId: id, status, porUserId: session.user.id } }),
+    db.voterEstadoCambio.create({ data: { tenantId, voterId: id, status, porUserId: session.user.userId } }),
   ])
   revalidatePath(`/core/electores/${id}`)
   revalidatePath('/core/electores')
@@ -1202,6 +1205,7 @@ export async function importVoters(rows: ImportVoterRow[]): Promise<ImportResult
           cedulaHash,
           name:             row.name.trim(),
           phone:            row.phone ? encrypt(row.phone) : undefined,
+          telefonoHash:     hashTelefono(row.phone),
           leaderId:         leaderId ?? undefined,
           commitmentStatus: row.commitmentStatus ?? 'SIN_CONTACTAR',
         },

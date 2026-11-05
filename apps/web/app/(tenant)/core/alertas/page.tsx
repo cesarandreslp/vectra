@@ -10,6 +10,12 @@ interface Notificacion {
   createdAt: string
 }
 
+/** Solo rutas internas: el metadata lo escribe el servidor, pero un enlace externo acá sería phishing. */
+function enlace(metadata: unknown): string | null {
+  const href = (metadata as { href?: unknown } | null)?.href
+  return typeof href === 'string' && href.startsWith('/') && !href.startsWith('//') ? href : null
+}
+
 /**
  * Alertas del usuario (notificaciones no leídas). Reusa /api/notificaciones,
  * la misma fuente que el badge del sidebar. El nav ya enlazaba aquí; sin esta
@@ -53,6 +59,9 @@ export default function AlertasPage() {
                 {n.type.replace(/_/g, ' ')}
               </div>
               <div style={{ fontSize: '0.9rem', color: '#0f172a', margin: '0.35rem 0' }}>{n.message}</div>
+              {enlace(n.metadata) && (
+                <a href={enlace(n.metadata)!} style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1d4ed8' }}>Abrir →</a>
+              )}
               <div style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
                 {new Date(n.createdAt).toLocaleString('es-CO')}
               </div>
