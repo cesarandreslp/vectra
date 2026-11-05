@@ -4,6 +4,7 @@ import { conversationEngine } from '@/lib/encuestas/conversation-engine'
 import { getTenantConnection } from '@/lib/tenant'
 import { firmaValida } from '@/lib/whatsapp-firma'
 import { agenteActivo, atender, encuestaEnCurso } from '@/lib/agente/motor'
+import { hashTelefono } from '@/lib/contacto-calle'
 import { getTenantDb, superadminDb, decrypt } from '@vectra/db'
 import { sendMessage } from '@vectra/messaging'
 
@@ -110,7 +111,7 @@ async function atenderTexto(
 ) {
   if (token && await agenteActivo(db, tenantId) && !(await encuestaEnCurso(db, tenantId, de))) {
     await atender({
-      tenantId, db, de, texto, providerMsgId: messageId,
+      tenantId, db, canal: 'WHATSAPP', clave: hashTelefono(de) ?? '', destino: de, telefono: de, texto, providerMsgId: messageId,
       enviar: async (cuerpo) => {
         const r = await sendMessage({ to: de, channel: 'WHATSAPP', body: cuerpo }, undefined, { token, phoneNumberId })
         if (!r.success) console.error('[WEBHOOK] Respuesta del agente no enviada:', r.error)

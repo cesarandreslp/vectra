@@ -10,9 +10,11 @@ import { getTenantDb, decrypt } from '@vectra/db'
 import { sendMessage } from '@vectra/messaging'
 import { getTenantConnection } from '@/lib/tenant'
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
+import { enviarTelegram } from '@/lib/telegram'
 
 export interface FilaConversacion {
   id:              string
+  canal:           string // WHATSAPP | TELEGRAM
   nombre:          string
   telefonoFinal:   string // últimos 4 dígitos
   ultimoMensajeEn: string
@@ -66,7 +68,7 @@ export async function listConversaciones(soloPendientes: boolean): Promise<FilaC
   const nombreDe = await nombres(db, convs)
   return convs
     .map((c) => ({
-      id: c.id, nombre: nombreDe(c), telefonoFinal: ultimos4(c.telefono), ultimoMensajeEn: c.ultimoMensajeEn.toISOString(),
+      id: c.id, canal: c.canal, nombre: nombreDe(c), telefonoFinal: ultimos4(c.telefono), ultimoMensajeEn: c.ultimoMensajeEn.toISOString(),
       pendiente: Boolean(c.escaladaEn && !c.atendidaEn), motivo: c.escaladaMotivo, autorizo: Boolean(c.autorizoEn),
     }))
     .sort((a, b) => Number(b.pendiente) - Number(a.pendiente)) // las que esperan a alguien, arriba
@@ -83,7 +85,7 @@ export async function getConversacion(id: string): Promise<DetalleConversacion |
   let telefono = ''
   try { telefono = decrypt(c.telefono) } catch { /* queda vacío */ }
   return {
-    id: c.id, nombre: nombreDe(c), telefono, telefonoFinal: telefono.slice(-4), voterId: c.voterId,
+    id: c.id, canal: c.canal, nombre: nombreDe(c), telefono, telefonoFinal: telefono.slice(-4), voterId: c.voterId,
     ultimoMensajeEn: c.ultimoMensajeEn.toISOString(), pendiente: Boolean(c.escaladaEn && !c.atendidaEn),
     motivo: c.escaladaMotivo, autorizo: Boolean(c.autorizoEn), atendida: c.atendidaEn?.toISOString() ?? null,
     mensajes: c.mensajes.map((m) => ({
@@ -92,19 +94,30 @@ export async function getConversacion(id: string): Promise<DetalleConversacion |
   }
 }
 
-/** Una persona del equipo le escribe. WhatsApp solo deja texto libre dentro de las 24 h del último mensaje de la persona. */
+/** Una persona del equipo le escribe por el mismo canal. WhatsApp solo deja texto libre dentro de las 24 h del último mensaje de la persona. */
 export async function responderConversacion(id: string, texto: string): Promise<Resultado> {
   const { session, tenantId, db } = await sesionYDb('edit')
   const cuerpo = typeof texto === 'string' ? texto.trim().slice(0, 1000) : ''
   if (!cuerpo) return { success: false, error: 'Escribe la respuesta.' }
 
   const [c, config] = await Promise.all([
-    db.conversacion.findFirst({ where: { id, tenantId }, select: { id: true, telefono: true } }),
-    db.tenantConfig.findUnique({ where: { tenantId }, select: { whatsappToken: true, whatsappPhoneId: true } }),
+    db.conversacion.findFirst({ where: { id, tenantId }, select: { id: true, telefono: true, canal: true } }),
+    db.tenantConfig.findUnique({ where: { tenantId }, select: { whatsappToken: true, whatsappPhoneId: true, telegramBotToken: true } }),
   ])
   if (!c) return { success: false, error: 'Conversación no encontrada.' }
-  if (!config?.whatsappToken || !config.whatsappPhoneId) return { success: false, error: 'WhatsApp no está conectado.' }
 
+  if (c.canal === 'TELEGRAM') {
+    if (!config?.telegramBotToken) return { success: false, error: 'El bot de Telegram no está conectado.' }
+    const t = await enviarTelegram(decrypt(config.telegramBotToken), decrypt(c.telefono), cuerpo)
+    if (!t.ok) return { success: false, error: `Telegram no lo entregó (${t.error}). Si la persona bloqueó el bot, ya no se le puede escribir.` }
+    await db.mensajeConversacion.create({
+      data: { conversacionId: c.id, entrante: false, texto: cuerpo, autorId: session.user.userId, providerMsgId: t.providerMsgId },
+    })
+    revalidatePath('/comunicaciones/conversaciones')
+    return { success: true }
+  }
+
+  if (!config?.whatsappToken || !config.whatsappPhoneId) return { success: false, error: 'WhatsApp no está conectado.' }
   const r = await sendMessage(
     { to: decrypt(c.telefono), channel: 'WHATSAPP', body: cuerpo }, undefined,
     { token: decrypt(config.whatsappToken), phoneNumberId: config.whatsappPhoneId },

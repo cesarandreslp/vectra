@@ -21,10 +21,16 @@ const RESPALDO = 'Gracias por escribirnos. En este momento no puedo responderte 
 const HISTORIAL = 12
 const EN_CURSO = ['CONTACTADO', 'CONSENTIMIENTO_PENDIENTE', 'CONSENTIDO', 'RESPONDIENDO'] as const
 
+export type Canal = 'WHATSAPP' | 'TELEGRAM'
+const NOMBRE_CANAL: Record<Canal, string> = { WHATSAPP: 'WhatsApp', TELEGRAM: 'Telegram' }
+
 export interface Entrada {
   tenantId:       string
   db:             Db
-  de:             string // celular tal como llega del canal
+  canal:          Canal
+  clave:          string        // identidad en el canal: hash del celular (WhatsApp) o del chat (Telegram)
+  destino:        string        // a dónde responder: celular o chat id
+  telefono:       string | null // celular si el canal lo da (WhatsApp); con él se reconoce al elector
   texto:          string
   providerMsgId?: string
   enviar:         (texto: string) => Promise<{ ok: boolean; providerMsgId?: string }>
@@ -49,17 +55,18 @@ export async function encuestaEnCurso(db: Db, tenantId: string, de: string): Pro
 
 export async function atender(e: Entrada): Promise<void> {
   const { db, tenantId } = e
-  const telefonoHash = hashTelefono(e.de)
+  const telefonoHash = e.clave
   if (!telefonoHash || !e.texto.trim()) return
   if (e.providerMsgId && await db.mensajeConversacion.findUnique({ where: { providerMsgId: e.providerMsgId }, select: { id: true } })) return
 
   const agente = await db.agenteCampana.findUnique({ where: { tenantId } })
   if (!agente?.activo || !agente.versionAprobada) return
 
-  const voter = await db.voter.findFirst({ where: { tenantId, telefonoHash }, select: { id: true } })
+  const hashCelular = hashTelefono(e.telefono)
+  const voter = hashCelular ? await db.voter.findFirst({ where: { tenantId, telefonoHash: hashCelular }, select: { id: true } }) : null
   const conv = await db.conversacion.upsert({
-    where:  { tenantId_canal_telefonoHash: { tenantId, canal: 'WHATSAPP', telefonoHash } },
-    create: { tenantId, canal: 'WHATSAPP', telefonoHash, telefono: encrypt(normalizarTelefono(e.de)), voterId: voter?.id },
+    where:  { tenantId_canal_telefonoHash: { tenantId, canal: e.canal, telefonoHash } },
+    create: { tenantId, canal: e.canal, telefonoHash, telefono: encrypt(e.destino), voterId: voter?.id },
     update: { ultimoMensajeEn: new Date(), ...(voter && { voterId: voter.id }) },
   })
 
@@ -77,7 +84,7 @@ export async function atender(e: Entrada): Promise<void> {
     where: { conversacionId: conv.id }, orderBy: { createdAt: 'desc' }, take: HISTORIAL, select: { entrante: true, texto: true },
   })).reverse()
 
-  const ctx = await contexto(db, tenantId, agente.versionAprobada as unknown as Conocimiento, conv)
+  const ctx = await contexto(db, tenantId, agente.versionAprobada as unknown as Conocimiento, conv, NOMBRE_CANAL[e.canal])
   let salida: SalidaAgente | null = null
   try {
     const { groq } = await getTenantAiKeys(tenantId)
@@ -97,12 +104,12 @@ export async function atender(e: Entrada): Promise<void> {
     autorizado = false
   }
   if (salida?.temas.length) await db.mensajeConversacion.update({ where: { id: entranteId }, data: { temas: salida.temas } })
-  if (salida?.registro && autorizado) await aplicarRegistro(db, tenantId, conv, salida.registro, e.de)
+  if (salida?.registro && autorizado) await aplicarRegistro(db, tenantId, conv, salida.registro, e.telefono)
 
   const motivo = salida ? salida.escalar : 'El agente no pudo responder'
   if (motivo && !(conv.escaladaEn && !conv.atendidaEn)) {
     await db.conversacion.update({ where: { id: conv.id }, data: { escaladaEn: new Date(), escaladaMotivo: motivo, atendidaEn: null, atendidaPorId: null } })
-    await avisarEscalamiento(db, tenantId, agente.escalamientoUserIds, conv.id, motivo)
+    await avisarEscalamiento(db, tenantId, agente.escalamientoUserIds, conv.id, motivo, NOMBRE_CANAL[e.canal])
   }
 
   // ── Respuesta ──────────────────────────────────────────────────────────────
@@ -121,7 +128,7 @@ export async function atender(e: Entrada): Promise<void> {
 
 async function contexto(
   db: Db, tenantId: string, conocimiento: Conocimiento,
-  conv: { autorizoEn: Date | null; rechazoEn: Date | null },
+  conv: { autorizoEn: Date | null; rechazoEn: Date | null }, canal: string,
 ): Promise<Contexto> {
   const [config, candidato] = await Promise.all([
     db.tenantConfig.findUnique({
@@ -139,6 +146,7 @@ async function contexto(
 
   return {
     botName:       config?.botName || 'Asistente Virtual',
+    canal,
     candidato:     candidato?.name ?? 'la campaña',
     cargo,
     fechaEleccion: config?.fechaEleccion
@@ -158,7 +166,7 @@ async function contexto(
 async function aplicarRegistro(
   db: Db, tenantId: string,
   conv: { id: string; voterId: string | null; contactoId: string | null },
-  reg: Registro, de: string,
+  reg: Registro, celular: string | null,
 ) {
   if (conv.voterId) {
     if (reg.voluntario) await db.voter.update({ where: { id: conv.voterId }, data: { esSimpatizante: true } })
@@ -188,13 +196,13 @@ async function aplicarRegistro(
     console.error(`[AGENTE] Sin candidato marcado en ${tenantId}: no hay a nombre de quién abrir el contacto.`)
     return
   }
-  const telefono = normalizarTelefono(de)
+  const telefono = celular ? normalizarTelefono(celular) : null
   const contacto = await db.contactoCalle.create({
     data: {
       id: randomUUID(), tenantId, fecha: new Date(), anfitrionId: candidato.id, origen: 'CHAT',
-      nombre: reg.nombre, telefono: encrypt(telefono), telefonoHash: hashTelefono(telefono),
+      nombre: reg.nombre, telefono: telefono ? encrypt(telefono) : null, telefonoHash: hashTelefono(telefono),
       temperatura: reg.apoyo, intereses: reg.intereses, quiereSerVoluntario: reg.voluntario,
-      nota: 'Llegó por WhatsApp (agente)',
+      nota: celular ? 'Llegó por WhatsApp (agente)' : 'Llegó por Telegram (agente): sin celular, pídeselo al hacerle seguimiento',
       neighborhoodId: zona?.barrioId ?? null, communeId: zona?.comunaId ?? null, asignadoAId: zona?.responsable ?? null,
     },
     select: { id: true },
@@ -217,7 +225,7 @@ async function ubicar(db: Db, lugar: string) {
 }
 
 /** Avisa a los responsables que designó la campaña; sin designados, a los administradores. */
-async function avisarEscalamiento(db: Db, tenantId: string, designados: string[], conversacionId: string, motivo: string) {
+async function avisarEscalamiento(db: Db, tenantId: string, designados: string[], conversacionId: string, motivo: string, canal: string) {
   const userIds = designados.length
     ? designados
     : (await superadminDb.user.findMany({ where: { tenantId, role: 'ADMIN_CAMPANA', isActive: true }, select: { id: true } })).map((u) => u.id)
@@ -225,7 +233,7 @@ async function avisarEscalamiento(db: Db, tenantId: string, designados: string[]
   await db.notification.createMany({
     data: userIds.map((userId) => ({
       tenantId, userId, type: 'CONVERSACION_ESCALADA',
-      message: `Una conversación de WhatsApp necesita a alguien del equipo: ${motivo}`,
+      message: `Una conversación de ${canal} necesita a alguien del equipo: ${motivo}`,
       metadata: { conversacionId, href: `/comunicaciones/conversaciones?c=${conversacionId}` },
     })),
   })

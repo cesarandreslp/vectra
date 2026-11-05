@@ -51,10 +51,9 @@ export function EstadoAgente({ vista }: { vista: VistaAgente }) {
         </div>
       )}
 
-      {!vista.whatsappListo && (
+      {!vista.whatsappListo && !vista.telegramBot && (
         <p className="text-xs text-slate-500 m-0">
-          Falta conectar WhatsApp (token, Phone Number ID y App Secret) en Encuestas → Configuración API.
-          Mientras tanto, aunque esté encendido, no le llega ningún mensaje.
+          No hay ningún canal conectado: aunque esté encendido, no le llega ningún mensaje.
         </p>
       )}
       {error && <p className="text-sm text-red-700 m-0">{error}</p>}

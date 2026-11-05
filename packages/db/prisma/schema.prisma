@@ -602,6 +602,10 @@ model TenantConfig {
   // CIFRADO: App Secret de la app de Meta. Con él se valida la firma
   // X-Hub-Signature-256 de cada webhook; sin él, el webhook rechaza todo.
   whatsappAppSecret     String?
+  // Telegram (agente): CIFRADO el token del bot (@BotFather). El secreto lo
+  // genera Vectra al conectar y Telegram lo devuelve en cada webhook.
+  telegramBotToken      String?
+  telegramWebhookSecret String?
   botName               String? @default("Asistente Virtual")
   surveyDailyLimit      Int     @default(250)
 
@@ -1826,15 +1830,16 @@ model AgenteCampana {
   updatedAt           DateTime  @updatedAt
 }
 
-/// Una persona que escribe por un canal. Se reconoce por el hash del celular;
-/// si ya es elector queda voterId, si no, el ContactoCalle (origen CHAT) que
-/// se abre cuando autoriza sus datos.
+/// Una persona que escribe por un canal. En WhatsApp se reconoce por el hash
+/// del celular; en Telegram (que no da el celular) por el hash del chat. Si ya
+/// es elector queda voterId; si no, el ContactoCalle (origen CHAT) que se abre
+/// cuando autoriza sus datos.
 model Conversacion {
   id              String            @id @default(cuid())
   tenantId        String
   canal           CanalConversacion
-  telefonoHash    String
-  // CIFRADO: campo PII — para poder responderle.
+  telefonoHash    String // WhatsApp: hashTelefono(celular) · Telegram: sha256("telegram:" + chatId)
+  // CIFRADO: campo PII — a dónde responderle (celular en WhatsApp, chat id en Telegram).
   telefono        String
   voterId         String?
   contactoId      String? // ContactoCalle.id

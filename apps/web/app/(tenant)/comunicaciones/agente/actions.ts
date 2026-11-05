@@ -6,8 +6,11 @@
  * El agente solo usa la versión APROBADA: guardar no cambia lo que dice.
  */
 
+import { randomBytes } from 'crypto'
+import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
-import { getTenantDb, superadminDb } from '@vectra/db'
+import { getTenantDb, superadminDb, encrypt, decrypt } from '@vectra/db'
+import { getMe, setWebhook, deleteWebhook } from '@/lib/telegram'
 import { getTenantConnection } from '@/lib/tenant'
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
 
@@ -25,6 +28,7 @@ export interface VistaAgente {
   escalamientoHorario: string
   usuarios:            { id: string; nombre: string }[]
   whatsappListo:       boolean
+  telegramBot:         string | null // @usuario del bot conectado
 }
 
 type Resultado = { success: true } | { success: false; error: string }
@@ -60,10 +64,11 @@ export async function getAgente(): Promise<VistaAgente> {
   const { tenantId, db } = await sesionYDb('view')
   const [a, config, usuarios] = await Promise.all([
     db.agenteCampana.findUnique({ where: { tenantId } }),
-    db.tenantConfig.findUnique({ where: { tenantId }, select: { whatsappToken: true, whatsappPhoneId: true, whatsappAppSecret: true } }),
+    db.tenantConfig.findUnique({ where: { tenantId }, select: { whatsappToken: true, whatsappPhoneId: true, whatsappAppSecret: true, telegramBotToken: true } }),
     usuariosDelTenant(tenantId),
   ])
   const textos = textosDe(a)
+  const bot = config?.telegramBotToken ? await getMe(decrypt(config.telegramBotToken)) : null
   return {
     textos,
     activo:              a?.activo ?? false,
@@ -74,6 +79,7 @@ export async function getAgente(): Promise<VistaAgente> {
     escalamientoHorario: a?.escalamientoHorario ?? '',
     usuarios,
     whatsappListo:       Boolean(config?.whatsappToken && config.whatsappPhoneId && config.whatsappAppSecret),
+    telegramBot:         bot ? (bot.ok ? `@${bot.result.username}` : '(token rechazado por Telegram)') : null,
   }
 }
 
@@ -124,6 +130,43 @@ export async function setAgenteActivo(activo: boolean): Promise<Resultado> {
   if (activo && !a?.aprobadoEn) return { success: false, error: 'Primero aprueba lo que el agente puede decir.' }
   if (!a) return { success: true } // apagar algo que nunca se configuró
   await db.agenteCampana.update({ where: { tenantId }, data: { activo: activo === true } })
+  revalidatePath('/comunicaciones/agente')
+  return { success: true }
+}
+
+/**
+ * Conecta el bot de Telegram de la campaña: valida el token, genera el secreto
+ * del webhook y le dice a Telegram a dónde mandar los mensajes.
+ */
+export async function conectarTelegram(token: string): Promise<Resultado> {
+  const { session, tenantId, db } = await sesionYDb('edit')
+  const t = typeof token === 'string' ? token.trim() : ''
+  if (!/^\d+:[\w-]{30,}$/.test(t)) return { success: false, error: 'Ese no parece un token de @BotFather (se ve como 123456:ABC-…).' }
+  const yo = await getMe(t)
+  if (!yo.ok) return { success: false, error: `Telegram no aceptó el token: ${yo.error}` }
+
+  const h = await headers()
+  const host = h.get('x-forwarded-host') ?? h.get('host')
+  if (!host) return { success: false, error: 'No se pudo saber la dirección pública de Vectra.' }
+  const secreto = randomBytes(32).toString('hex')
+  const url = `https://${host}/api/webhooks/telegram?c=${encodeURIComponent(session.user.tenantSlug ?? '')}`
+  // Primero se guarda: si Telegram llama antes de que termine, ya encuentra el secreto.
+  await db.tenantConfig.upsert({
+    where:  { tenantId },
+    create: { tenantId, telegramBotToken: encrypt(t), telegramWebhookSecret: secreto },
+    update: { telegramBotToken: encrypt(t), telegramWebhookSecret: secreto },
+  })
+  const w = await setWebhook(t, url, secreto)
+  if (!w.ok) return { success: false, error: `Telegram no aceptó el webhook: ${w.error}` }
+  revalidatePath('/comunicaciones/agente')
+  return { success: true }
+}
+
+export async function desconectarTelegram(): Promise<Resultado> {
+  const { tenantId, db } = await sesionYDb('edit')
+  const c = await db.tenantConfig.findUnique({ where: { tenantId }, select: { telegramBotToken: true } })
+  if (c?.telegramBotToken) await deleteWebhook(decrypt(c.telegramBotToken))
+  await db.tenantConfig.update({ where: { tenantId }, data: { telegramBotToken: null, telegramWebhookSecret: null } })
   revalidatePath('/comunicaciones/agente')
   return { success: true }
 }

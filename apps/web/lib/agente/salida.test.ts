@@ -32,11 +32,12 @@ assert.equal(normalizarLugar('VEREDA La Habana'), 'la habana')
 
 // El texto de autorización solo se pide mientras está pendiente.
 const ctx = {
-  botName: 'Sofi', candidato: 'Juan Pérez', cargo: null, fechaEleccion: null,
+  botName: 'Sofi', canal: 'Telegram', candidato: 'Juan Pérez', cargo: null, fechaEleccion: null,
   conocimiento: { propuestas: 'P', biografia: 'B', tono: '', lineamientos: '', textoAutorizacion: 'AUTORIZA-XYZ' },
 }
 assert.ok(armarPrompt({ ...ctx, autorizacion: 'PENDIENTE' }).includes('AUTORIZA-XYZ'))
 assert.ok(!armarPrompt({ ...ctx, autorizacion: 'AUTORIZO' }).includes('AUTORIZA-XYZ'))
 assert.ok(presentacion(ctx).includes('inteligencia artificial'))
+assert.ok(armarPrompt({ ...ctx, autorizacion: 'AUTORIZO' }).includes('por Telegram'))
 
 console.log('agente/salida OK')
