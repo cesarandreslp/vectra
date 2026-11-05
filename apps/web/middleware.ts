@@ -10,6 +10,7 @@ const RUTAS_PUBLICAS = [
   '/login',
   '/superadmin/login',
   '/registro/',
+  '/privacidad', // política de datos y derechos del titular (Ley 1581): pública por ley
   '/electores/login',
   '/testigo/login',
   '/no-autorizado',

@@ -335,7 +335,12 @@ export function FormularioRegistro({ slug, token, refId, puestos, textoAutorizac
             type="checkbox" checked={autoriza} onChange={(e) => setAutoriza(e.target.checked)} required
             style={{ marginTop: '0.15rem', width: '1.1rem', height: '1.1rem', flexShrink: 0 }}
           />
-          <span>{textoAutorizacion}</span>
+          <span>
+            {textoAutorizacion}{' '}
+            <a href={`/privacidad?c=${slug}`} target="_blank" rel="noopener noreferrer" style={{ color: '#1e40af' }}>
+              Política de tratamiento y tus derechos
+            </a>
+          </span>
         </label>
 
         {mensaje && (

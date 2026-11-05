@@ -7,7 +7,7 @@ const SCREENS_CORE = [
   'CORE_DASHBOARD', 'CORE_ESTRUCTURA', 'CORE_LIDERES', 'CORE_ELECTORES', 'CORE_IMPORTAR', 'CORE_QR',
   'CORE_TERRITORIO', 'CORE_AGENDA', 'CORE_LOGISTICA', 'CORE_ACTIVIDADES', 'CORE_PRESUPUESTOS',
   'CORE_TESORERIA', 'CORE_PERFILES',
-  'CORE_RUTAS', 'CORE_ALERTAS', 'CORE_USUARIOS', 'CORE_CONFIGURACION',
+  'CORE_RUTAS', 'CORE_ALERTAS', 'CORE_USUARIOS', 'CORE_CONFIGURACION', 'CORE_DATOS_PERSONALES',
 ]
 
 export default async function CoreLayout({ children }: { children: React.ReactNode }) {
@@ -54,6 +54,8 @@ export default async function CoreLayout({ children }: { children: React.ReactNo
     ...((session.user.role === 'ADMIN_CAMPANA' || (personalizado && puedeVer('CORE_USUARIOS')))
       ? [{ href: '/core/usuarios', label: 'Usuarios y testigos' } as NavItem]
       : []),
+    ...((session.user.role === 'ADMIN_CAMPANA' || (personalizado && puedeVer('CORE_DATOS_PERSONALES')))
+      ? [{ href: '/core/datos-personales', label: 'Datos personales' } as NavItem] : []),
     ...((session.user.role === 'ADMIN_CAMPANA' || (personalizado && puedeVer('CORE_CONFIGURACION')))
       ? [{ href: '/core/configuracion', label: 'Configuración' } as NavItem]
       : []),

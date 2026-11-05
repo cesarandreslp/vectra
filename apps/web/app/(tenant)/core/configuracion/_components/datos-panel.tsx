@@ -7,11 +7,12 @@ import { guardarConfigDatos, type ConfigDatos } from '../actions-datos'
 export function DatosPanel({ inicial }: { inicial: ConfigDatos }) {
   const [texto, setTexto] = useState(inicial.texto)
   const [contacto, setContacto] = useState(inicial.contacto)
+  const [politica, setPolitica] = useState(inicial.politica)
   const [mensaje, setMensaje] = useState('')
   const [pendiente, iniciar] = useTransition()
 
   const guardar = () => iniciar(async () => {
-    const r = await guardarConfigDatos(texto, contacto)
+    const r = await guardarConfigDatos(texto, contacto, politica)
     setMensaje(r.success ? 'Guardado. Desde ya es el texto que ven quienes se registran.' : r.error)
   })
 
@@ -35,6 +36,17 @@ export function DatosPanel({ inicial }: { inicial: ConfigDatos }) {
       {!texto.trim() && (
         <button type="button" onClick={() => setTexto(inicial.sugerido)} style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: '#1e40af', fontSize: '0.8rem', cursor: 'pointer', padding: 0 }}>
           Partir del texto sugerido para editarlo
+        </button>
+      )}
+      <label style={{ fontSize: '0.8rem', color: '#334155' }}>
+        <b>Política de tratamiento</b> — se publica en{' '}
+        <a href={inicial.urlPublica} target="_blank" rel="noopener noreferrer" style={{ color: '#1e40af' }}>la página pública de la campaña</a>
+        {' '}junto con el formulario de derechos. Vacía usa la sugerida.
+        <textarea rows={8} value={politica} onChange={(e) => setPolitica(e.target.value)} placeholder={inicial.politicaSugerida} style={{ ...caja, marginTop: 4 }} />
+      </label>
+      {!politica.trim() && (
+        <button type="button" onClick={() => setPolitica(inicial.politicaSugerida)} style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: '#1e40af', fontSize: '0.8rem', cursor: 'pointer', padding: 0 }}>
+          Partir de la política sugerida para editarla
         </button>
       )}
       <button

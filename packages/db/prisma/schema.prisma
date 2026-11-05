@@ -616,6 +616,8 @@ model TenantConfig {
   // sugerido de lib/autorizacion-datos) y a dónde escribir para ejercer sus derechos.
   autorizacionTexto     String?
   autorizacionContacto  String?
+  // Política de tratamiento propia (null = la sugerida de lib/politica-datos).
+  politicaTratamiento   String?
   botName               String? @default("Asistente Virtual")
   surveyDailyLimit      Int     @default(250)
 
@@ -1906,4 +1908,29 @@ model AutorizacionDatos {
   revocadaEn     DateTime?
 
   @@index([tenantId, voterId])
+}
+
+/// Solicitud de un titular (Ley 1581, arts. 14 y 15): consulta, corrección,
+/// supresión o revocación. Entra por el formulario público /privacidad. El plazo
+/// legal corre en días hábiles: 10 para consultas, 15 para reclamos. Antes de
+/// suprimir o revocar, el equipo verifica que quien pide es el titular.
+model SolicitudDatos {
+  id            String    @id @default(cuid())
+  tenantId      String
+  tipo          String // CONSULTA | CORRECCION | SUPRESION | REVOCACION
+  cedulaHash    String // SHA-256 de la cédula que dio: con ella se busca el elector
+  voterId       String? // si la cédula está en el padrón
+  nombre        String
+  // CIFRADO: correo o celular para responderle.
+  contacto      String
+  detalle       String
+  estado        String    @default("RECIBIDA") // RECIBIDA | ATENDIDA
+  venceEn       DateTime // fecha límite legal
+  respuesta     String?
+  accion        String? // lo que se hizo: SUPRIMIDO | REVOCADA | NINGUNA
+  atendidaEn    DateTime?
+  atendidaPorId String? // User.id
+  createdAt     DateTime  @default(now())
+
+  @@index([tenantId, estado, venceEn])
 }

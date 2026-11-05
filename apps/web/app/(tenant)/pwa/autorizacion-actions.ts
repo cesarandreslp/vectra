@@ -18,7 +18,7 @@ async function sesionYDb() {
 }
 
 /** El texto que tiene que aceptar, o null si ya autorizó (o la cuenta no tiene elector). */
-export async function getAutorizacionPendiente(): Promise<string | null> {
+export async function getAutorizacionPendiente(): Promise<{ texto: string; politica: string } | null> {
   const { session, db } = await sesionYDb()
   if (!session.user.voterId) return null
   const v = await db.voter.findFirst({
@@ -26,7 +26,10 @@ export async function getAutorizacionPendiente(): Promise<string | null> {
     select: { autorizacionDatosEn: true },
   })
   if (!v || v.autorizacionDatosEn) return null
-  return textoAutorizacion(db, session.user.tenantId, session.user.tenantName ?? 'la campaña')
+  return {
+    texto:    await textoAutorizacion(db, session.user.tenantId, session.user.tenantName ?? 'la campaña'),
+    politica: `/privacidad?c=${encodeURIComponent(session.user.tenantSlug ?? '')}`,
+  }
 }
 
 export async function aceptarAutorizacion(): Promise<{ success: boolean }> {
