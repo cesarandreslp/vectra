@@ -1072,6 +1072,8 @@ export interface VoterDetalle {
   notes:            string | null
   leaderId:         string | null
   leaderName:       string | null
+  /** Electores que tiene directamente debajo — con >0 ya tiene red propia que ver. */
+  directos:         number
   isCandidate:      boolean
   tieneAgenda:      boolean
   /** false = inactivado: no puede entrar a la aplicación por ninguna puerta. */
@@ -1102,6 +1104,7 @@ export async function getVoterDetalle(id: string): Promise<VoterDetalle | null> 
       censoEstado: true, censoLugar: true,
       leader: { select: { name: true } },
       estadoCambios: { orderBy: { fecha: 'desc' }, take: 1, select: { fecha: true, status: true } },
+      _count: { select: { followers: true } },
     },
   })
   if (!v) return null
@@ -1119,8 +1122,8 @@ export async function getVoterDetalle(id: string): Promise<VoterDetalle | null> 
   return {
     id: v.id, name: v.name, apodo: v.apodo, phone: phonePlain, address: v.address,
     commitmentStatus: v.commitmentStatus, lastContact: v.lastContact, notes: v.notes,
-    leaderId: v.leaderId, leaderName: v.leader?.name ?? null, isCandidate: v.isCandidate,
-    tieneAgenda: v.tieneAgenda, activo: v.status === 'ACTIVO',
+    leaderId: v.leaderId, leaderName: v.leader?.name ?? null, directos: v._count.followers,
+    isCandidate: v.isCandidate, tieneAgenda: v.tieneAgenda, activo: v.status === 'ACTIVO',
     inactivoDesde: v.status !== 'ACTIVO' && ultimoCambio && ultimoCambio.status !== 'ACTIVO' ? ultimoCambio.fecha : null,
     censoEstado: v.censoEstado, censoLugar: v.censoLugar as Record<string, unknown> | null,
   }

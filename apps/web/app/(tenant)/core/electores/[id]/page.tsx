@@ -88,6 +88,15 @@ export default async function FichaElectorPage({ params }: Props) {
               </Link>
             </div>
           )}
+          {/* Su red se ve en la ficha de líder aunque no llegue al umbral: esa ficha abre por id. */}
+          {elector.directos > 0 && (
+            <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.3rem' }}>
+              Tiene {elector.directos} elector{elector.directos === 1 ? '' : 'es'} debajo ·{' '}
+              <Link href={`/core/lideres/${elector.id}`} style={{ color: '#1e40af', textDecoration: 'none', fontWeight: 600 }}>
+                Ver su red →
+              </Link>
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {puedeEditar && (
