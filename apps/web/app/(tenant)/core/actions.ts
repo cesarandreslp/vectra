@@ -872,7 +872,23 @@ export async function getAnalisisCompromisoCacheado(voterId: string): Promise<Co
  * un elector. Cualquier rol con acceso a ese elector puede pedirlo — LIDER/
  * ELECTOR solo dentro de su propio sub-árbol, igual que updateVoterCommitment.
  */
-export async function generarAnalisisCompromiso(voterId: string): Promise<CompromisoAnalysisResult> {
+/**
+ * Devuelve el error en vez de lanzarlo: en producción Next.js reemplaza el
+ * mensaje de un throw de server action por un texto genérico, y quien hace clic
+ * no se entera de que, por ejemplo, a la campaña le falta su clave de Groq.
+ */
+export async function generarAnalisisCompromiso(
+  voterId: string,
+): Promise<{ ok: true; analisis: CompromisoAnalysisResult } | { ok: false; error: string }> {
+  try {
+    return { ok: true, analisis: await analisisCompromiso(voterId) }
+  } catch (e) {
+    console.error('[generarAnalisisCompromiso]', e instanceof Error ? e.message : e)
+    return { ok: false, error: e instanceof Error ? e.message : 'Error al generar el análisis.' }
+  }
+}
+
+async function analisisCompromiso(voterId: string): Promise<CompromisoAnalysisResult> {
   const session = await requireModule('CORE')
   const db      = await obtenerDbTenant(session.user.tenantId)
 
@@ -953,7 +969,8 @@ export async function generarAnalisisCompromiso(voterId: string): Promise<Compro
     justificacion:     string
   }
   try {
-    resultado = JSON.parse(respuesta)
+    // El modelo a veces envuelve el JSON en ```json … ```: se toma del primer { al último }.
+    resultado = JSON.parse(respuesta.slice(respuesta.indexOf('{'), respuesta.lastIndexOf('}') + 1))
   } catch {
     throw new Error('El agente IA retornó un JSON inválido. Intente regenerar el análisis.')
   }

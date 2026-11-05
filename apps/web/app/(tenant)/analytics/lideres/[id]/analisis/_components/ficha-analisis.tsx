@@ -32,12 +32,9 @@ export function FichaAnalisis({
   function handleGenerar() {
     setError(null)
     startTransition(async () => {
-      try {
-        const result = await generarAnalisisLider(leaderId)
-        setAnalisis(result)
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Error al generar análisis')
-      }
+      const r = await generarAnalisisLider(leaderId)
+      if (r.ok) setAnalisis(r.analisis)
+      else setError(r.error)
     })
   }
 

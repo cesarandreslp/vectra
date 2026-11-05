@@ -479,7 +479,19 @@ Entrega tu análisis en este formato JSON exacto:
 Si el veredicto es PRESCINDIR, planAccion debe ser null.
 Responde SOLO con el JSON, sin texto adicional ni markdown.`
 
-export async function generarAnalisisLider(leaderId: string): Promise<LeaderAnalysisResult> {
+/** Devuelve el error en vez de lanzarlo: en producción Next.js esconde el mensaje de un throw. */
+export async function generarAnalisisLider(
+  leaderId: string,
+): Promise<{ ok: true; analisis: LeaderAnalysisResult } | { ok: false; error: string }> {
+  try {
+    return { ok: true, analisis: await analisisLider(leaderId) }
+  } catch (e) {
+    console.error('[generarAnalisisLider]', e instanceof Error ? e.message : e)
+    return { ok: false, error: e instanceof Error ? e.message : 'Error al generar el análisis.' }
+  }
+}
+
+async function analisisLider(leaderId: string): Promise<LeaderAnalysisResult> {
   const { db, tenantId } = await getDbAndTenant('ANALYTICS_LIDERES', 'edit')
 
   // Verificar si ya existe un análisis reciente (< 24 horas)
@@ -599,7 +611,7 @@ export async function generarAnalisisLider(leaderId: string): Promise<LeaderAnal
   }
 
   try {
-    resultado = JSON.parse(respuesta)
+    resultado = JSON.parse(respuesta.slice(respuesta.indexOf('{'), respuesta.lastIndexOf('}') + 1))
   } catch {
     throw new Error(`El agente IA retornó un JSON inválido. Intente regenerar el análisis.`)
   }

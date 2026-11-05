@@ -38,12 +38,9 @@ export function VeredictoCompromiso({ voterId }: { voterId: string }) {
   function generar() {
     setError(null)
     startTransition(async () => {
-      try {
-        const result = await generarAnalisisCompromiso(voterId)
-        setAnalisis(result)
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Error al generar el análisis')
-      }
+      const r = await generarAnalisisCompromiso(voterId)
+      if (r.ok) setAnalisis(r.analisis)
+      else setError(r.error)
     })
   }
 
