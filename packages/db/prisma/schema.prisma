@@ -141,21 +141,25 @@ model GlobalTrainingMaterial {
 /// La autenticación es global: un email pertenece a UN solo tenant en toda la
 /// plataforma. El authorize busca el user por email sin necesidad de subdominio.
 model User {
-  id           String      @id @default(cuid())
-  tenantId     String
-  name         String? // Nombre completo (opcional para no romper registros existentes)
-  email        String      @unique // Único en toda la plataforma — login universal
-  passwordHash String // Nunca almacenar contraseña en texto plano
-  role         UserRole
+  id             String      @id @default(cuid())
+  tenantId       String
+  name           String? // Nombre completo (opcional para no romper registros existentes)
+  email          String      @unique // Único en toda la plataforma — login universal
+  passwordHash   String // Nunca almacenar contraseña en texto plano
+  role           UserRole
   // Referencia suelta al Voter.id de este usuario en SU base de tenant (User vive
   // en la DB del superadmin, Voter en la del tenant — no puede ser @relation).
   // Para roles LIDER/TESTIGO: acota qué ve a su propio sub-árbol de electores.
-  voterId      String?
-  isActive     Boolean     @default(true)
-  createdAt    DateTime    @default(now())
+  voterId        String?
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
   // Solo tiene sentido si role = PERSONALIZADO — de dónde salen sus permisos reales.
-  customRoleId String?
-  customRole   CustomRole? @relation(fields: [customRoleId], references: [id])
+  customRoleId   String?
+  customRole     CustomRole? @relation(fields: [customRoleId], references: [id])
+  // Doble factor (TOTP, app de autenticación). CIFRADO el secreto. Mientras
+  // totpActivadoEn sea null el secreto es solo una propuesta de enrolamiento.
+  totpSecreto    String?
+  totpActivadoEn DateTime?
 
   @@index([tenantId])
 }

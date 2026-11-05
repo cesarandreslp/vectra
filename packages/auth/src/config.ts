@@ -1,6 +1,8 @@
 import NextAuth, { type DefaultSession, type NextAuthConfig, type NextAuthResult } from 'next-auth'
 import type { NextRequest } from 'next/server'
 import Credentials from 'next-auth/providers/credentials'
+import { CredentialsSignin } from 'next-auth'
+import { verificarTotp } from './totp'
 import bcrypt from 'bcryptjs'
 import { createHash } from 'crypto'
 import { superadminDb, getTenantDb, decrypt, registrarAcceso, loginBloqueado, hashClave, enmascarar } from '@vectra/db'
@@ -98,7 +100,17 @@ async function resolverCustomPermissions(customRoleId: string | null): Promise<C
  *   puertas — cada provider ahora exige que el usuario sea del lado que le
  *   corresponde, o falla igual que credenciales inválidas.
  */
-async function autenticarUsuario(email: string, password: string, soloSuperadmin: boolean): Promise<ResultadoAuth | null> {
+/** La contraseña fue correcta pero la cuenta tiene doble factor y no vino el código. */
+const PIDE_CODIGO = 'PIDE_CODIGO' as const
+
+/** Para que el formulario de login sepa que tiene que pedir el código (llega como resultado.code). */
+class FaltaCodigo extends CredentialsSignin {
+  code = 'codigo'
+}
+
+async function autenticarUsuario(
+  email: string, password: string, soloSuperadmin: boolean, codigo?: string,
+): Promise<ResultadoAuth | null | typeof PIDE_CODIGO> {
   const usuario = await superadminDb.user.findUnique({ where: { email } })
 
   if (!usuario || !usuario.isActive) return null
@@ -113,6 +125,15 @@ async function autenticarUsuario(email: string, password: string, soloSuperadmin
 
   const passwordValida = await bcrypt.compare(password, usuario.passwordHash)
   if (!passwordValida) return null
+
+  // Doble factor: con él activo, la contraseña sola no alcanza. Un código
+  // equivocado cuenta como intento fallido (y suma para el bloqueo).
+  if (usuario.totpActivadoEn && usuario.totpSecreto) {
+    if (!codigo?.trim()) return PIDE_CODIGO
+    let secreto: string
+    try { secreto = decrypt(usuario.totpSecreto) } catch { return null }
+    if (!verificarTotp(secreto, codigo)) return null
+  }
 
   // SUPERADMIN no tiene tenant asociado; sus módulos son vacíos.
   if (usuario.tenantId === SUPERADMIN_TENANT_ID) {
@@ -299,7 +320,7 @@ function ipDe(req: Request | undefined): string | null {
 
 async function conBitacora(
   puerta: string, clave: string, sujeto: string, tenantId: string | null,
-  req: Request | undefined, intentar: () => Promise<ResultadoAuth | null>,
+  req: Request | undefined, intentar: () => Promise<ResultadoAuth | null | typeof PIDE_CODIGO>,
 ): Promise<ResultadoAuth | null> {
   const claveHash = hashClave(clave)
   const ip = ipDe(req)
@@ -308,6 +329,11 @@ async function conBitacora(
     return null
   }
   const r = await intentar()
+  if (r === PIDE_CODIGO) {
+    // No es un fallo: la contraseña estaba bien. El formulario pide el código.
+    await registrarAcceso({ tenantId, accion: 'LOGIN_PIDE_CODIGO', detalle: puerta, sujeto, claveHash, ip })
+    throw new FaltaCodigo()
+  }
   await registrarAcceso({
     tenantId: r?.tenantId ?? tenantId, userId: r?.id ?? null,
     accion: r ? 'LOGIN_OK' : 'LOGIN_FALLIDO', detalle: puerta, sujeto, claveHash, ip,
@@ -321,6 +347,38 @@ async function tenantDeCorreo(email: string): Promise<string | null> {
 
 async function tenantDeSlug(slug: string): Promise<string | null> {
   return (await superadminDb.tenant.findUnique({ where: { slug }, select: { id: true } }).catch(() => null))?.id ?? null
+}
+
+// ── Revalidación de la sesión ─────────────────────────────────────────────────
+
+const REVALIDAR_MS = 5 * 60_000
+
+/**
+ * ¿La sesión sigue valiendo? Cuenta desactivada, campaña desactivada o elector
+ * inactivado → no. Si la base no responde, sí: un corte de la base no puede
+ * sacar a todo el mundo.
+ */
+async function sesionVigente(token: Record<string, unknown>): Promise<boolean> {
+  try {
+    const userId = token.userId as string | undefined
+    const tenantId = token.tenantId as string | undefined
+    if (!userId || !tenantId) return false
+    if (tenantId === SUPERADMIN_TENANT_ID) {
+      return Boolean((await superadminDb.user.findUnique({ where: { id: userId }, select: { isActive: true } }))?.isActive)
+    }
+    const tenant = await superadminDb.tenant.findUnique({ where: { id: tenantId }, select: { isActive: true, connectionString: true } })
+    if (!tenant?.isActive) return false
+    if (!userId.startsWith('voter:')) {
+      const u = await superadminDb.user.findUnique({ where: { id: userId }, select: { isActive: true } })
+      if (!u?.isActive) return false
+    }
+    const voterId = (token.voterId as string | null | undefined) ?? (userId.startsWith('voter:') ? userId.slice(6) : null)
+    if (!voterId) return true
+    const v = await getTenantDb(decrypt(tenant.connectionString)).voter.findUnique({ where: { id: voterId }, select: { status: true } })
+    return v?.status === 'ACTIVO'
+  } catch {
+    return true
+  }
 }
 
 // ── Configuración de NextAuth v5 ──────────────────────────────────────────────
@@ -356,6 +414,7 @@ const nextAuth: NextAuthResult = NextAuth((req) => ({
       credentials: {
         email:    { label: 'Correo electrónico', type: 'email' },
         password: { label: 'Contraseña',         type: 'password' },
+        codigo:   { label: 'Código de verificación', type: 'text' },
       },
       async authorize(credentials, request) {
         const email    = credentials?.email    as string | undefined
@@ -363,7 +422,7 @@ const nextAuth: NextAuthResult = NextAuth((req) => ({
 
         if (!email || !password) return null
 
-        return conBitacora('equipo', email, email, await tenantDeCorreo(email), request, () => autenticarUsuario(email, password, false))
+        return conBitacora('equipo', email, email, await tenantDeCorreo(email), request, () => autenticarUsuario(email, password, false, credentials?.codigo as string | undefined))
       },
     }),
 
@@ -376,6 +435,7 @@ const nextAuth: NextAuthResult = NextAuth((req) => ({
       credentials: {
         email:    { label: 'Correo electrónico', type: 'email' },
         password: { label: 'Contraseña',         type: 'password' },
+        codigo:   { label: 'Código de verificación', type: 'text' },
       },
       async authorize(credentials, request) {
         const email    = credentials?.email    as string | undefined
@@ -383,7 +443,7 @@ const nextAuth: NextAuthResult = NextAuth((req) => ({
 
         if (!email || !password) return null
 
-        return conBitacora('superadmin', email, email, await tenantDeCorreo(email), request, () => autenticarUsuario(email, password, true))
+        return conBitacora('superadmin', email, email, await tenantDeCorreo(email), request, () => autenticarUsuario(email, password, true, credentials?.codigo as string | undefined))
       },
     }),
 
@@ -444,6 +504,17 @@ const nextAuth: NextAuthResult = NextAuth((req) => ({
         token.activeModules = u.activeModules
         token.voterId       = u.voterId
         token.customPermissions = u.customPermissions
+        token.verificadoEn  = Date.now()
+        return token
+      }
+      // Cada 5 min se vuelve a mirar si la persona (o su campaña) sigue activa:
+      // inactivar a alguien le corta la sesión en minutos, no cuando vence el JWT.
+      if (Date.now() - ((token.verificadoEn as number | undefined) ?? 0) > REVALIDAR_MS) {
+        if (!(await sesionVigente(token))) {
+          await registrarAcceso({ tenantId: (token.tenantId as string) ?? null, userId: (token.userId as string) ?? null, accion: 'SESION_CORTADA' })
+          return null
+        }
+        token.verificadoEn = Date.now()
       }
       return token
     },

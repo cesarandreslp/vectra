@@ -7,6 +7,8 @@ export function SuperadminLoginForm() {
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [error,    setError]    = useState<string | null>(null)
+  const [pideCodigo, setPideCodigo] = useState(false)
+  const [codigo,   setCodigo]   = useState('')
 
   const [isPending, startTransition] = useTransition()
 
@@ -15,10 +17,12 @@ export function SuperadminLoginForm() {
     setError(null)
 
     startTransition(async () => {
-      const resultado = await signIn('superadmin', { email, password, redirect: false })
+      const resultado = await signIn('superadmin', { email, password, codigo, redirect: false })
 
+      // Contraseña correcta, pero la cuenta tiene doble factor: se pide el código.
+      if (resultado?.code === 'codigo') { setPideCodigo(true); return }
       if (resultado?.error) {
-        setError('Credenciales incorrectas.')
+        setError(pideCodigo ? 'Código o credenciales incorrectas.' : 'Credenciales incorrectas.')
         return
       }
 
@@ -52,6 +56,19 @@ export function SuperadminLoginForm() {
               required autoComplete="current-password" style={estiloInput}
             />
           </div>
+
+          {pideCodigo && (
+            <div>
+              <label htmlFor="codigo" style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.25rem' }}>
+                Código de tu app de autenticación
+              </label>
+              <input
+                id="codigo" name="codigo" value={codigo} onChange={(e) => setCodigo(e.target.value)} autoFocus
+                inputMode="numeric" autoComplete="one-time-code" maxLength={7} placeholder="000000" required
+                style={{ ...estiloInput, letterSpacing: '0.25em' }}
+              />
+            </div>
+          )}
 
           {error && (
             <div style={{ padding: '0.625rem 0.75rem', borderRadius: '6px', background: '#fee2e2', color: '#991b1b', fontSize: '0.875rem' }}>

@@ -17,6 +17,7 @@ export default async function SuperadminDashboardLayout({
     { href: '/superadmin/clientes',       label: 'Clientes' },
     { href: '/superadmin/clientes/nuevo', label: '+ Nuevo cliente' },
     { href: '/superadmin/formacion',      label: 'Formación' },
+    { href: '/superadmin/seguridad',      label: 'Seguridad' },
   ]
 
   return (

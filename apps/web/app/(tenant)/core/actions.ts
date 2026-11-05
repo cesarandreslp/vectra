@@ -755,7 +755,7 @@ export async function updateVoter(
  * Inactiva o reactiva a un elector. Inactivo no entra a la aplicación por
  * ninguna puerta (electores, testigos ni equipo — ver @vectra/auth); su red
  * queda intacta y activa: quienes le reportan siguen reportándole.
- * ponytail: una sesión ya abierta dura hasta que vence el JWT; el bloqueo es al entrar.
+ * Una sesión ya abierta se corta en máximo 5 min (revalidación en @vectra/auth).
  */
 export async function setVoterActivo(id: string, activo: boolean): Promise<{ success: true } | { success: false; error: string }> {
   const session  = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR'], 'CORE_ELECTORES', 'edit')

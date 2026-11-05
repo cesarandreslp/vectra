@@ -58,6 +58,8 @@ export default async function CoreLayout({ children }: { children: React.ReactNo
       ? [{ href: '/core/datos-personales', label: 'Datos personales' } as NavItem] : []),
     ...((session.user.role === 'ADMIN_CAMPANA' || (personalizado && puedeVer('CORE_BITACORA')))
       ? [{ href: '/core/bitacora', label: 'Bitácora' } as NavItem] : []),
+    // Toda cuenta con contraseña administra su propio doble factor (no es una pantalla con permiso).
+    ...(session.user.role !== 'TESTIGO' ? [{ href: '/core/seguridad', label: 'Mi seguridad' } as NavItem] : []),
     ...((session.user.role === 'ADMIN_CAMPANA' || (personalizado && puedeVer('CORE_CONFIGURACION')))
       ? [{ href: '/core/configuracion', label: 'Configuración' } as NavItem]
       : []),

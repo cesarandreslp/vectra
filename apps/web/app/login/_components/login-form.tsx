@@ -18,6 +18,8 @@ export function LoginForm({ callbackUrl, tenantName, logoUrl, primaryColor }: Lo
   const [password,      setPassword]      = useState('')
   const [showPassword,  setShowPassword]  = useState(false)
   const [error,         setError]         = useState<string | null>(null)
+  const [pideCodigo,    setPideCodigo]    = useState(false)
+  const [codigo,        setCodigo]        = useState('')
 
   const [isPending, startTransition] = useTransition()
 
@@ -29,11 +31,16 @@ export function LoginForm({ callbackUrl, tenantName, logoUrl, primaryColor }: Lo
       const resultado = await signIn('credentials', {
         email,
         password,
+        codigo,
         redirect: false,
       })
 
+      // Contraseña correcta, pero la cuenta tiene doble factor: se pide el código.
+      if (resultado?.code === 'codigo') { setPideCodigo(true); return }
       if (resultado?.error) {
-        setError('Credenciales incorrectas. Verifica tu email y contraseña.')
+        setError(pideCodigo
+          ? 'Código incorrecto o vencido. Escribe el que muestra ahora tu app.'
+          : 'Credenciales incorrectas. Verifica tu email y contraseña.')
         return
       }
 
@@ -152,6 +159,19 @@ export function LoginForm({ callbackUrl, tenantName, logoUrl, primaryColor }: Lo
               </button>
             </div>
           </div>
+
+          {pideCodigo && (
+            <div>
+              <label htmlFor="codigo" style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.25rem' }}>
+                Código de tu app de autenticación
+              </label>
+              <input
+                id="codigo" name="codigo" value={codigo} onChange={(e) => setCodigo(e.target.value)} autoFocus
+                inputMode="numeric" autoComplete="one-time-code" maxLength={7} placeholder="000000" required
+                style={{ ...estiloInput, letterSpacing: '0.25em' }}
+              />
+            </div>
+          )}
 
           {error && (
             <div
