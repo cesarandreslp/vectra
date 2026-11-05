@@ -5,6 +5,7 @@ import { responsablesAgenda } from '@/lib/agenda'
 import { enviarPushAVoters } from '@/lib/push'
 import { textoColombia } from '@/lib/hora-colombia'
 import { despacharCola } from '@/lib/automatizaciones'
+import { respaldoDiario } from '@/lib/respaldos'
 
 const VENTANA_MIN = 30
 
@@ -73,5 +74,9 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ status: 'ok', enviados, automatizaciones })
+  // Respaldo diario de todas las bases (idempotente: si ya está el de hoy, no hace nada).
+  let respaldos: Record<string, string> = {}
+  try { respaldos = await respaldoDiario(ahora) } catch (err) { console.error('[RESPALDOS]', err) }
+
+  return NextResponse.json({ status: 'ok', enviados, automatizaciones, respaldos })
 }

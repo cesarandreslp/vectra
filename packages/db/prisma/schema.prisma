@@ -89,14 +89,18 @@ enum LeaderStatus {
 /// Tenant = una campaña electoral registrada en la plataforma.
 /// Cada tenant tiene su propia base de datos aislada en Neon.
 model Tenant {
-  id               String   @id @default(cuid())
-  slug             String   @unique // Identificador URL amigable (ej: "campana-gomez-2026")
-  name             String // Nombre visible de la campaña
-  domain           String?  @unique // Dominio propio del cliente (opcional)
+  id                String    @id @default(cuid())
+  slug              String    @unique // Identificador URL amigable (ej: "campana-gomez-2026")
+  name              String // Nombre visible de la campaña
+  domain            String?   @unique // Dominio propio del cliente (opcional)
   // CIFRADO: este campo se cifra con AES-256 antes de persistir. Ver lib/crypto.ts
-  connectionString String
-  isActive         Boolean  @default(true)
-  createdAt        DateTime @default(now())
+  connectionString  String
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  // Cierre (Ley 1581): cuándo se generó la copia del padrón para entregarla a la
+  // campaña y cuándo se suprimieron sus datos personales (lib/cierre-campana).
+  copiaPadronEn     DateTime?
+  datosSuprimidosEn DateTime?
 
   modules TenantModule[]
 }

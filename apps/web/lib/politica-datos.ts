@@ -42,7 +42,7 @@ export function politicaSugerida(campana: string, contacto: string | null): stri
     `DATOS SENSIBLES. La opinión o afinidad política es un dato sensible. Nadie está obligado a suministrarla, y solo se trata con autorización expresa.`,
     `DERECHOS DEL TITULAR. Conocer, actualizar y rectificar sus datos; pedir prueba de la autorización; ser informado del uso que se les da; revocar la autorización y pedir la supresión de sus datos; presentar quejas ante la Superintendencia de Industria y Comercio.`,
     `CÓMO EJERCERLOS. Por ${canal}. Las consultas se responden en máximo 10 días hábiles y los reclamos (corrección, supresión, revocación) en máximo 15 días hábiles.`,
-    `ENCARGADO. La plataforma tecnológica Vectra trata los datos por cuenta de la campaña, con información cifrada y separada de la de otras campañas.`,
+    `ENCARGADO Y TRANSFERENCIA. La plataforma tecnológica Vectra trata los datos por cuenta de la campaña, con información cifrada y separada de la de otras campañas. Se almacenan en servidores en Estados Unidos, país que la Superintendencia de Industria y Comercio reconoce con un nivel adecuado de protección de datos.`,
     `VIGENCIA. Los datos se tratan mientras dure la campaña y el tiempo que exija la ley; después se suprimen.`,
   ].join('\n\n')
 }

@@ -105,6 +105,12 @@ export default async function ClientesPage() {
                     >
                       Módulos
                     </Link>
+                    <Link
+                      href={`/superadmin/clientes/${tenant.id}/cierre`}
+                      className="text-slate-500 text-xs font-semibold hover:underline"
+                    >
+                      Cerrar
+                    </Link>
                     <ToggleForm tenantId={tenant.id} isActive={tenant.isActive} />
                   </div>
                 )
