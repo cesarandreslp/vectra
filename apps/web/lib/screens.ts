@@ -36,6 +36,7 @@ export const SCREENS: Record<string, ScreenDef> = {
   ANALYTICS_LIDERES:       { label: 'Líderes',       modulo: 'ANALYTICS', path: '/analytics/lideres' },
   ANALYTICS_PROYECCION:    { label: 'Proyección',    modulo: 'ANALYTICS', path: '/analytics/proyeccion' },
   ANALYTICS_ESTRATEGIA:    { label: 'Estrategia semanal', modulo: 'ANALYTICS', path: '/analytics/estrategia' },
+  ANALYTICS_CONVERSACIONES: { label: 'Conversaciones', modulo: 'ANALYTICS', path: '/analytics/conversaciones' },
   ANALYTICS_CONFIGURACION: { label: 'Configuración', modulo: 'ANALYTICS', path: '/analytics/configuracion' },
 
   FORMACION_MATERIALES:   { label: 'Materiales',      modulo: 'FORMACION', path: '/formacion' },
