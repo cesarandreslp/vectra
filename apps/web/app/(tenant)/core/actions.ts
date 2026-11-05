@@ -949,15 +949,10 @@ async function analisisCompromiso(voterId: string): Promise<CompromisoAnalysisRe
     },
   }
 
-  // Groq (tiempo real), no Zhipu — es lo que este tenant tiene configurado.
-  // Si el tenant no configuró su propia clave, se corta acá: NUNCA se cae a
-  // la clave global del SaaS a nombre de un tenant (costo/cuota del SaaS,
-  // no del tenant) — a diferencia de chatGroq()/chatZhipu(), que sí caen al
-  // env global cuando su parámetro apiKey llega undefined.
+  // Groq (tiempo real). Con la clave propia de la campaña si la configuró; si
+  // no, chatGroq cae a la global de Vectra (decisión del 5-nov-2026: el costo
+  // lo asume Vectra mientras la campaña no tenga la suya).
   const { groq } = await getTenantAiKeys(session.user.tenantId)
-  if (!groq) {
-    throw new Error('Este tenant no tiene configurada su propia clave de IA (Groq). Configúrala en Configuración antes de generar el veredicto.')
-  }
   const respuesta = await chatGroq(SYSTEM_PROMPT_COMPROMISO, JSON.stringify(contexto), groq)
 
   let resultado: {

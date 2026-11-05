@@ -590,13 +590,9 @@ async function analisisLider(leaderId: string): Promise<LeaderAnalysisResult> {
     },
   }
 
-  // Llamar al agente Zhipu Flash — SOLO con la clave propia del tenant. Si no
-  // la configuró, cortar acá: nunca caer en silencio a process.env.ZHIPU_API_KEY
-  // (el default de chatZhipu) y cobrar el análisis contra la cuota del SaaS.
+  // Zhipu Flash con la clave propia de la campaña si la configuró; si no,
+  // chatZhipu cae a la global de Vectra (decisión del 5-nov-2026).
   const { zhipu } = await getTenantAiKeys(tenantId)
-  if (!zhipu) {
-    throw new Error('Este tenant no tiene configurada su propia clave de IA (Zhipu). Configúrala en Configuración antes de generar el análisis.')
-  }
   const respuesta = await chatZhipu(SYSTEM_PROMPT_ANALISIS, JSON.stringify(contexto), zhipu)
 
   // Parsear y validar JSON
