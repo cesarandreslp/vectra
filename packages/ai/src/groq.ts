@@ -18,18 +18,18 @@ const BASE_URL     = 'https://api.groq.com/openai/v1/chat/completions'
 const MODEL        = 'openai/gpt-oss-120b'
 
 /**
- * Verificado contra la API el 2026-08-14 leyendo un E-14 real (docs/e14.webp):
- * 10 candidatos en ~8 s, con los mismos votos que leyó Zhipu.
+ * 2026-11-05: qwen/qwen3.6-27b pasó a devolver 404 (Groq retira modelos sin
+ * aviso: ya van dos). qwen3.8-27b leyó docs/e14.webp en ~1,7 s: 10 candidatos
+ * y los votos suman el total del acta (121). Antes, 2026-08-14, el 3.6 había
+ * coincidido voto a voto con Zhipu en esa misma acta.
  *
- * El modelo anterior (meta-llama/llama-4-scout-17b-16e-instruct) devuelve 404:
- * ya no existe en la cuenta. Sin este cambio, la lectura del acta por Groq
- * estaba caída y el consenso de dos IAs nunca corría.
+ * Si vuelve a caer: GET https://api.groq.com/openai/v1/models lista los vigentes.
  *
  * Es un modelo de RAZONAMIENTO: sin `reasoning_format: 'hidden'` antepone un
  * bloque <think> y el JSON no parsea. `response_format: json_object` tampoco
  * sirve acá — la API responde json_validate_failed.
  */
-const VISION_MODEL = 'qwen/qwen3.6-27b'
+const VISION_MODEL = 'qwen/qwen3.8-27b'
 
 interface GroqChoice {
   message: { role: string; content: string }
