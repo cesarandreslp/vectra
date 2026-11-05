@@ -65,7 +65,7 @@ export default async function FichaElectorPage({ params }: Props) {
                 marginLeft: '0.6rem', verticalAlign: 'middle', background: '#f1f5f9', color: '#475569',
                 padding: '0.15rem 0.5rem', borderRadius: 999, fontSize: '0.7rem', fontWeight: 600,
               }}>
-                INACTIVO
+                INACTIVO{elector.inactivoDesde && ` desde ${new Date(elector.inactivoDesde).toLocaleDateString('es-CO', { timeZone: 'America/Bogota' })}`}
               </span>
             )}
             {elector.tieneAgenda && (

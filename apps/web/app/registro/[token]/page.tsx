@@ -1,6 +1,7 @@
 import { getTenantConnection } from '@/lib/tenant'
 import { superadminDb, getTenantDb } from '@vectra/db'
 import { FormularioRegistro } from './_components/formulario-registro'
+import { qrVigente } from '@/lib/qr'
 import { IconLinkOff } from '@/app/_components/icons'
 
 interface Props {
@@ -43,18 +44,8 @@ export default async function RegistroQRPage({ params, searchParams }: Props) {
     return <PaginaError mensaje="Este enlace ya no está disponible." />
   }
 
-  const qr = await db.qrRegistration.findFirst({
-    where:  { token, tenantId, isActive: true },
-    select: { id: true, expiresAt: true },
-  })
-
-  if (!qr) {
-    return <PaginaError mensaje="Este enlace ya no está disponible." />
-  }
-
-  if (qr.expiresAt && qr.expiresAt < new Date()) {
-    return <PaginaError mensaje="Este enlace ha expirado." />
-  }
+  const qr = await qrVigente(token, tenantId, db)
+  if (!qr.ok) return <PaginaError mensaje={qr.error} />
 
   // Cargar puestos de votación para el select
   const puestos = await db.votingStation.findMany({

@@ -275,6 +275,7 @@ model Voter {
   surveyMessageLogs  SurveyMessageLog[]
   pushSubscriptions  VoterPushSubscription[]
   meetingAttendances MeetingAttendance[]
+  estadoCambios      VoterEstadoCambio[]
 
   // Agenda reservable (candidato / jefes de debate) y convocatorias top-down
   agendaPropia           AgendaEntrada[]            @relation("AgendaAnfitrion")
@@ -337,6 +338,23 @@ model QrRegistration {
 
   @@unique([tenantId, token])
   @@index([tenantId, leaderId])
+}
+
+/// Cada vez que un elector se inactiva o se reactiva. El alta (y su ACTIVO
+/// inicial) es Voter.createdAt; de ahí en adelante cada cambio queda acá con
+/// fecha y autor. Sirve, por ejemplo, para saber si alguien se registró por
+/// el enlace de una persona que ya estaba inactiva.
+model VoterEstadoCambio {
+  id        String       @id @default(cuid())
+  tenantId  String
+  voterId   String
+  status    LeaderStatus // estado al que pasó
+  porUserId String? // User.id (BD superadmin) de quien lo cambió
+  fecha     DateTime     @default(now())
+
+  voter Voter @relation(fields: [voterId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, voterId, fecha])
 }
 
 /// Alerta de cédula duplicada entre dos líderes.

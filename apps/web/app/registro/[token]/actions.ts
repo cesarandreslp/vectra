@@ -17,7 +17,7 @@ import { cerrarContactos } from '@/lib/contacto-calle-db'
 import { superadminDb, getTenantDb, encrypt } from '@vectra/db'
 import { getTenantConnection }    from '@/lib/tenant'
 import { crearAlertaDuplicado }   from '@/app/(tenant)/core/actions'
-import { crearQrPropio }          from '@/lib/qr'
+import { crearQrPropio, qrVigente } from '@/lib/qr'
 import { trasAltaDeElectores }    from '@/lib/ubicar-electores'
 import { verificarRateLimit }     from './_lib/rate-limit'
 
@@ -78,17 +78,8 @@ export async function registrarseConQR(
 
   const db = getTenantDb(connectionString)
 
-  const qr = await db.qrRegistration.findFirst({
-    where: { token, tenantId, isActive: true },
-  })
-
-  if (!qr) {
-    return { success: false, error: 'Este enlace ya no está disponible.' }
-  }
-
-  if (qr.expiresAt && qr.expiresAt < new Date()) {
-    return { success: false, error: 'Este enlace ha expirado.' }
-  }
+  const qr = await qrVigente(token, tenantId, db)
+  if (!qr.ok) return { success: false, error: qr.error }
 
   // ── Validar datos requeridos ────────────────────────────────────────────────
   const nombre = data.nombre?.trim()

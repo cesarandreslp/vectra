@@ -746,12 +746,18 @@ export async function setVoterActivo(id: string, activo: boolean): Promise<{ suc
   const db       = await obtenerDbTenant(session.user.tenantId)
   const tenantId = session.user.tenantId
 
-  const v = await db.voter.findFirst({ where: { id, tenantId }, select: { isCandidate: true } })
+  const v = await db.voter.findFirst({ where: { id, tenantId }, select: { isCandidate: true, status: true } })
   if (!v) return { success: false, error: 'Elector no encontrado.' }
   if (!activo && v.isCandidate) return { success: false, error: 'Es el candidato de la campaña: no se puede inactivar.' }
   if (!activo && session.user.voterId === id) return { success: false, error: 'No puedes inactivarte a ti mismo.' }
 
-  await db.voter.update({ where: { id }, data: { status: activo ? 'ACTIVO' : 'INACTIVO' } })
+  const status = activo ? 'ACTIVO' : 'INACTIVO'
+  if (v.status === status) return { success: true }
+  // El cambio y su registro van juntos: un estado sin fecha no sirve para auditar.
+  await db.$transaction([
+    db.voter.update({ where: { id }, data: { status } }),
+    db.voterEstadoCambio.create({ data: { tenantId, voterId: id, status, porUserId: session.user.id } }),
+  ])
   revalidatePath(`/core/electores/${id}`)
   revalidatePath('/core/electores')
   return { success: true }
@@ -1064,6 +1070,8 @@ export interface VoterDetalle {
   tieneAgenda:      boolean
   /** false = inactivado: no puede entrar a la aplicación por ninguna puerta. */
   activo:           boolean
+  /** Fecha del último cambio a inactivo. null si está activo o si se inactivó antes de que se registrara. */
+  inactivoDesde:    Date | null
   censoEstado:      string | null
   censoLugar:       Record<string, unknown> | null
 }
@@ -1087,9 +1095,11 @@ export async function getVoterDetalle(id: string): Promise<VoterDetalle | null> 
       leaderId: true, isCandidate: true, tieneAgenda: true, status: true,
       censoEstado: true, censoLugar: true,
       leader: { select: { name: true } },
+      estadoCambios: { orderBy: { fecha: 'desc' }, take: 1, select: { fecha: true, status: true } },
     },
   })
   if (!v) return null
+  const ultimoCambio = v.estadoCambios[0]
 
   let phonePlain: string | null = null
   if (v.phone) {
@@ -1105,6 +1115,7 @@ export async function getVoterDetalle(id: string): Promise<VoterDetalle | null> 
     commitmentStatus: v.commitmentStatus, lastContact: v.lastContact, notes: v.notes,
     leaderId: v.leaderId, leaderName: v.leader?.name ?? null, isCandidate: v.isCandidate,
     tieneAgenda: v.tieneAgenda, activo: v.status === 'ACTIVO',
+    inactivoDesde: v.status !== 'ACTIVO' && ultimoCambio && ultimoCambio.status !== 'ACTIVO' ? ultimoCambio.fecha : null,
     censoEstado: v.censoEstado, censoLugar: v.censoLugar as Record<string, unknown> | null,
   }
 }

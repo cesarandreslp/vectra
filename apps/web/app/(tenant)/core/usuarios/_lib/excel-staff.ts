@@ -90,7 +90,8 @@ export async function procesarImportStaff(
         const cedulaHash = createHash('sha256').update(cedula).digest('hex')
         const existente = await db.voter.findFirst({ where: { tenantId, cedulaHash }, select: { id: true } })
         if (existente) {
-          await db.voter.update({ where: { id: existente.id }, data: { zone: zona || undefined, targetVotes: meta, status: 'ACTIVO' } })
+          // Sin tocar status: reimportar el equipo no debe reactivar a quien el admin inactivó.
+          await db.voter.update({ where: { id: existente.id }, data: { zone: zona || undefined, targetVotes: meta } })
           voterId = existente.id
         } else {
           const nuevo = await db.voter.create({
