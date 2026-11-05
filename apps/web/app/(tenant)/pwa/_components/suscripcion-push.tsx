@@ -1,9 +1,9 @@
 'use client'
 
 /**
- * Botón para activar/desactivar avisos push de "hay una nueva encuesta".
- * Solo se muestra si el navegador soporta Push, el elector está enlazado a
- * un Voter y el tenant tiene el módulo ENCUESTAS activo (getEstadoPush).
+ * Botón para activar/desactivar los avisos push de la campaña (agenda,
+ * encuestas, automatizaciones). Solo se muestra si el navegador soporta Push
+ * y la cuenta tiene un elector enlazado (getEstadoPush).
  */
 
 import { useEffect, useState } from 'react'
@@ -97,7 +97,7 @@ export function SuscripcionPush() {
       }}
     >
       <IconBell size={15} />
-      {estado === 'activo' ? 'Notificaciones activas' : estado === 'error' ? 'Reintentar activar notificaciones' : 'Avisarme de nuevas encuestas'}
+      {estado === 'activo' ? 'Notificaciones activas' : estado === 'error' ? 'Reintentar activar notificaciones' : 'Activar notificaciones'}
     </button>
   )
 }

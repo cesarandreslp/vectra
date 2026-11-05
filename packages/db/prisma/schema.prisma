@@ -1023,15 +1023,19 @@ model ElectionResult {
 
 /// Plantilla de mensaje reutilizable. Soporta variables con sintaxis {{nombre}}.
 model MessageTemplate {
-  id        String   @id @default(cuid())
-  tenantId  String
-  name      String
-  channel   String // EMAIL | SMS | WHATSAPP
-  subject   String? // solo para EMAIL
-  body      String // texto con variables {{nombre}}, {{municipio}}, etc.
-  variables Json // string[] — lista de variables usadas en el body
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id                String   @id @default(cuid())
+  tenantId          String
+  name              String
+  channel           String // EMAIL | SMS | WHATSAPP | PUSH
+  subject           String? // EMAIL: asunto · PUSH: título de la notificación
+  body              String // texto con variables {{nombre}}, {{municipio}}, etc.
+  variables         Json // string[] — lista de variables usadas en el body
+  isActive          Boolean  @default(true)
+  // WhatsApp solo deja escribirle primero a alguien con una plantilla aprobada
+  // en Meta. Acá va su nombre, y qué variable nuestra va en cada {{1}}, {{2}}…
+  whatsappPlantilla String?
+  whatsappVariables String[] @default([])
+  createdAt         DateTime @default(now())
 
   @@index([tenantId, channel, isActive])
 }
@@ -1062,26 +1066,32 @@ model MessageCampaign {
 /// Mensaje individual enviado a un destinatario.
 /// El campo `to` siempre va CIFRADO con AES-256 — se descifra solo en el momento del envío.
 model Message {
-  id            String    @id @default(cuid())
-  tenantId      String
-  campaignId    String?
-  channel       String // EMAIL | SMS | WHATSAPP
-  recipientId   String // userId o voterId según recipientType
-  recipientType String // USER | VOTER
-  // CIFRADO: campo PII — contiene email o teléfono cifrado con AES-256
-  to            String
-  subject       String?
-  body          String
-  status        String    @default("PENDIENTE")
+  id             String    @id @default(cuid())
+  tenantId       String
+  campaignId     String?
+  channel        String // EMAIL | SMS | WHATSAPP
+  recipientId    String // userId o voterId según recipientType
+  recipientType  String // USER | VOTER
+  // CIFRADO: campo PII — contiene email o teléfono cifrado con AES-256. null en PUSH (va al dispositivo).
+  to             String?
+  subject        String?
+  body           String
+  status         String    @default("PENDIENTE")
   // PENDIENTE | ENVIADO | FALLIDO | REBOTADO
-  provider      String? // nombre del proveedor que lo envió
-  providerMsgId String? // ID del mensaje en el proveedor externo
-  sentAt        DateTime?
-  failReason    String?
-  createdAt     DateTime  @default(now())
+  provider       String? // nombre del proveedor que lo envió
+  providerMsgId  String? // ID del mensaje en el proveedor externo
+  sentAt         DateTime?
+  failReason     String?
+  createdAt      DateTime  @default(now())
+  // Automatizaciones: la regla que lo generó y desde cuándo puede salir. La cola
+  // la despacha lib/automatizaciones. Cada regla le llega una sola vez a cada persona.
+  reglaId        String?
+  programadoPara DateTime?
 
   campaign MessageCampaign? @relation(fields: [campaignId], references: [id])
 
+  @@unique([reglaId, recipientId])
+  @@index([status, programadoPara])
   @@index([tenantId, campaignId, status])
   @@index([tenantId, recipientId])
 }
@@ -1093,11 +1103,11 @@ model AutomationRule {
   tenantId     String
   name         String
   trigger      String // NUEVO_ELECTOR | CAMBIO_COMPROMISO | DIA_ELECCION | RECORDATORIO_VOTO
-  channel      String // EMAIL | SMS | WHATSAPP
+  channel      String // PUSH | WHATSAPP (a electores no les llega EMAIL: no tienen correo)
   templateId   String
   isActive     Boolean  @default(true)
   delayMinutes Int      @default(0)
-  conditions   Json? // condiciones adicionales del trigger
+  conditions   Json? // { estado?: CommitmentStatus } en CAMBIO_COMPROMISO · { diasAntes: n } en RECORDATORIO_VOTO
   createdAt    DateTime @default(now())
 
   @@index([tenantId, trigger, isActive])

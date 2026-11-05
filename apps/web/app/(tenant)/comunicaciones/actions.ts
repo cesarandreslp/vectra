@@ -14,6 +14,7 @@ import { getTenantDb, Prisma, encrypt, decrypt, superadminDb } from '@vectra/db'
 import { sendMessage, sendBatch } from '@vectra/messaging'
 import type { SmtpConfig, MessagePayload } from '@vectra/messaging'
 import { revalidatePath }      from 'next/cache'
+import { CANALES_AUTOMATIZACION, TRIGGERS_AUTOMATIZACION, VARIABLES_AUTOMATIZACION } from '@/lib/automatizaciones-reglas'
 
 // ── Helper ───────────────────────────────────────────────────────────────────
 
@@ -88,6 +89,10 @@ export interface AutomationView {
   isActive:     boolean
   delayMinutes: number
   createdAt:    Date
+  conditions:   Record<string, unknown> | null
+  enviados:     number
+  fallidos:     number
+  enCola:       number
 }
 
 export interface CampaignPreview {
@@ -275,10 +280,20 @@ export async function createTemplate(data: {
   channel: string
   subject?: string
   body: string
+  whatsappPlantilla?: string
+  whatsappVariables?: string[]
 }): Promise<void> {
   const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA'], 'COMUNICACIONES_PLANTILLAS', 'edit')
 
+  if (!['EMAIL', 'SMS', 'WHATSAPP', 'PUSH'].includes(data.channel)) throw new Error('Canal no válido')
   const variables = extractVariables(data.body)
+  const whatsappPlantilla = data.channel === 'WHATSAPP' ? data.whatsappPlantilla?.trim() || null : null
+  if (whatsappPlantilla && !/^[a-z0-9_]{1,512}$/.test(whatsappPlantilla)) {
+    throw new Error('El nombre de la plantilla de Meta va en minúsculas, números y guion bajo (ej. bienvenida_campana).')
+  }
+  const whatsappVariables = whatsappPlantilla
+    ? (data.whatsappVariables ?? []).filter(v => (VARIABLES_AUTOMATIZACION as readonly string[]).includes(v)).slice(0, 10)
+    : []
 
   await db.messageTemplate.create({
     data: {
@@ -288,6 +303,8 @@ export async function createTemplate(data: {
       subject: data.subject ?? null,
       body: data.body,
       variables,
+      whatsappPlantilla,
+      whatsappVariables,
     },
   })
 
@@ -661,8 +678,16 @@ export async function listAutomations(): Promise<AutomationView[]> {
       })
     : []
   const templateMap = new Map(templates.map(t => [t.id, t.name]))
+  const conteos = rules.length
+    ? await db.message.groupBy({ by: ['reglaId', 'status'], where: { tenantId, reglaId: { in: rules.map(r => r.id) } }, _count: { _all: true } })
+    : []
+  const cuenta = (id: string, status: string) => conteos.find(c => c.reglaId === id && c.status === status)?._count._all ?? 0
 
   return rules.map(r => ({
+    enviados:     cuenta(r.id, 'ENVIADO'),
+    fallidos:     cuenta(r.id, 'FALLIDO'),
+    enCola:       cuenta(r.id, 'PENDIENTE') + cuenta(r.id, 'ENVIANDO'),
+    conditions:   r.conditions as Record<string, unknown> | null,
     id:           r.id,
     name:         r.name,
     trigger:      r.trigger,
@@ -685,21 +710,35 @@ export async function createAutomation(data: {
 }): Promise<void> {
   const { db, tenantId } = await getDbAndSession(['ADMIN_CAMPANA'], 'COMUNICACIONES_AUTOMATIZACIONES', 'edit')
 
-  // Verificar que la plantilla existe
+  if (!(TRIGGERS_AUTOMATIZACION as readonly string[]).includes(data.trigger)) throw new Error('Evento no válido')
+  if (!(CANALES_AUTOMATIZACION as readonly string[]).includes(data.channel)) {
+    throw new Error('Las automatizaciones salen por push o WhatsApp: los electores no tienen correo y no hay proveedor de SMS.')
+  }
   const template = await db.messageTemplate.findFirst({
     where: { id: data.templateId, tenantId },
   })
   if (!template) throw new Error('Plantilla no encontrada')
+  if (template.channel !== data.channel) throw new Error(`La plantilla es de ${template.channel} y la regla de ${data.channel}.`)
+  if (data.channel === 'WHATSAPP' && !template.whatsappPlantilla) {
+    throw new Error('Esa plantilla no tiene el nombre de su plantilla aprobada en Meta: WhatsApp no deja escribir primero sin ella.')
+  }
+
+  // Solo las condiciones que el motor entiende, con valores sanos.
+  const c = data.conditions ?? {}
+  const conditions =
+    data.trigger === 'CAMBIO_COMPROMISO' && typeof c.estado === 'string' && c.estado ? { estado: c.estado }
+    : data.trigger === 'RECORDATORIO_VOTO' ? { diasAntes: Math.min(60, Math.max(1, Math.trunc(Number(c.diasAntes) || 1))) }
+    : null
 
   await db.automationRule.create({
     data: {
       tenantId,
-      name: data.name,
+      name: data.name.trim().slice(0, 120),
       trigger: data.trigger,
       channel: data.channel,
       templateId: data.templateId,
-      delayMinutes: data.delayMinutes ?? 0,
-      conditions: data.conditions ? (data.conditions as Prisma.InputJsonValue) : Prisma.DbNull,
+      delayMinutes: Math.min(10_080, Math.max(0, Math.trunc(data.delayMinutes ?? 0))),
+      conditions: conditions ?? Prisma.DbNull,
     },
   })
 

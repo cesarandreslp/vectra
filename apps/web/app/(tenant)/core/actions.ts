@@ -24,6 +24,7 @@ import { titulosDe, type TituloLider } from '@/lib/lideres'
 import { avanceMeta, compromisosParaMeta, leerTasaFuga } from '@/lib/meta-votos'
 import { cerrarContactos }            from '@/lib/contacto-calle-db'
 import { hashTelefono }               from '@/lib/contacto-calle'
+import { encolarEvento }              from '@/lib/automatizaciones'
 import { chatGroq }                   from '@vectra/ai'
 import { getTenantAiKeys }            from '@/lib/tenant-ai'
 import { revalidatePath }             from 'next/cache'
@@ -620,6 +621,7 @@ export async function createVoter(
     await crearQrPropio(elector.id, session.user.tenantId, db)
     await cerrarContactos(db, session.user.tenantId, data.phone, elector.id)
     trasAltaDeElectores(db, session.user.tenantId)
+    await encolarEvento(db, session.user.tenantId, 'NUEVO_ELECTOR', [elector.id])
 
     revalidatePath('/core/electores')
     return { success: true, voterId: elector.id }
@@ -800,6 +802,7 @@ export async function updateVoterCommitment(
         ...(notes !== undefined && { notes }),
       },
     })
+    await encolarEvento(db, session.user.tenantId, 'CAMBIO_COMPROMISO', [voterId], status)
 
     revalidatePath('/core/electores')
     return { success: true }
@@ -1143,6 +1146,7 @@ export async function importVoters(rows: ImportVoterRow[]): Promise<ImportResult
   const mapaLideres = new Map(lideres.map((l) => [l.name.toLowerCase(), l.id]))
 
   let created = 0
+  const nuevos: string[] = []
   let skipped = 0
   const errors: string[] = []
 
@@ -1211,11 +1215,13 @@ export async function importVoters(rows: ImportVoterRow[]): Promise<ImportResult
         },
       })
       await crearQrPropio(nuevo.id, tenantId, db)
+      nuevos.push(nuevo.id)
       created++
     }
   }
 
   if (created > 0) trasAltaDeElectores(db, tenantId)
+  await encolarEvento(db, tenantId, 'NUEVO_ELECTOR', nuevos)
   revalidatePath('/core/electores')
   return { created, skipped, errors }
 }

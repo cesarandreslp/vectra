@@ -4,6 +4,7 @@ import { getTenantConnection } from '@/lib/tenant'
 import { responsablesAgenda } from '@/lib/agenda'
 import { enviarPushAVoters } from '@/lib/push'
 import { textoColombia } from '@/lib/hora-colombia'
+import { despacharCola } from '@/lib/automatizaciones'
 
 const VENTANA_MIN = 30
 
@@ -25,6 +26,7 @@ export async function GET(request: Request) {
   const ahora  = new Date()
   const limite = new Date(ahora.getTime() + VENTANA_MIN * 60_000)
   const enviados: Record<string, number> = {}
+  const automatizaciones: Record<string, { enviados: number; fallidos: number }> = {}
 
   const tenants = await superadminDb.tenant.findMany({ where: { isActive: true }, select: { id: true, slug: true } })
   for (const t of tenants) {
@@ -62,7 +64,14 @@ export async function GET(request: Request) {
     } catch (err) {
       console.error(`[RECORDATORIOS AGENDA] tenant ${t.slug}:`, err)
     }
+    // Viaja en el mismo cron de 5 min (Vercel Hobby no da crons más seguidos):
+    // la cola de automatizaciones. Aparte, para que un fallo no tumbe la agenda.
+    try {
+      automatizaciones[t.slug] = await despacharCola(getTenantDb(await getTenantConnection(t.id)), t.id, ahora)
+    } catch (err) {
+      console.error(`[AUTOMATIZACIONES] tenant ${t.slug}:`, err)
+    }
   }
 
-  return NextResponse.json({ status: 'ok', enviados })
+  return NextResponse.json({ status: 'ok', enviados, automatizaciones })
 }

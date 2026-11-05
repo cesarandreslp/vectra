@@ -4,8 +4,12 @@ import { requireModuleOrRedirect } from '@/lib/auth-helpers'
 const TRIGGERS: Record<string, string> = {
   NUEVO_ELECTOR:      'Nuevo elector registrado',
   CAMBIO_COMPROMISO:  'Cambio de estado de compromiso',
-  DIA_ELECCION:       'Día de la elección',
-  RECORDATORIO_VOTO:  'Recordatorio de voto',
+  RECORDATORIO_VOTO:  'Recordatorio antes del día E',
+  DIA_ELECCION:       'Día de la elección (7 a. m.)',
+}
+
+const ESTADOS: Record<string, string> = {
+  CONTACTADO: 'Contactado', SIMPATIZANTE: 'Simpatizante', COMPROMETIDO: 'Comprometido', VOTO_SEGURO: 'Voto seguro',
 }
 
 export default async function AutomatizacionesPage() {
@@ -24,6 +28,7 @@ export default async function AutomatizacionesPage() {
       channel:      formData.get('channel') as string,
       templateId:   formData.get('templateId') as string,
       delayMinutes: parseInt(formData.get('delayMinutes') as string) || 0,
+      conditions:   { estado: formData.get('estado') as string, diasAntes: formData.get('diasAntes') as string },
     })
   }
 
@@ -34,8 +39,9 @@ export default async function AutomatizacionesPage() {
       </h1>
 
       <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>
-        Las automatizaciones envían mensajes automáticamente cuando ocurren eventos en el sistema.
-        La integración con otros módulos se activará en una actualización posterior.
+        Cada regla le llega una sola vez a cada elector. Salen por <b>push</b> (a quien tiene la app con
+        notificaciones) o por <b>WhatsApp</b> con una plantilla aprobada en Meta: WhatsApp no deja escribirle
+        primero a nadie con texto libre. Se despachan cada 5 minutos; el historial queda abajo.
       </p>
 
       {/* Formulario nueva automatización */}
@@ -71,9 +77,8 @@ export default async function AutomatizacionesPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             <label htmlFor="channel" style={labelStyle}>Canal</label>
             <select id="channel" name="channel" required style={inputStyle}>
-              <option value="EMAIL">Email</option>
-              <option value="SMS">SMS</option>
-              <option value="WHATSAPP">WhatsApp</option>
+              <option value="PUSH">Push (app del elector)</option>
+              <option value="WHATSAPP">WhatsApp (plantilla de Meta)</option>
             </select>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
@@ -89,6 +94,17 @@ export default async function AutomatizacionesPage() {
             <label htmlFor="delayMinutes" style={labelStyle}>Retraso (min)</label>
             <input id="delayMinutes" name="delayMinutes" type="number"
               min="0" defaultValue="0" style={inputStyle} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <label htmlFor="estado" style={labelStyle}>Solo al pasar a (cambio de compromiso)</label>
+            <select id="estado" name="estado" defaultValue="" style={inputStyle}>
+              <option value="">Cualquier estado</option>
+              {Object.entries(ESTADOS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <label htmlFor="diasAntes" style={labelStyle}>Días antes (recordatorio)</label>
+            <input id="diasAntes" name="diasAntes" type="number" min="1" max="60" defaultValue="1" style={inputStyle} />
           </div>
         </div>
 
@@ -110,7 +126,7 @@ export default async function AutomatizacionesPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                {['Nombre', 'Trigger', 'Canal', 'Plantilla', 'Retraso', 'Estado'].map(h => (
+                {['Nombre', 'Evento', 'Canal', 'Plantilla', 'Retraso', 'Enviados / fallidos / en cola', 'Estado'].map(h => (
                   <th key={h} style={thStyle}>{h}</th>
                 ))}
               </tr>
@@ -130,7 +146,10 @@ export default async function AutomatizacionesPage() {
 function AutomationRow({ automation: a }: { automation: {
   id: string; name: string; trigger: string; channel: string
   templateName: string; isActive: boolean; delayMinutes: number
+  conditions: Record<string, unknown> | null; enviados: number; fallidos: number; enCola: number
 } }) {
+  const detalle = a.trigger === 'CAMBIO_COMPROMISO' && typeof a.conditions?.estado === 'string' ? ` → ${ESTADOS[a.conditions.estado] ?? a.conditions.estado}`
+    : a.trigger === 'RECORDATORIO_VOTO' ? ` (${Number(a.conditions?.diasAntes ?? 1)} día(s) antes)` : ''
   async function handleToggle() {
     'use server'
     await toggleAutomation(a.id)
@@ -140,7 +159,7 @@ function AutomationRow({ automation: a }: { automation: {
     <tr style={{ opacity: a.isActive ? 1 : 0.6 }}>
       <td style={tdStyle}>{a.name}</td>
       <td style={{ ...tdStyle, fontSize: '0.8rem', color: '#64748b' }}>
-        {TRIGGERS[a.trigger] ?? a.trigger}
+        {(TRIGGERS[a.trigger] ?? a.trigger) + detalle}
       </td>
       <td style={tdStyle}>
         <span style={{
@@ -155,6 +174,9 @@ function AutomationRow({ automation: a }: { automation: {
       <td style={{ ...tdStyle, fontSize: '0.8rem' }}>{a.templateName}</td>
       <td style={{ ...tdStyle, fontSize: '0.8rem', color: '#64748b' }}>
         {a.delayMinutes > 0 ? `${a.delayMinutes} min` : 'Inmediato'}
+      </td>
+      <td style={{ ...tdStyle, fontSize: '0.8rem', color: '#64748b' }}>
+        {a.enviados} / {a.fallidos} / {a.enCola}
       </td>
       <td style={tdStyle}>
         <form action={handleToggle} style={{ display: 'inline' }}>
@@ -173,7 +195,6 @@ function AutomationRow({ automation: a }: { automation: {
   )
 }
 
-const TRIGGERS_MAP = TRIGGERS
 
 const labelStyle: React.CSSProperties = {
   fontSize: '0.8rem', color: '#334155', fontWeight: 500,

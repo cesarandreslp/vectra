@@ -37,7 +37,11 @@ export class WhatsappMetaProvider implements MessagingProvider {
             type: 'template',
             template: {
               name: payload.templateName,
+              // ponytail: idioma fijo; si la campaña aprueba la plantilla en otra variante (es_MX…), hay que hacerlo configurable.
               language: { code: 'es' },
+              ...(payload.templateParams?.length
+                ? { components: [{ type: 'body', parameters: payload.templateParams.map((text) => ({ type: 'text', text })) }] }
+                : {}),
             },
           }
         : {

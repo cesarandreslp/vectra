@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth }                      from '@vectra/auth'
 import { getTenantConnection }        from '@/lib/tenant'
 import { getTenantDb }               from '@vectra/db'
+import { encolarEvento }             from '@/lib/automatizaciones'
 import { idsSubarbol }               from '@/app/(tenant)/core/actions'
 
 type CommitmentStatus =
@@ -110,6 +111,7 @@ export async function PATCH(
         // cedula: NUNCA
       },
     })
+    await encolarEvento(db, session.user.tenantId, 'CAMBIO_COMPROMISO', [id], body.status)
 
     return NextResponse.json({ elector: actualizado, offlineId: body.offlineId })
 

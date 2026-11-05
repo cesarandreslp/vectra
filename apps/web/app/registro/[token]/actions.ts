@@ -15,6 +15,7 @@ import { createHash, randomUUID } from 'crypto'
 import { headers }                from 'next/headers'
 import { cerrarContactos } from '@/lib/contacto-calle-db'
 import { hashTelefono }    from '@/lib/contacto-calle'
+import { encolarEvento }   from '@/lib/automatizaciones'
 import { superadminDb, getTenantDb, encrypt } from '@vectra/db'
 import { getTenantConnection }    from '@/lib/tenant'
 import { crearAlertaDuplicado }   from '@/app/(tenant)/core/actions'
@@ -167,6 +168,7 @@ export async function registrarseConQR(
   // Si el candidato lo había saludado en la calle, ese contacto queda cerrado.
   await cerrarContactos(db, tenantId, data.telefono, nuevoElector.id)
   trasAltaDeElectores(db, tenantId)
+  await encolarEvento(db, tenantId, 'NUEVO_ELECTOR', [nuevoElector.id])
 
   // Incrementar contador de registros del QR
   await db.qrRegistration.update({

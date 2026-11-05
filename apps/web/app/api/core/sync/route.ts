@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth }                      from '@vectra/auth'
 import { getTenantConnection }        from '@/lib/tenant'
 import { getTenantDb }               from '@vectra/db'
+import { encolarEvento }             from '@/lib/automatizaciones'
 
 type CommitmentStatus =
   | 'SIN_CONTACTAR'
@@ -102,6 +103,7 @@ export async function POST(request: NextRequest) {
           ...(notes !== undefined && { notes }),
         },
       })
+      await encolarEvento(db, session.user.tenantId, 'CAMBIO_COMPROMISO', [voterId], status)
 
       processed++
     }

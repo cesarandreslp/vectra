@@ -13,6 +13,7 @@ import { encrypt }            from '@vectra/db'
 import { crearAlertaDuplicado } from '../../actions'
 import { crearQrPropio }      from '@/lib/qr'
 import { hashTelefono }       from '@/lib/contacto-calle'
+import { encolarEvento }      from '@/lib/automatizaciones'
 import type { PrismaClient }  from '@vectra/db'
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
@@ -203,6 +204,7 @@ export async function procesarImportExcel(
   const filasDatos = tabla.slice(1).filter((r) => r.some((c) => String(c).trim()))
 
   let created    = 0
+  const nuevos: string[] = []
   let skipped    = 0
   let duplicates = 0
   const errors:  string[] = []
@@ -276,6 +278,7 @@ export async function procesarImportExcel(
           },
         })
         await crearQrPropio(nuevo.id, tenantId, db as any)
+        nuevos.push(nuevo.id)
         created++
       } catch (err: any) {
         if (err?.code === 'P2002') {
@@ -287,5 +290,6 @@ export async function procesarImportExcel(
     }
   }
 
+  await encolarEvento(db as any, tenantId, 'NUEVO_ELECTOR', nuevos)
   return { created, skipped, duplicates, errors }
 }

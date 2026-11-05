@@ -22,6 +22,8 @@ export interface MessagePayload {
   channel: 'EMAIL' | 'SMS' | 'WHATSAPP'
   /** Solo para plantillas de WhatsApp Meta */
   templateName?: string
+  /** Valores de {{1}}, {{2}}… del cuerpo de la plantilla de Meta, en orden */
+  templateParams?: string[]
 }
 
 /** Interfaz que todo proveedor de mensajería debe implementar */

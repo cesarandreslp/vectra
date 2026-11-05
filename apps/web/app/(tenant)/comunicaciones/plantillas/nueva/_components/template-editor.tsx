@@ -10,6 +10,9 @@ const SAMPLE_DATA: Record<string, string> = {
   lider: 'María García',
   estado_compromiso: 'Comprometido',
   candidato: 'Carlos López',
+  puesto: 'I. E. San José',
+  mesa: '7',
+  fecha_eleccion: '31 de octubre',
 }
 
 const AVAILABLE_VARS = Object.keys(SAMPLE_DATA)
@@ -19,6 +22,8 @@ export function TemplateEditor() {
   const [channel, setChannel] = useState<string>('EMAIL')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
+  const [waPlantilla, setWaPlantilla] = useState('')
+  const [waVariables, setWaVariables] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -40,8 +45,10 @@ export function TemplateEditor() {
       await createTemplate({
         name,
         channel,
-        subject: channel === 'EMAIL' ? subject : undefined,
+        subject: channel === 'EMAIL' || channel === 'PUSH' ? subject : undefined,
         body,
+        whatsappPlantilla: channel === 'WHATSAPP' ? waPlantilla : undefined,
+        whatsappVariables: channel === 'WHATSAPP' ? waVariables.split(',').map(v => v.trim()).filter(Boolean) : undefined,
       })
       setSaved(true)
     } catch (e) {
@@ -103,13 +110,31 @@ export function TemplateEditor() {
               <option value="EMAIL">Email</option>
               <option value="SMS">SMS</option>
               <option value="WHATSAPP">WhatsApp</option>
+              <option value="PUSH">Push (app del elector)</option>
             </select>
           </div>
         </div>
 
-        {channel === 'EMAIL' && (
+        {channel === 'WHATSAPP' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <label style={labelStyle}>Plantilla aprobada en Meta (nombre exacto)</label>
+              <input value={waPlantilla} onChange={e => setWaPlantilla(e.target.value)} placeholder="bienvenida_campana" style={inputStyle} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <label style={labelStyle}>{'Variables de {{1}}, {{2}}… en orden'}</label>
+              <input value={waVariables} onChange={e => setWaVariables(e.target.value)} placeholder="nombre, puesto, mesa" style={inputStyle} />
+            </div>
+            <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b', gridColumn: '1 / -1' }}>
+              Para escribirle primero a alguien, WhatsApp exige una plantilla aprobada en Meta Business. El texto de abajo
+              es solo para el historial: lo que llega es la plantilla de Meta con estas variables.
+            </p>
+          </div>
+        )}
+
+        {(channel === 'EMAIL' || channel === 'PUSH') && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <label style={labelStyle}>Asunto</label>
+            <label style={labelStyle}>{channel === 'PUSH' ? 'Título de la notificación' : 'Asunto'}</label>
             <input
               value={subject}
               onChange={e => setSubject(e.target.value)}

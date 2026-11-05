@@ -13,7 +13,9 @@ import { getVapidPublicKey } from '@/lib/push'
  */
 export async function getEstadoPush(): Promise<{ publicKey: string | null; elegible: boolean }> {
   const session = await requireAuth(['ELECTOR', 'LIDER', 'ADMIN_CAMPANA', 'COORDINADOR', 'TESTIGO'])
-  const elegible = Boolean(session.user.voterId) && session.user.activeModules.includes('ENCUESTAS')
+  // Basta con tener elector enlazado: el push lo usan la agenda y las automatizaciones,
+  // no solo Encuestas. Atarlo a ese módulo dejaba sin avisos a campañas como iguaran.
+  const elegible = Boolean(session.user.voterId)
   return { publicKey: getVapidPublicKey(), elegible }
 }
 
