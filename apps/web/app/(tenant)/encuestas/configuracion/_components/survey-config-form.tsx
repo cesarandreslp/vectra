@@ -1,12 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { saveSurveyConfig } from '../../actions'
 
 export function SurveyConfigForm({ initial }: { initial: any }) {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [whatsappEnabled, setWhatsappEnabled] = useState<boolean>(initial.whatsappSurveyEnabled)
+  // El dominio solo se conoce en el navegador; leerlo en el render rompe la hidratación.
+  const [origen, setOrigen] = useState('')
+  useEffect(() => setOrigen(window.location.origin), [])
 
   async function action(formData: FormData) {
     setLoading(true)
@@ -17,6 +20,7 @@ export function SurveyConfigForm({ initial }: { initial: any }) {
     const res = await saveSurveyConfig({
       whatsappSurveyEnabled: whatsappEnabled,
       whatsappToken: tokenIngresado || undefined,
+      whatsappAppSecret: (formData.get('whatsappAppSecret') as string)?.trim() || undefined,
       whatsappPhoneId: formData.get('whatsappPhoneId') as string,
       whatsappVerifyToken: formData.get('whatsappVerifyToken') as string,
       botName: formData.get('botName') as string,
@@ -71,8 +75,26 @@ export function SurveyConfigForm({ initial }: { initial: any }) {
       </div>
 
       <div>
+        <label className="block text-sm font-semibold mb-1">App Secret (Meta)</label>
+        <input
+          name="whatsappAppSecret" type="password" autoComplete="off"
+          placeholder={initial.hasWhatsappAppSecret ? '•••••••• (ya configurado)' : 'Configuración de la app → Básica → Clave secreta'}
+          className="w-full border rounded px-3 py-2" disabled={!whatsappEnabled}
+        />
+        <p className="text-xs text-slate-500 mt-1">Sin él no se acepta ningún mensaje entrante: con él se comprueba que vienen de Meta.</p>
+      </div>
+
+      <div>
         <label className="block text-sm font-semibold mb-1">Verify Token (Para Webhook)</label>
         <input name="whatsappVerifyToken" defaultValue={initial.whatsappVerifyToken} className="w-full border rounded px-3 py-2" disabled={!whatsappEnabled} />
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold mb-1">URL del webhook (pégala en Meta)</label>
+        <input
+          readOnly value={origen + initial.webhookPath}
+          onFocus={(e) => e.currentTarget.select()} className="w-full border rounded px-3 py-2 bg-slate-50 font-mono text-xs"
+        />
       </div>
 
       <div>

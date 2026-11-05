@@ -595,6 +595,9 @@ model TenantConfig {
   whatsappToken         String?
   whatsappPhoneId       String?
   whatsappVerifyToken   String?
+  // CIFRADO: App Secret de la app de Meta. Con él se valida la firma
+  // X-Hub-Signature-256 de cada webhook; sin él, el webhook rechaza todo.
+  whatsappAppSecret     String?
   botName               String? @default("Asistente Virtual")
   surveyDailyLimit      Int     @default(250)
 

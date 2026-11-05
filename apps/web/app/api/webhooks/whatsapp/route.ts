@@ -2,138 +2,98 @@ import { NextResponse } from 'next/server'
 import { waitUntil } from '@vercel/functions'
 import { conversationEngine } from '@/lib/encuestas/conversation-engine'
 import { getTenantConnection } from '@/lib/tenant'
+import { firmaValida } from '@/lib/whatsapp-firma'
 import { getTenantDb, superadminDb, decrypt } from '@vectra/db'
+import { sendMessage } from '@vectra/messaging'
 
 /**
- * Webhook Verification (GET) - Meta API
+ * Webhook de WhatsApp (Meta Cloud API).
+ *
+ * Cada campaña conecta SU propia app de Meta con su propia URL:
+ *   /api/webhooks/whatsapp?c=<slug>
+ * El slug elige el tenant (igual que el registro por QR), y las credenciales de
+ * ESE tenant prueban que quien llama es Meta: el verify token en el GET y la
+ * firma X-Hub-Signature-256 con su App Secret en cada POST. Sin App Secret
+ * configurado no entra nada.
  */
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const token = searchParams.get('hub.verify_token')
-  const challenge = searchParams.get('hub.challenge')
 
-  if (challenge && token) {
-    // Validar token contra configuración (podría ser estático o por BD si es un solo webhook global)
-    // Asumimos un verify_token global para la app que cada tenant comparte.
-    const verifyToken = process.env.WHATSAPP_GLOBAL_VERIFY_TOKEN || 'electoss_webhook_2026'
-    
-    if (token === verifyToken) {
-      return new NextResponse(challenge, { status: 200 })
-    }
+const AVISO_SOLO_TEXTO = 'Por ahora solo puedo leer mensajes de texto. ¿Me lo escribes, por favor?'
+// Lo que la persona manda y no se puede leer. Reacciones y respuestas de botón
+// no van acá: contestarles con el aviso sería ruido.
+const SIN_LECTURA = new Set(['image', 'audio', 'video', 'document', 'sticker'])
+
+async function campanaDe(slug: string | null) {
+  if (!slug) return null
+  const tenant = await superadminDb.tenant.findUnique({ where: { slug }, select: { id: true, isActive: true } })
+  if (!tenant?.isActive) return null
+  try {
+    const db = getTenantDb(await getTenantConnection(tenant.id))
+    const config = await db.tenantConfig.findUnique({
+      where:  { tenantId: tenant.id },
+      select: { whatsappToken: true, whatsappPhoneId: true, whatsappVerifyToken: true, whatsappAppSecret: true },
+    })
+    return config ? { tenantId: tenant.id, db, config } : null
+  } catch {
+    return null
   }
+}
+
+/** Verificación del webhook: Meta llama una vez al guardarlo en la app. */
+export async function GET(request: Request) {
+  const params    = new URL(request.url).searchParams
+  const token     = params.get('hub.verify_token')
+  const challenge = params.get('hub.challenge')
+  const campana   = await campanaDe(params.get('c'))
+  const esperado  = campana?.config.whatsappVerifyToken
+
+  if (challenge && esperado && token === esperado) return new NextResponse(challenge, { status: 200 })
   return new NextResponse('Forbidden', { status: 403 })
 }
 
-/**
- * Webhook Receiver (POST) - Meta API
- * 
- * Este webhook es GLOBAL para toda la app. Meta enviará aquí los mensajes
- * de todos los números configurados.
- * Es crucial enrutar correctamente el mensaje usando el phoneNumberId receptor.
- */
 export async function POST(request: Request) {
-  let body: any
-  try {
-    body = await request.json()
-  } catch (e) {
-    console.error('[WEBHOOK] Failed to parse JSON body:', e)
-    return new NextResponse('OK', { status: 200 })
+  const cuerpo  = await request.text() // crudo: la firma se calcula sobre estos bytes
+  const campana = await campanaDe(new URL(request.url).searchParams.get('c'))
+  const secreto = campana?.config.whatsappAppSecret ? decrypt(campana.config.whatsappAppSecret) : null
+
+  if (!campana || !secreto || !firmaValida(cuerpo, request.headers.get('x-hub-signature-256'), secreto)) {
+    return new NextResponse('Forbidden', { status: 403 })
   }
 
-  // Meta Webhook Format
-  if (body.object === 'whatsapp_business_account') {
-    for (const entry of body.entry) {
-      for (const change of entry.changes) {
-        if (change.value && change.value.messages) {
-          const phoneNumberId = change.value.metadata.phone_number_id
-          const message = change.value.messages[0]
+  let body: any
+  try {
+    body = JSON.parse(cuerpo)
+  } catch {
+    return new NextResponse('OK', { status: 200 })
+  }
+  if (body?.object !== 'whatsapp_business_account') return new NextResponse('OK', { status: 200 })
 
-          if (message.type === 'text') {
-            const fromPhone = message.from
-            const text = message.text.body
-            const messageId = message.id
+  const { tenantId, db, config } = campana
+  const token = config.whatsappToken ? decrypt(config.whatsappToken) : undefined
 
-            console.log(`[WEBHOOK] Inbound: from=${fromPhone} text="${text}" receiver=${phoneNumberId}`)
+  for (const entry of body.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      const value         = change.value
+      const phoneNumberId = value?.metadata?.phone_number_id
+      // Una app de Meta puede tener varios números: solo atendemos el de esta campaña.
+      if (!phoneNumberId || phoneNumberId !== config.whatsappPhoneId) continue
 
-            waitUntil(
-              processMessageInTenant(fromPhone, text, messageId, phoneNumberId)
-                .then(() => console.log(`[WEBHOOK] Engine finished for ${fromPhone}`))
-                .catch(err => console.error('[WEBHOOK] Engine error:', err))
-            )
-          }
+      for (const message of value.messages ?? []) {
+        if (message.type === 'text') {
+          waitUntil(
+            conversationEngine
+              .processIncomingMessage(message.from, message.text?.body ?? '', message.id, tenantId, db, token, phoneNumberId)
+              .catch(err => console.error('[WEBHOOK] Engine error:', err)),
+          )
+        } else if (SIN_LECTURA.has(message.type) && token) {
+          // ponytail: si Meta reintenta el webhook, el aviso puede salir dos veces; se deduplica cuando haya log de conversación (Fase 1).
+          waitUntil(
+            sendMessage({ to: message.from, channel: 'WHATSAPP', body: AVISO_SOLO_TEXTO }, undefined, { token, phoneNumberId })
+              .then(r => { if (!r.success) console.error('[WEBHOOK] Aviso no enviado:', r.error) }),
+          )
         }
       }
     }
   }
 
-  // Si llega en formato YCloud (por si se utiliza como fallback en el futuro)
-  if (body?.type === 'whatsapp.inbound_message.received') {
-    const msg = body?.whatsappInboundMessage
-    if (msg && msg.type === 'text') {
-      const fromPhone = msg.from
-      const text = msg.text?.body?.trim() || ''
-      const messageId = msg.id
-      const toPhone = msg.to // phoneNumberId o equivalente
-
-      waitUntil(
-        processMessageInTenant(fromPhone, text, messageId, toPhone)
-          .then(() => console.log(`[WEBHOOK] Engine finished for ${fromPhone}`))
-          .catch(err => console.error('[WEBHOOK] Engine error:', err))
-      )
-    }
-  }
-
   return new NextResponse('OK', { status: 200 })
-}
-
-async function processMessageInTenant(fromPhone: string, text: string, messageId: string, phoneNumberId: string) {
-  // 1. Buscar a qué tenant pertenece este phoneNumberId
-  // Requiere buscar en todos los tenants. Si solo hay uno, es directo.
-  // Pero en arquitectura multi-tenant de Vectra, buscamos en TenantConfig de todos.
-  // Optimización: como TenantConfig está en la db local de cada tenant, puede ser costoso buscar en todas.
-  // Alternativa: Mantener un caché global de phoneNumberId -> tenantId en la db superadmin.
-  
-  // Por simplicidad para la integración, vamos a asumir que la conexión db principal (superadmin)
-  // tiene una forma de saber el tenant. Añadiremos una tabla o campo global si es necesario en un futuro.
-  // De momento buscaremos en los tenants activos de forma serial (no ideal para escala inmensa).
-  
-  const tenants = await superadminDb.tenant.findMany({ where: { isActive: true } })
-  
-  let targetTenantId: string | null = null
-  let tenantConnectionString: string | null = null
-  let whatsappToken: string | null = null
-
-  for (const tenant of tenants) {
-    try {
-      const connStr = await getTenantConnection(tenant.id)
-      const db = getTenantDb(connStr)
-      const config = await db.tenantConfig.findUnique({ where: { tenantId: tenant.id } })
-      
-      if (config?.whatsappPhoneId === phoneNumberId) {
-        targetTenantId = tenant.id
-        tenantConnectionString = connStr
-        whatsappToken = config.whatsappToken ? decrypt(config.whatsappToken) : null
-        break
-      }
-    } catch (e) {
-      // Ignorar errores de conexión a tenants individuales
-    }
-  }
-
-  if (!targetTenantId || !tenantConnectionString) {
-    console.error(`[WEBHOOK] No tenant found for phoneNumberId: ${phoneNumberId}`)
-    return
-  }
-
-  const tenantDb = getTenantDb(tenantConnectionString)
-  
-  await conversationEngine.processIncomingMessage(
-    fromPhone,
-    text,
-    messageId,
-    targetTenantId,
-    tenantDb,
-    whatsappToken ?? undefined,
-    phoneNumberId
-  )
 }

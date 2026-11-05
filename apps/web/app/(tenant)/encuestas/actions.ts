@@ -144,6 +144,7 @@ export async function getSurveyConfig() {
       whatsappToken: true,
       whatsappPhoneId: true,
       whatsappVerifyToken: true,
+      whatsappAppSecret: true,
       botName: true,
       surveyDailyLimit: true,
     }
@@ -152,6 +153,9 @@ export async function getSurveyConfig() {
   return {
     whatsappSurveyEnabled: config?.whatsappSurveyEnabled ?? true,
     hasWhatsappToken:    Boolean(config?.whatsappToken),
+    hasWhatsappAppSecret: Boolean(config?.whatsappAppSecret),
+    // El webhook se enruta por ?c=slug (igual que el registro por QR).
+    webhookPath:         `/api/webhooks/whatsapp?c=${session.user.tenantSlug ?? ''}`,
     whatsappPhoneId:     config?.whatsappPhoneId ?? '',
     whatsappVerifyToken: config?.whatsappVerifyToken ?? '',
     botName:             config?.botName ?? 'Asistente Virtual',
@@ -166,6 +170,7 @@ export async function getSurveyConfig() {
 export async function saveSurveyConfig(data: {
   whatsappSurveyEnabled: boolean
   whatsappToken?: string
+  whatsappAppSecret?: string
   whatsappPhoneId: string
   whatsappVerifyToken: string
   botName: string
@@ -176,6 +181,7 @@ export async function saveSurveyConfig(data: {
     const db = getTenantDb(await getTenantConnection(session.user.tenantId))
 
     const tokenCifrado = data.whatsappToken?.trim() ? encrypt(data.whatsappToken.trim()) : undefined
+    const secretCifrado = data.whatsappAppSecret?.trim() ? encrypt(data.whatsappAppSecret.trim()) : undefined
 
     await db.tenantConfig.upsert({
       where: { tenantId: session.user.tenantId },
@@ -183,6 +189,7 @@ export async function saveSurveyConfig(data: {
         tenantId: session.user.tenantId,
         whatsappSurveyEnabled: data.whatsappSurveyEnabled,
         whatsappToken: tokenCifrado,
+        whatsappAppSecret: secretCifrado,
         whatsappPhoneId: data.whatsappPhoneId,
         whatsappVerifyToken: data.whatsappVerifyToken,
         botName: data.botName,
@@ -191,6 +198,7 @@ export async function saveSurveyConfig(data: {
       update: {
         whatsappSurveyEnabled: data.whatsappSurveyEnabled,
         ...(tokenCifrado !== undefined && { whatsappToken: tokenCifrado }),
+        ...(secretCifrado !== undefined && { whatsappAppSecret: secretCifrado }),
         whatsappPhoneId: data.whatsappPhoneId,
         whatsappVerifyToken: data.whatsappVerifyToken,
         botName: data.botName,
