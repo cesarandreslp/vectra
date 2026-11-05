@@ -2,6 +2,7 @@ import { getTenantConnection } from '@/lib/tenant'
 import { superadminDb, getTenantDb } from '@vectra/db'
 import { FormularioRegistro } from './_components/formulario-registro'
 import { qrVigente } from '@/lib/qr'
+import { textoAutorizacion } from '@/lib/autorizacion-datos'
 import { IconLinkOff } from '@/app/_components/icons'
 
 interface Props {
@@ -56,6 +57,7 @@ export default async function RegistroQRPage({ params, searchParams }: Props) {
     },
     orderBy: { name: 'asc' },
   })
+  const autorizacion = await textoAutorizacion(db, tenantId, tenantName)
 
   return (
     <div
@@ -77,7 +79,7 @@ export default async function RegistroQRPage({ params, searchParams }: Props) {
         </div>
 
         {/* Formulario client component */}
-        <FormularioRegistro slug={slug} token={token} refId={ref} puestos={puestos} />
+        <FormularioRegistro slug={slug} token={token} refId={ref} puestos={puestos} textoAutorizacion={autorizacion} />
       </div>
     </div>
   )

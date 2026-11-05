@@ -7,14 +7,16 @@ import { RolesPanel }     from './_components/roles-panel'
 import { getFactoresPlan, listarHitos } from './actions-plan'
 import { PlanForm }       from './_components/plan-form'
 import { HitosPanel }     from './_components/hitos-panel'
+import { getConfigDatos } from './actions-datos'
+import { DatosPanel }     from './_components/datos-panel'
 
 export const metadata = { title: 'Configuración' }
 
 /** Configuración de la campaña — solo ADMIN_CAMPANA. */
 export default async function ConfiguracionPage() {
   await requireAuthOrRedirect(['ADMIN_CAMPANA'])
-  const [cfg, departamentos, roles, plan, hitos] = await Promise.all([
-    getConfiguracion(), listarDepartamentos(), listarRoles(), getFactoresPlan(), listarHitos(),
+  const [cfg, departamentos, roles, plan, hitos, datos] = await Promise.all([
+    getConfiguracion(), listarDepartamentos(), listarRoles(), getFactoresPlan(), listarHitos(), getConfigDatos(),
   ])
 
   return (
@@ -26,6 +28,12 @@ export default async function ConfiguracionPage() {
         Claves de IA propias, dominio y branding de tu campaña.
       </p>
       <ConfigForm inicial={cfg} departamentos={departamentos} />
+
+      <h2 style={{ fontSize: '1.15rem', fontWeight: 700, margin: '2rem 0 0.35rem' }}>Protección de datos (Ley 1581)</h2>
+      <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1rem' }}>
+        Lo que autoriza cada persona al registrarse. Se guarda la prueba de cada aceptación: el texto exacto, la fecha y por dónde.
+      </p>
+      <DatosPanel inicial={datos} />
 
       <h2 style={{ fontSize: '1.15rem', fontWeight: 700, margin: '2rem 0 0.35rem' }}>Plan de la estructura</h2>
       <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1rem' }}>

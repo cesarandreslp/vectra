@@ -25,6 +25,7 @@ import { avanceMeta, compromisosParaMeta, leerTasaFuga } from '@/lib/meta-votos'
 import { cerrarContactos }            from '@/lib/contacto-calle-db'
 import { hashTelefono }               from '@/lib/contacto-calle'
 import { encolarEvento }              from '@/lib/automatizaciones'
+import { registrarAutorizacion, textoAutorizacion } from '@/lib/autorizacion-datos'
 import { chatGroq }                   from '@vectra/ai'
 import { getTenantAiKeys }            from '@/lib/tenant-ai'
 import { revalidatePath }             from 'next/cache'
@@ -93,6 +94,8 @@ export interface CreateVoterInput {
   leaderId?:        string
   votingTableId?:   string
   commitmentStatus?: CommitmentStatus
+  /** Ley 1581: quien registra declara que la persona autorizó el tratamiento de sus datos. */
+  autorizacionDeclarada?: boolean
 }
 
 export interface VoterFilters {
@@ -621,6 +624,13 @@ export async function createVoter(
     await crearQrPropio(elector.id, session.user.tenantId, db)
     await cerrarContactos(db, session.user.tenantId, data.phone, elector.id)
     trasAltaDeElectores(db, session.user.tenantId)
+    if (data.autorizacionDeclarada === true) {
+      await registrarAutorizacion(db, {
+        tenantId: session.user.tenantId, voterIds: [elector.id], canal: 'ALTA_MANUAL',
+        texto: await textoAutorizacion(db, session.user.tenantId, session.user.tenantName ?? 'la campaña'),
+        declaradaPorId: session.user.userId,
+      })
+    }
     await encolarEvento(db, session.user.tenantId, 'NUEVO_ELECTOR', [elector.id])
 
     revalidatePath('/core/electores')
@@ -1092,6 +1102,8 @@ export interface VoterDetalle {
   activo:           boolean
   /** Fecha del último cambio a inactivo. null si está activo o si se inactivó antes de que se registrara. */
   inactivoDesde:    Date | null
+  /** Ley 1581: cuándo y por dónde autorizó sus datos. null = sin autorización registrada. */
+  autorizacion:     { fecha: Date; canal: string } | null
   censoEstado:      string | null
   censoLugar:       Record<string, unknown> | null
 }
@@ -1117,9 +1129,15 @@ export async function getVoterDetalle(id: string): Promise<VoterDetalle | null> 
       leader: { select: { name: true } },
       estadoCambios: { orderBy: { fecha: 'desc' }, take: 1, select: { fecha: true, status: true } },
       _count: { select: { followers: true } },
+      autorizacionDatosEn: true,
     },
   })
   if (!v) return null
+  const prueba = v.autorizacionDatosEn
+    ? await db.autorizacionDatos.findFirst({
+        where: { tenantId: session.user.tenantId, voterId: v.id, revocadaEn: null }, orderBy: { fecha: 'desc' }, select: { canal: true },
+      })
+    : null
   const ultimoCambio = v.estadoCambios[0]
 
   let phonePlain: string | null = null
@@ -1137,6 +1155,7 @@ export async function getVoterDetalle(id: string): Promise<VoterDetalle | null> 
     leaderId: v.leaderId, leaderName: v.leader?.name ?? null, directos: v._count.followers,
     isCandidate: v.isCandidate, tieneAgenda: v.tieneAgenda, activo: v.status === 'ACTIVO',
     inactivoDesde: v.status !== 'ACTIVO' && ultimoCambio && ultimoCambio.status !== 'ACTIVO' ? ultimoCambio.fecha : null,
+    autorizacion:  v.autorizacionDatosEn ? { fecha: v.autorizacionDatosEn, canal: prueba?.canal ?? '' } : null,
     censoEstado: v.censoEstado, censoLugar: v.censoLugar as Record<string, unknown> | null,
   }
 }

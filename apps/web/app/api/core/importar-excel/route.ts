@@ -3,6 +3,7 @@ import { auth }                       from '@vectra/auth'
 import { getTenantConnection }         from '@/lib/tenant'
 import { getTenantDb }                from '@vectra/db'
 import { parsearPreviewExcel, procesarImportExcel } from '@/app/(tenant)/core/importar/_lib/excel'
+import { textoAutorizacion } from '@/lib/autorizacion-datos'
 import { trasAltaDeElectores } from '@/lib/ubicar-electores'
 
 /**
@@ -36,10 +37,12 @@ export async function POST(request: NextRequest) {
   // Leer el archivo del multipart
   let buffer: Buffer
   let leaderId: string
+  let autorizacionDeclarada = false
   try {
     const formData  = await request.formData()
     const archivo   = formData.get('file') as File | null
     const leaderIdF = formData.get('leaderId') as string | null
+    autorizacionDeclarada = formData.get('autorizacionDeclarada') === 'si'
 
     if (!archivo) {
       return NextResponse.json({ error: 'Campo "file" requerido' }, { status: 400 })
@@ -73,6 +76,9 @@ export async function POST(request: NextRequest) {
       leaderId,
       session.user.tenantId,
       db as any,
+      autorizacionDeclarada
+        ? { declaradaPorId: session.user.userId, texto: await textoAutorizacion(db, session.user.tenantId, session.user.tenantName ?? 'la campaña') }
+        : undefined,
     )
     if (resultado.created > 0) trasAltaDeElectores(db, session.user.tenantId)
 

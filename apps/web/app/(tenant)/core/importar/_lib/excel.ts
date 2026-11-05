@@ -14,6 +14,7 @@ import { crearAlertaDuplicado } from '../../actions'
 import { crearQrPropio }      from '@/lib/qr'
 import { hashTelefono }       from '@/lib/contacto-calle'
 import { encolarEvento }      from '@/lib/automatizaciones'
+import { registrarAutorizacion } from '@/lib/autorizacion-datos'
 import type { PrismaClient }  from '@vectra/db'
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
@@ -173,6 +174,8 @@ export async function procesarImportExcel(
   leaderId: string,
   tenantId: string,
   db:       PrismaClient,
+  /** Ley 1581: quien importa declara que todas las personas del archivo autorizaron. */
+  autorizacion?: { declaradaPorId: string; texto: string },
 ): Promise<ImportExcelResult> {
   // cellDates: las celdas con formato fecha llegan como Date, no como número de serie.
   const wb    = XLSX.read(buffer, { type: 'buffer', cellDates: true })
@@ -290,6 +293,9 @@ export async function procesarImportExcel(
     }
   }
 
+  if (autorizacion) {
+    await registrarAutorizacion(db as any, { tenantId, voterIds: nuevos, canal: 'IMPORTACION', ...autorizacion })
+  }
   await encolarEvento(db as any, tenantId, 'NUEVO_ELECTOR', nuevos)
   return { created, skipped, duplicates, errors }
 }

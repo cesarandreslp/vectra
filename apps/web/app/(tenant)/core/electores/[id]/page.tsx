@@ -27,6 +27,11 @@ const COLORES_ESTADO: Record<string, { bg: string; text: string }> = {
   VOTO_SEGURO:   { bg: '#bbf7d0', text: '#14532d' },
 }
 
+const ORIGEN_AUTORIZACION: Record<string, string> = {
+  ENLACE: 'al registrarse por su enlace', PWA: 'desde la app',
+  ALTA_MANUAL: 'declarada por quien lo registró', IMPORTACION: 'declarada en la importación',
+}
+
 export default async function FichaElectorPage({ params }: Props) {
   const { id } = await params
   const elector = await getVoterDetalle(id)
@@ -122,6 +127,17 @@ export default async function FichaElectorPage({ params }: Props) {
           valor={elector.lastContact ? new Date(elector.lastContact).toLocaleDateString('es-CO') : null}
         />
         {elector.notes && <Campo label="Notas" valor={elector.notes} />}
+        <div>
+          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Autorización de datos (Ley 1581)</div>
+          {elector.autorizacion ? (
+            <div style={{ fontSize: '0.9rem', color: '#166534' }}>
+              Autorizó el {new Date(elector.autorizacion.fecha).toLocaleDateString('es-CO', { timeZone: 'America/Bogota' })}
+              {' · '}{ORIGEN_AUTORIZACION[elector.autorizacion.canal] ?? elector.autorizacion.canal}
+            </div>
+          ) : (
+            <div style={{ fontSize: '0.9rem', color: '#b91c1c' }}>Sin autorización registrada: se le pedirá al entrar a la app.</div>
+          )}
+        </div>
         <FichaCenso
           voterId={elector.id} estado={elector.censoEstado} lugar={elector.censoLugar}
           puedeVerificar={puedeEditar}

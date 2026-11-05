@@ -29,6 +29,7 @@ interface ImportResult {
 
 export default function ImportarPage() {
   const [leaderId,   setLeaderId]   = useState('')
+  const [autorizo,   setAutorizo]   = useState(false)
   const [preview,    setPreview]    = useState<Preview | null>(null)
   const [archivoNom, setArchivoNom] = useState('')
   const [archivo,    setArchivo]    = useState<File | null>(null)
@@ -79,6 +80,7 @@ export default function ImportarPage() {
     const fd = new FormData()
     fd.append('file',     archivo)
     fd.append('leaderId', leaderId)
+    if (autorizo) fd.append('autorizacionDeclarada', 'si')
 
     startTransition(async () => {
       const res = await fetch('/api/core/importar-excel', { method: 'POST', body: fd })
@@ -213,6 +215,14 @@ export default function ImportarPage() {
               </div>
             )}
           </div>
+
+          <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', fontSize: '0.8rem', color: '#334155', lineHeight: 1.4, marginBottom: '0.75rem' }}>
+            <input type="checkbox" checked={autorizo} onChange={(e) => setAutorizo(e.target.checked)} style={{ marginTop: '0.15rem' }} />
+            <span>
+              Declaro que todas las personas del archivo autorizaron el tratamiento de sus datos (Ley 1581) y que la
+              campaña conserva esa autorización. Si no, déjalo sin marcar: quedan &quot;sin autorización&quot; hasta que la den desde la app.
+            </span>
+          </label>
 
           <div style={{ display: 'flex', gap: '0.75rem' }}>
             <button

@@ -18,9 +18,11 @@ interface FormularioRegistroProps {
   token:   string
   refId?:  string
   puestos: Puesto[]
+  /** Ley 1581: lo que la persona autoriza. Sin marcar la casilla no se registra. */
+  textoAutorizacion: string
 }
 
-export function FormularioRegistro({ slug, token, refId, puestos }: FormularioRegistroProps) {
+export function FormularioRegistro({ slug, token, refId, puestos, textoAutorizacion }: FormularioRegistroProps) {
   const [nombre,    setNombre]    = useState('')
   const [apodo,     setApodo]     = useState('')
   const [cedula,    setCedula]    = useState('')
@@ -28,6 +30,7 @@ export function FormularioRegistro({ slug, token, refId, puestos }: FormularioRe
   const [direccion, setDireccion] = useState('')
   const [puestoId,  setPuestoId]  = useState('')
   const [mesaId,    setMesaId]    = useState('')
+  const [autoriza,  setAutoriza]  = useState(false)
   const [mensaje,   setMensaje]   = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [enviado,   setEnviado]   = useState(false)
   const [miQrToken, setMiQrToken] = useState<string | null>(null)
@@ -42,7 +45,7 @@ export function FormularioRegistro({ slug, token, refId, puestos }: FormularioRe
 
   function ingresarOtro() {
     setNombre(''); setApodo(''); setCedula(''); setTelefono(''); setDireccion('')
-    setPuestoId(''); setMesaId('')
+    setPuestoId(''); setMesaId(''); setAutoriza(false)
     setMensaje(null); setEnviado(false); setMiQrToken(null); setCopiado(false); setPreguntasEncuesta(null)
     window.scrollTo({ top: 0 })
   }
@@ -59,6 +62,7 @@ export function FormularioRegistro({ slug, token, refId, puestos }: FormularioRe
       direccion: direccion.trim() || undefined,
       puestoId:  puestoId || undefined,
       mesaId:    mesaId   || undefined,
+      autorizaDatos: autoriza,
     }
 
     startTransition(async () => {
@@ -322,6 +326,18 @@ export function FormularioRegistro({ slug, token, refId, puestos }: FormularioRe
           </Campo>
         )}
 
+        <label style={{
+          display: 'flex', gap: '0.6rem', alignItems: 'flex-start', padding: '0.75rem',
+          background: '#f8fafc', border: `1px solid ${autoriza ? '#94a3b8' : '#e2e8f0'}`, borderRadius: '8px',
+          fontSize: '0.8rem', lineHeight: 1.45, color: '#334155', cursor: 'pointer',
+        }}>
+          <input
+            type="checkbox" checked={autoriza} onChange={(e) => setAutoriza(e.target.checked)} required
+            style={{ marginTop: '0.15rem', width: '1.1rem', height: '1.1rem', flexShrink: 0 }}
+          />
+          <span>{textoAutorizacion}</span>
+        </label>
+
         {mensaje && (
           <div style={{
             padding: '0.75rem 1rem', borderRadius: '8px',
@@ -335,14 +351,14 @@ export function FormularioRegistro({ slug, token, refId, puestos }: FormularioRe
 
         <button
           type="submit"
-          disabled={isPending}
+          disabled={isPending || !autoriza}
           style={{
-            background:   isPending ? '#94a3b8' : '#0f172a',
+            background:   isPending || !autoriza ? '#94a3b8' : '#0f172a',
             color:        '#fff',
             padding:      '0.875rem 1rem',
             borderRadius: '10px',
             border:       'none',
-            cursor:       isPending ? 'not-allowed' : 'pointer',
+            cursor:       isPending || !autoriza ? 'not-allowed' : 'pointer',
             fontSize:     '1rem',
             fontWeight:   700,
             marginTop:    '0.5rem',

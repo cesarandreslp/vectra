@@ -16,6 +16,7 @@ import { headers }                from 'next/headers'
 import { cerrarContactos } from '@/lib/contacto-calle-db'
 import { hashTelefono }    from '@/lib/contacto-calle'
 import { encolarEvento }   from '@/lib/automatizaciones'
+import { textoAutorizacion, registrarAutorizacion } from '@/lib/autorizacion-datos'
 import { superadminDb, getTenantDb, encrypt } from '@vectra/db'
 import { getTenantConnection }    from '@/lib/tenant'
 import { crearAlertaDuplicado }   from '@/app/(tenant)/core/actions'
@@ -31,6 +32,8 @@ export interface RegistroQRInput {
   direccion?: string
   puestoId?:  string
   mesaId?:    string
+  /** Ley 1581: marcó la casilla de autorización. Sin ella no se registra. */
+  autorizaDatos: boolean
 }
 
 export type RegistroQRResult =
@@ -64,10 +67,13 @@ export async function registrarseConQR(
   // (las rutas públicas no pasan por la resolución de tenant del middleware).
   const tenant = await superadminDb.tenant.findUnique({
     where:  { slug },
-    select: { id: true, isActive: true },
+    select: { id: true, isActive: true, name: true },
   })
   if (!tenant || !tenant.isActive) {
     return { success: false, error: 'Enlace no válido.' }
+  }
+  if (data?.autorizaDatos !== true) {
+    return { success: false, error: 'Para registrarte tienes que autorizar el tratamiento de tus datos.' }
   }
   const tenantId = tenant.id
 
@@ -98,8 +104,12 @@ export async function registrarseConQR(
     where:  { tenantId, cedulaHash },
     select: { id: true, name: true, leaderId: true },
   })
+  // La prueba lleva el texto que estaba vigente al aceptar (se lee del servidor, no del navegador).
+  const autorizacion = { tenantId, canal: 'ENLACE' as const, texto: await textoAutorizacion(db, tenantId, tenant.name), ip }
 
   if (existente) {
+    // Ya estaba en el padrón (p. ej. importado sin autorización): ahora la dio.
+    await registrarAutorizacion(db, { ...autorizacion, voterIds: [existente.id] })
     if (existente.leaderId === qr.leaderId) {
       // Ya registrado con este mismo líder — mensaje amigable sin datos sensibles
       return {
@@ -168,6 +178,7 @@ export async function registrarseConQR(
   // Si el candidato lo había saludado en la calle, ese contacto queda cerrado.
   await cerrarContactos(db, tenantId, data.telefono, nuevoElector.id)
   trasAltaDeElectores(db, tenantId)
+  await registrarAutorizacion(db, { ...autorizacion, voterIds: [nuevoElector.id] })
   await encolarEvento(db, tenantId, 'NUEVO_ELECTOR', [nuevoElector.id])
 
   // Incrementar contador de registros del QR

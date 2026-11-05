@@ -26,6 +26,7 @@ export function FormularioElector({ elector, leaderIdInicial = '' }: FormularioE
   const [lideres,   setLideres]   = useState<{ id: string; name: string }[]>([])
   const [puestos,   setPuestos]   = useState<StationOption[]>([])
   const [error,     setError]     = useState<string | null>(null)
+  const [autorizo,  setAutorizo]  = useState(false)
   const [exito,     setExito]     = useState<string | null>(null)
 
   const [isPending, startTransition] = useTransition()
@@ -52,6 +53,7 @@ export function FormularioElector({ elector, leaderIdInicial = '' }: FormularioE
         leaderId:         leaderId || undefined,
         votingTableId:    mesaId || undefined,
         commitmentStatus: estado,
+        autorizacionDeclarada: autorizo,
       }
 
       if (elector) {
@@ -67,7 +69,7 @@ export function FormularioElector({ elector, leaderIdInicial = '' }: FormularioE
         setExito(res.voterId)
         // Limpiar para crear otro
         setCedula(''); setNombre(''); setApodo(''); setTelefono(''); setDireccion('')
-        setLeaderId(leaderIdInicial); setEstado('SIN_CONTACTAR'); setPuestoId(''); setMesaId('')
+        setLeaderId(leaderIdInicial); setEstado('SIN_CONTACTAR'); setPuestoId(''); setMesaId(''); setAutorizo(false)
       } else {
         setError(res.error)
       }
@@ -107,6 +109,16 @@ export function FormularioElector({ elector, leaderIdInicial = '' }: FormularioE
         label={elector ? 'Estado' : 'Estado inicial'} value={estado} onChange={(v) => setEstado(v as CommitmentStatus)}
         opciones={ESTADOS}
       />
+
+      {!elector && (
+        <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', fontSize: '0.8rem', color: '#334155', lineHeight: 1.4 }}>
+          <input type="checkbox" checked={autorizo} onChange={(e) => setAutorizo(e.target.checked)} style={{ marginTop: '0.15rem' }} />
+          <span>
+            La persona autorizó el tratamiento de sus datos personales (Ley 1581). Quedará registrado que tú lo declaras.
+            Si no la tienes, déjalo sin marcar: queda &quot;sin autorización&quot; hasta que la dé desde la app.
+          </span>
+        </label>
+      )}
 
       {error && (
         <div style={{ padding: '0.625rem', background: '#fee2e2', color: '#991b1b', borderRadius: '6px', fontSize: '0.875rem' }}>

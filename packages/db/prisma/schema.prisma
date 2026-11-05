@@ -198,68 +198,71 @@ model CustomRolePermission {
 /// otro líder (multinivel), vía el mismo campo `leaderId` encadenado.
 /// Los campos PII (cédula, teléfono) van cifrados en la capa de aplicación.
 model Voter {
-  id               String           @id @default(cuid())
-  tenantId         String
+  id                  String           @id @default(cuid())
+  tenantId            String
   // CIFRADO: campo PII (número de cédula) — se cifra con AES-256 antes de persistir. Ver lib/crypto.ts
-  cedula           String
+  cedula              String
   // SHA-256 de la cédula en texto plano. Permite deduplicación sin exponer el valor original.
   // Se calcula con: createHash('sha256').update(cedula.trim()).digest('hex')
-  cedulaHash       String?
-  name             String
-  apodo            String? // Como le dicen normalmente — para mensajes de invitación más cercanos
+  cedulaHash          String?
+  name                String
+  apodo               String? // Como le dicen normalmente — para mensajes de invitación más cercanos
   // CIFRADO: campo PII — se cifra con AES-256 antes de persistir. Ver lib/crypto.ts
-  phone            String?
+  phone               String?
   // SHA-256 del celular normalizado (lib/contacto-calle → hashTelefono). Con
   // él se reconoce a quien escribe por WhatsApp sin descifrar el padrón.
-  telefonoHash     String?
+  telefonoHash        String?
+  // Ley 1581: cuándo autorizó el tratamiento de sus datos (la prueba completa
+  // está en AutorizacionDatos). null = sin autorización registrada.
+  autorizacionDatosEn DateTime?
   // Fecha de nacimiento. Da la edad → apto para votar (18+). Para un TESTIGO es
   // además su credencial de acceso (cédula + fecha de nacimiento), por eso el
   // alta de testigo la exige; para el resto del padrón es opcional.
-  birthDate        DateTime?
-  address          String? // Dirección física del elector
-  lat              Float? // Coordenada geocodificada desde address (para el mapa)
-  lng              Float?
+  birthDate           DateTime?
+  address             String? // Dirección física del elector
+  lat                 Float? // Coordenada geocodificada desde address (para el mapa)
+  lng                 Float?
   // Último intento de ubicar la dirección. Con lat null = el buscador no la encontró:
   // no se reintenta hasta que cambie la dirección (si no, esos tapaban la fila).
-  geoIntentadoEn   DateTime?
+  geoIntentadoEn      DateTime?
   // Barrio donde vive. NO se digita: se resuelve solo cruzando lat/lng contra el
   // polígono del barrio (ver lib/barrios.ts). Queda null si está fuera de todos
   // los polígonos cargados o si todavía no se geocodificó.
-  neighborhoodId   String?
-  leaderId         String? // Líder responsable de este elector
+  neighborhoodId      String?
+  leaderId            String? // Líder responsable de este elector
   // Campos de rol de líder — solo tienen sentido si este Voter tiene followers (ver abajo).
   // "Ser líder" es implícito: cualquier Voter con >=1 follower actúa como líder.
-  zone             String? // Zona geográfica bajo su responsabilidad (si es líder)
-  targetVotes      Int              @default(0) // Meta de votos a conseguir (si es líder)
-  status           LeaderStatus     @default(ACTIVO)
+  zone                String? // Zona geográfica bajo su responsabilidad (si es líder)
+  targetVotes         Int              @default(0) // Meta de votos a conseguir (si es líder)
+  status              LeaderStatus     @default(ACTIVO)
   // El candidato es el líder natural en la raíz del árbol, pero no es un "líder" de
   // campaña — se excluye del panel de líderes y del ranking (sigue contando para
   // el sub-árbol de quien sí aparece). A lo sumo uno por tenant.
-  isCandidate      Boolean          @default(false)
+  isCandidate         Boolean          @default(false)
   // "Jefe de debate" — además del candidato, el admin puede marcar a otros con
   // agenda propia. OJO: solo la del candidato es reservable por electores.
-  tieneAgenda      Boolean          @default(false)
+  tieneAgenda         Boolean          @default(false)
   // Quien ADMINISTRA una agenda, que no es quien la protagoniza: el asistente
   // del candidato lleva el 100% de la suya, y otra persona lleva la de los
   // jefes de debate. El anfitrión ve su agenda pero no la escribe. Si nadie
   // tiene el ámbito, el admin del tenant queda como respaldo (ver lib/agenda).
-  gestionaAgenda   AgendaAmbito?
+  gestionaAgenda      AgendaAmbito?
   // Solo significa algo en el candidato: si su agenda está abierta para que
   // los electores reserven. La abre y la cierra su gestor, según haya espacios
   // por cubrir o por orden del candidato.
-  agendaAbierta    Boolean          @default(false)
+  agendaAbierta       Boolean          @default(false)
   // Simpatizante: subconjunto de electores que ejecuta actividades sociales de
   // la campaña. Todo simpatizante es elector, no todo elector es simpatizante.
-  esSimpatizante   Boolean          @default(false)
-  votingTableId    String? // Mesa donde está inscrito
-  commitmentStatus CommitmentStatus @default(SIN_CONTACTAR)
-  lastContact      DateTime? // Último contacto registrado
-  notes            String? // Notas del líder sobre el elector
+  esSimpatizante      Boolean          @default(false)
+  votingTableId       String? // Mesa donde está inscrito
+  commitmentStatus    CommitmentStatus @default(SIN_CONTACTAR)
+  lastContact         DateTime? // Último contacto registrado
+  notes               String? // Notas del líder sobre el elector
   // Árbol de captación por referidos
-  referredById     String? // FK al Voter que refirió a esta persona
-  captureDepth     Int              @default(0) // Nivel en el árbol de captación (0 = directo del líder)
-  qrTokenUsed      String? // Token del QR que usó para registrarse
-  createdAt        DateTime         @default(now())
+  referredById        String? // FK al Voter que refirió a esta persona
+  captureDepth        Int              @default(0) // Nivel en el árbol de captación (0 = directo del líder)
+  qrTokenUsed         String? // Token del QR que usó para registrarse
+  createdAt           DateTime         @default(now())
 
   // Verificación contra el censo electoral (API externa, ver lib/censo.ts).
   // null = nunca verificado · PENDIENTE = encolado, espera webhook · ENCONTRADO
@@ -609,6 +612,10 @@ model TenantConfig {
   // Correo de entrada (agente, vía Postmark Inbound): secreto de la autenticación
   // básica de la URL del webhook. Las respuestas salen por smtpConfig.
   correoEntradaSecreto  String?
+  // Ley 1581: el texto de autorización que ve quien se registra (null = el texto
+  // sugerido de lib/autorizacion-datos) y a dónde escribir para ejercer sus derechos.
+  autorizacionTexto     String?
+  autorizacionContacto  String?
   botName               String? @default("Asistente Virtual")
   surveyDailyLimit      Int     @default(250)
 
@@ -1877,4 +1884,26 @@ model MensajeConversacion {
   conversacion Conversacion @relation(fields: [conversacionId], references: [id], onDelete: Cascade)
 
   @@index([conversacionId, createdAt])
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// AUTORIZACIÓN DE DATOS PERSONALES — Ley 1581 de 2012, Decreto 1377 de 2013
+// ════════════════════════════════════════════════════════════════════════════
+
+/// Prueba de que un elector autorizó el tratamiento de sus datos: el texto
+/// exacto que aceptó, cuándo, por dónde y, si lo declaró alguien del equipo,
+/// quién. Solo se agrega, nunca se edita. voterId va suelto (sin relación) para
+/// que la prueba sobreviva aunque el elector se borre.
+model AutorizacionDatos {
+  id             String    @id @default(cuid())
+  tenantId       String
+  voterId        String
+  canal          String // ENLACE | ALTA_MANUAL | IMPORTACION | PWA
+  texto          String // el texto tal cual se le mostró
+  ip             String? // ENLACE y PWA: desde dónde aceptó
+  declaradaPorId String? // ALTA_MANUAL e IMPORTACION: User.id de quien declara que la persona autorizó
+  fecha          DateTime  @default(now())
+  revocadaEn     DateTime?
+
+  @@index([tenantId, voterId])
 }
