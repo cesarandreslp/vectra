@@ -31,6 +31,7 @@ export const SCREENS: Record<string, ScreenDef> = {
   CORE_USUARIOS:      { label: 'Usuarios y testigos', modulo: 'CORE', path: '/core/usuarios' },
   CORE_CONFIGURACION: { label: 'Configuración',     modulo: 'CORE', path: '/core/configuracion' },
   CORE_DATOS_PERSONALES: { label: 'Datos personales', modulo: 'CORE', path: '/core/datos-personales' },
+  CORE_BITACORA:      { label: 'Bitácora de accesos', modulo: 'CORE', path: '/core/bitacora' },
 
   ANALYTICS_DASHBOARD:     { label: 'Dashboard',     modulo: 'ANALYTICS', path: '/analytics' },
   ANALYTICS_TERRITORIO:    { label: 'Territorio',    modulo: 'ANALYTICS', path: '/analytics/territorio' },

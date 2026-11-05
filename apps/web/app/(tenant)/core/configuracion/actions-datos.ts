@@ -8,6 +8,7 @@ import { getTenantConnection } from '@/lib/tenant'
 import { requireAuth } from '@/lib/auth-helpers'
 import { textoSugerido } from '@/lib/autorizacion-datos'
 import { politicaSugerida } from '@/lib/politica-datos'
+import { registrarEvento } from '@/lib/bitacora'
 
 export interface ConfigDatos {
   texto:     string        // el que escribió la campaña ('' = usa el sugerido)
@@ -42,7 +43,7 @@ export async function getConfigDatos(): Promise<ConfigDatos> {
 }
 
 export async function guardarConfigDatos(texto: string, contacto: string, politica: string): Promise<{ success: true } | { success: false; error: string }> {
-  const { tenantId, db } = await sesionYDb()
+  const { session, tenantId, db } = await sesionYDb()
   const t = typeof texto === 'string' ? texto.trim() : ''
   const k = typeof contacto === 'string' ? contacto.trim() : ''
   const p = typeof politica === 'string' ? politica.trim() : ''
@@ -51,6 +52,7 @@ export async function guardarConfigDatos(texto: string, contacto: string, politi
   if (p.length > 20000) return { success: false, error: 'La política pasa de 20000 caracteres.' }
   const datos = { autorizacionTexto: t || null, autorizacionContacto: k || null, politicaTratamiento: p || null }
   await db.tenantConfig.upsert({ where: { tenantId }, create: { tenantId, ...datos }, update: datos })
+  await registrarEvento(session, 'CAMBIAR_TEXTOS_LEGALES')
   revalidatePath('/core/configuracion')
   return { success: true }
 }

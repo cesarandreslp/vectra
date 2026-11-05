@@ -4,6 +4,7 @@ import { getTenantConnection }         from '@/lib/tenant'
 import { getTenantDb }                from '@vectra/db'
 import { parsearPreviewExcel, procesarImportExcel } from '@/app/(tenant)/core/importar/_lib/excel'
 import { textoAutorizacion } from '@/lib/autorizacion-datos'
+import { registrarEvento } from '@/lib/bitacora'
 import { trasAltaDeElectores } from '@/lib/ubicar-electores'
 
 /**
@@ -81,6 +82,7 @@ export async function POST(request: NextRequest) {
         : undefined,
     )
     if (resultado.created > 0) trasAltaDeElectores(db, session.user.tenantId)
+    await registrarEvento(session, 'IMPORTAR_ELECTORES', `${resultado.created} creados${autorizacionDeclarada ? ', autorización declarada' : ''}`)
 
     return NextResponse.json(resultado)
   } catch (err) {

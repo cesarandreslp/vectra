@@ -2,6 +2,7 @@
 
 import { getTenantDb } from '@vectra/db'
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
+import { registrarEvento } from '@/lib/bitacora'
 import { getTenantConnection } from '@/lib/tenant'
 import { puntoEnPoligono } from '@/lib/geometry'
 import { compromisosParaMeta, leerTasaFuga } from '@/lib/meta-votos'
@@ -29,12 +30,13 @@ const pct = (parte: number, total: number) => (total > 0 ? Math.round((parte / t
 async function contexto() {
   const session = await requireModuleOrScreen('CORE', ['ADMIN_CAMPANA', 'COORDINADOR'], 'CORE_REPORTES')
   const tenantId = session.user.tenantId
-  return { db: getTenantDb(await getTenantConnection(tenantId)), tenantId, modulos: session.user.activeModules }
+  return { db: getTenantDb(await getTenantConnection(tenantId)), tenantId, modulos: session.user.activeModules, session }
 }
 type Db = Awaited<ReturnType<typeof contexto>>['db']
 
 export async function getReporte(id: string): Promise<Reporte | null> {
-  const { db, tenantId, modulos } = await contexto()
+  const { db, tenantId, modulos, session } = await contexto()
+  await registrarEvento(session, 'VER_REPORTE', id) // los reportes salen con datos de personas y se exportan
   switch (id) {
     case 'lideres':    return reporteLideres(db, tenantId)
     case 'compromiso': return reporteCompromiso(db, tenantId)

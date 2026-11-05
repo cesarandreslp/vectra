@@ -1934,3 +1934,27 @@ model SolicitudDatos {
 
   @@index([tenantId, estado, venceEn])
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// BITÁCORA DE ACCESOS (vive en la BD del SUPERADMIN: las campañas no la editan)
+// ════════════════════════════════════════════════════════════════════════════
+
+/// Quién entró, quién vio o sacó datos personales, desde dónde y cuándo
+/// (ISO 27001, control de registro de eventos). También cuenta los intentos
+/// fallidos de login para bloquear la fuerza bruta en todas las instancias.
+/// Nunca guarda contraseñas ni cédulas: el sujeto va enmascarado o como id.
+model RegistroAcceso {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  userId    String? // User.id, o "voter:<id>" en el login de electores
+  accion    String // LOGIN_OK | LOGIN_FALLIDO | LOGIN_BLOQUEADO | VER_FICHA | EXPORTAR | IMPORTAR | SUPRIMIR | REVOCAR | ...
+  detalle   String? // puerta de login, reporte exportado, etc.
+  sujeto    String? // sobre quién: correo, cédula enmascarada (···1234) o voterId
+  claveHash String? // SHA-256 de lo que identifica el intento de login (para contar fallos)
+  ip        String?
+  fecha     DateTime @default(now())
+
+  @@index([claveHash, accion, fecha])
+  @@index([ip, accion, fecha])
+  @@index([tenantId, fecha])
+}

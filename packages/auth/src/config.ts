@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { createHash } from 'crypto'
-import { superadminDb, getTenantDb, decrypt } from '@vectra/db'
+import { superadminDb, getTenantDb, decrypt, registrarAcceso, loginBloqueado, hashClave, enmascarar } from '@vectra/db'
 
 // ── Tipos de sesión ───────────────────────────────────────────────────────────
 // Extender las interfaces de NextAuth para incluir los campos del dominio.
@@ -287,6 +287,42 @@ async function autenticarTestigo(slug: string, cedula: string, fechaNac: string)
   }
 }
 
+// ── Bitácora y bloqueo de fuerza bruta ────────────────────────────────────────
+// Cada intento queda en RegistroAcceso (BD del superadmin). 5 fallos de la
+// misma cuenta, o 30 desde la misma IP, en 15 min → bloqueado hasta que pase
+// la ventana, aunque la clave sea correcta. Se cuenta en la base y no en
+// memoria: en Vercel cada instancia tiene la suya.
+
+function ipDe(req: Request | undefined): string | null {
+  return req?.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? req?.headers.get('x-real-ip') ?? null
+}
+
+async function conBitacora(
+  puerta: string, clave: string, sujeto: string, tenantId: string | null,
+  req: Request | undefined, intentar: () => Promise<ResultadoAuth | null>,
+): Promise<ResultadoAuth | null> {
+  const claveHash = hashClave(clave)
+  const ip = ipDe(req)
+  if (await loginBloqueado(claveHash, ip)) {
+    await registrarAcceso({ tenantId, accion: 'LOGIN_BLOQUEADO', detalle: puerta, sujeto, claveHash, ip })
+    return null
+  }
+  const r = await intentar()
+  await registrarAcceso({
+    tenantId: r?.tenantId ?? tenantId, userId: r?.id ?? null,
+    accion: r ? 'LOGIN_OK' : 'LOGIN_FALLIDO', detalle: puerta, sujeto, claveHash, ip,
+  })
+  return r
+}
+
+async function tenantDeCorreo(email: string): Promise<string | null> {
+  return (await superadminDb.user.findUnique({ where: { email }, select: { tenantId: true } }).catch(() => null))?.tenantId ?? null
+}
+
+async function tenantDeSlug(slug: string): Promise<string | null> {
+  return (await superadminDb.tenant.findUnique({ where: { slug }, select: { id: true } }).catch(() => null))?.id ?? null
+}
+
 // ── Configuración de NextAuth v5 ──────────────────────────────────────────────
 
 /**
@@ -321,13 +357,13 @@ const nextAuth: NextAuthResult = NextAuth((req) => ({
         email:    { label: 'Correo electrónico', type: 'email' },
         password: { label: 'Contraseña',         type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const email    = credentials?.email    as string | undefined
         const password = credentials?.password as string | undefined
 
         if (!email || !password) return null
 
-        return autenticarUsuario(email, password, false)
+        return conBitacora('equipo', email, email, await tenantDeCorreo(email), request, () => autenticarUsuario(email, password, false))
       },
     }),
 
@@ -341,13 +377,13 @@ const nextAuth: NextAuthResult = NextAuth((req) => ({
         email:    { label: 'Correo electrónico', type: 'email' },
         password: { label: 'Contraseña',         type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const email    = credentials?.email    as string | undefined
         const password = credentials?.password as string | undefined
 
         if (!email || !password) return null
 
-        return autenticarUsuario(email, password, true)
+        return conBitacora('superadmin', email, email, await tenantDeCorreo(email), request, () => autenticarUsuario(email, password, true))
       },
     }),
 
@@ -361,14 +397,15 @@ const nextAuth: NextAuthResult = NextAuth((req) => ({
         cedula:   { label: 'Cédula',   type: 'text' },
         telefono: { label: 'Teléfono', type: 'text' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const slug     = credentials?.slug     as string | undefined
         const cedula   = credentials?.cedula   as string | undefined
         const telefono = credentials?.telefono as string | undefined
 
         if (!slug || !cedula || !telefono) return null
 
-        return autenticarElector(slug, cedula, telefono)
+        return conBitacora('elector', `${slug}:${cedula.replace(/\D/g, '')}`, enmascarar(cedula), await tenantDeSlug(slug), request,
+          () => autenticarElector(slug, cedula, telefono))
       },
     }),
 
@@ -382,14 +419,15 @@ const nextAuth: NextAuthResult = NextAuth((req) => ({
         cedula:    { label: 'Cédula',             type: 'text' },
         birthDate: { label: 'Fecha de nacimiento', type: 'text' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const slug      = credentials?.slug      as string | undefined
         const cedula    = credentials?.cedula    as string | undefined
         const birthDate = credentials?.birthDate as string | undefined
 
         if (!slug || !cedula || !birthDate) return null
 
-        return autenticarTestigo(slug, cedula, birthDate)
+        return conBitacora('testigo', `${slug}:${cedula.replace(/\D/g, '')}`, enmascarar(cedula), await tenantDeSlug(slug), request,
+          () => autenticarTestigo(slug, cedula, birthDate))
       },
     }),
   ],

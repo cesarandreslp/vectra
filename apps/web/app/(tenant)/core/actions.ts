@@ -26,6 +26,7 @@ import { cerrarContactos }            from '@/lib/contacto-calle-db'
 import { hashTelefono }               from '@/lib/contacto-calle'
 import { encolarEvento }              from '@/lib/automatizaciones'
 import { registrarAutorizacion, textoAutorizacion } from '@/lib/autorizacion-datos'
+import { registrarEvento } from '@/lib/bitacora'
 import { chatGroq }                   from '@vectra/ai'
 import { getTenantAiKeys }            from '@/lib/tenant-ai'
 import { revalidatePath }             from 'next/cache'
@@ -768,6 +769,7 @@ export async function setVoterActivo(id: string, activo: boolean): Promise<{ suc
 
   const status = activo ? 'ACTIVO' : 'INACTIVO'
   if (v.status === status) return { success: true }
+  await registrarEvento(session, activo ? 'REACTIVAR_ELECTOR' : 'INACTIVAR_ELECTOR', null, id)
   // El cambio y su registro van juntos: un estado sin fecha no sirve para auditar.
   await db.$transaction([
     db.voter.update({ where: { id }, data: { status } }),
@@ -1133,6 +1135,7 @@ export async function getVoterDetalle(id: string): Promise<VoterDetalle | null> 
     },
   })
   if (!v) return null
+  await registrarEvento(session, 'VER_FICHA', null, v.id) // la ficha descifra el celular
   const prueba = v.autorizacionDatosEn
     ? await db.autorizacionDatos.findFirst({
         where: { tenantId: session.user.tenantId, voterId: v.id, revocadaEn: null }, orderBy: { fecha: 'desc' }, select: { canal: true },

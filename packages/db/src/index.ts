@@ -96,6 +96,7 @@ export { Prisma } from '@prisma/client'
 // ── Librería de cifrado ───────────────────────────────────────────────────────
 // Única fuente de cifrado/descifrado en todo el proyecto
 export { encrypt, decrypt, CryptoError } from './crypto'
+export { registrarAcceso, loginBloqueado, hashClave, enmascarar, MAX_FALLOS_CUENTA, MAX_FALLOS_IP, type EventoAcceso } from './bitacora'
 export type {} from './crypto' // Los tipos se exportan via las clases
 
 // ── Provisionador de tenants ──────────────────────────────────────────────────

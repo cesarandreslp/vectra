@@ -7,6 +7,7 @@ import { getTenantDb, decrypt } from '@vectra/db'
 import { getTenantConnection } from '@/lib/tenant'
 import { requireModuleOrScreen } from '@/lib/auth-helpers'
 import { revocarAutorizacion, suprimirElector } from '@/lib/supresion-datos'
+import { registrarEvento } from '@/lib/bitacora'
 
 export interface FilaSolicitud {
   id: string; tipo: string; nombre: string; contacto: string; detalle: string; estado: string
@@ -69,6 +70,7 @@ export async function atenderSolicitud(id: string, respuesta: string, accion: 'N
     }
   }
 
+  await registrarEvento(session, hecho === 'SUPRIMIDO' ? 'SUPRIMIR_DATOS' : hecho === 'REVOCADA' ? 'REVOCAR_AUTORIZACION' : 'ATENDER_SOLICITUD', s.tipo, s.voterId)
   await db.solicitudDatos.update({
     where: { id },
     data: { estado: 'ATENDIDA', respuesta: texto, accion: hecho, atendidaEn: new Date(), atendidaPorId: session.user.userId },
